@@ -132,14 +132,6 @@ export default function LiveSearchIdle({
 
   return (
     <View style={styles.container}>
-      {/* Players Searching Banner */}
-      <View style={styles.playersBanner}>
-        <IconSymbol size={14} name="magnifyingglass" color="#4CAF50" />
-        <ThemedText style={styles.playersBannerText}>
-          <ThemedText style={styles.playersBannerCount}>12,482</ThemedText> players searching now
-        </ThemedText>
-      </View>
-
       {/* Animated Orb */}
       <View style={styles.orbContainer}>
         <Animated.View style={[styles.orbRing, ringStyle]} />
@@ -315,27 +307,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingBottom: 20,
     overflow: 'visible',
-  },
-
-  // Players Banner
-  playersBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    gap: 8,
-    marginBottom: 12,
-  },
-  playersBannerText: {
-    fontSize: 13,
-    color: '#999',
-  },
-  playersBannerCount: {
-    color: '#4CAF50',
-    fontWeight: '700',
   },
 
   // Orb

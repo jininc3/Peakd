@@ -679,63 +679,60 @@ export default function LeaderboardScreen() {
                   {/* Your Progress Card */}
                   {currentUser && (
                     <View style={styles.yourProgressWrapper}>
-                      {/* User info row */}
-                      <View style={styles.yourProgressUserRow}>
-                        <View style={styles.yourProgressUserLeft}>
-                          <View style={styles.youBadge}>
-                            <ThemedText style={styles.youBadgeText}>You</ThemedText>
-                          </View>
-                          <View style={styles.yourProgressAvatarRing}>
-                            <View style={styles.yourProgressAvatar}>
-                              {currentUser.avatar ? (
-                                <CachedImage uri={currentUser.avatar} style={styles.yourProgressAvatarImage} />
-                              ) : (
-                                <ThemedText style={styles.yourProgressAvatarFallback}>
-                                  {currentUser.username.charAt(0).toUpperCase()}
-                                </ThemedText>
-                              )}
-                            </View>
-                          </View>
-                          <ThemedText style={styles.yourProgressUsername} numberOfLines={1}>
-                            {currentUser.username}
-                          </ThemedText>
+                      {/* Hero section */}
+                      <View style={styles.yourProgressHero}>
+                        <View style={styles.youBadge}>
+                          <ThemedText style={styles.youBadgeText}>YOUR STANDING</ThemedText>
                         </View>
-                        <View style={styles.yourProgressRankRight}>
-                          <Image
-                            source={isLeague ? getLeagueRankIcon(currentUser.currentRank) : getValorantRankIcon(currentUser.currentRank)}
-                            style={styles.yourProgressRankIcon}
-                            resizeMode="contain"
-                          />
-                          <View>
-                            <ThemedText style={styles.yourProgressRankText}>
-                              {formatRankDisplay(currentUser.currentRank)}
+                        <View style={styles.yourProgressUserRow}>
+                          <View style={styles.yourProgressUserLeft}>
+                            <View style={styles.yourProgressAvatarRing}>
+                              <View style={styles.yourProgressAvatar}>
+                                {currentUser.avatar ? (
+                                  <CachedImage uri={currentUser.avatar} style={styles.yourProgressAvatarImage} />
+                                ) : (
+                                  <ThemedText style={styles.yourProgressAvatarFallback}>
+                                    {currentUser.username.charAt(0).toUpperCase()}
+                                  </ThemedText>
+                                )}
+                              </View>
+                            </View>
+                            <ThemedText style={styles.yourProgressUsername} numberOfLines={1}>
+                              {currentUser.username}
                             </ThemedText>
-                            <ThemedText style={styles.yourProgressRankPoints}>
-                              {isLeague ? `${currentUser.lp || 0} LP` : `${currentUser.rr || 0} RR`}
-                            </ThemedText>
+                          </View>
+                          <View style={styles.yourProgressRankRight}>
+                            <Image
+                              source={isLeague ? getLeagueRankIcon(currentUser.currentRank) : getValorantRankIcon(currentUser.currentRank)}
+                              style={styles.yourProgressRankIcon}
+                              resizeMode="contain"
+                            />
+                            <View>
+                              <ThemedText style={styles.yourProgressRankText}>
+                                {formatRankDisplay(currentUser.currentRank)}
+                              </ThemedText>
+                              <ThemedText style={styles.yourProgressRankPoints}>
+                                {isLeague ? `${currentUser.lp || 0} LP` : `${currentUser.rr || 0} RR`}
+                              </ThemedText>
+                            </View>
                           </View>
                         </View>
                       </View>
 
                       {/* Progress section */}
                       <View style={styles.yourProgressBottom}>
-                        <View style={styles.yourProgressTopRow}>
-                          <ThemedText style={styles.yourProgressRankName}>
-                            {formatRankDisplay(currentUser.currentRank)}
-                          </ThemedText>
-                          {(() => {
-                            const dailyGain = isLeague ? (userGameStats?.lpToday || 0) : (userGameStats?.rrToday || 0);
-                            const unit = isLeague ? 'LP' : 'RR';
-                            if (dailyGain === 0) return null;
-                            return (
-                              <View style={[styles.dailyGainBadge, dailyGain < 0 && styles.dailyGainBadgeNegative]}>
-                                <ThemedText style={[styles.dailyGainText, dailyGain < 0 && styles.dailyGainTextNegative]}>
-                                  {dailyGain > 0 ? '+' : ''}{dailyGain} {unit} today
-                                </ThemedText>
-                              </View>
-                            );
-                          })()}
-                        </View>
+                        {(() => {
+                          const dailyGain = isLeague ? (userGameStats?.lpToday || 0) : (userGameStats?.rrToday || 0);
+                          const unit = isLeague ? 'LP' : 'RR';
+                          if (dailyGain === 0) return null;
+                          return (
+                            <View style={[styles.dailyGainBadge, dailyGain < 0 && styles.dailyGainBadgeNegative]}>
+                              <ThemedText style={[styles.dailyGainText, dailyGain < 0 && styles.dailyGainTextNegative]}>
+                                {dailyGain > 0 ? '+' : ''}{dailyGain} {unit} today
+                              </ThemedText>
+                            </View>
+                          );
+                        })()}
                         <View style={styles.progressBarTrack}>
                           <View
                             style={[
@@ -1205,47 +1202,55 @@ const styles = StyleSheet.create({
   },
   // Your Progress card styles
   yourProgressWrapper: {
-    marginTop: 14,
-    borderRadius: 14,
+    marginTop: 20,
+    borderRadius: 18,
     backgroundColor: '#1a1a1a',
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.15)',
+    borderColor: 'rgba(139, 127, 232, 0.25)',
     overflow: 'hidden',
+  },
+  yourProgressHero: {
+    alignItems: 'center',
+    paddingTop: 22,
+    paddingBottom: 18,
+    paddingHorizontal: 20,
+    gap: 12,
   },
   yourProgressUserRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    width: '100%',
   },
   yourProgressUserLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     flex: 1,
   },
   youBadge: {
-    backgroundColor: 'rgba(139, 127, 232, 0.12)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 8,
   },
   youBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#8B7FE8',
+    letterSpacing: 1,
   },
   yourProgressAvatarRing: {
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(139, 127, 232, 0.35)',
-    padding: 1.5,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(139, 127, 232, 0.4)',
+    padding: 2,
   },
   yourProgressAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: '#252525',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1254,55 +1259,46 @@ const styles = StyleSheet.create({
   yourProgressAvatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 14,
+    borderRadius: 26,
   },
   yourProgressAvatarFallback: {
-    fontSize: 12,
+    fontSize: 20,
     fontWeight: '700',
     color: '#888',
   },
   yourProgressUsername: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#22C55E',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
     flexShrink: 1,
   },
   yourProgressRankRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   yourProgressRankIcon: {
-    width: 22,
-    height: 22,
+    width: 36,
+    height: 36,
   },
   yourProgressRankText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#fff',
   },
   yourProgressRankPoints: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '500',
     color: '#666',
   },
   yourProgressBottom: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     backgroundColor: '#151515',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.04)',
-  },
-  yourProgressTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  yourProgressRankName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
+    gap: 8,
   },
   dailyGainBadge: {
     backgroundColor: 'rgba(34, 197, 94, 0.1)',
@@ -1325,16 +1321,16 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   progressBarTrack: {
-    height: 5,
+    height: 6,
     backgroundColor: '#252525',
-    borderRadius: 2.5,
+    borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 6,
+    width: '100%',
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: '#8B7FE8',
-    borderRadius: 2.5,
+    borderRadius: 3,
   },
   progressBarLabel: {
     fontSize: 11,

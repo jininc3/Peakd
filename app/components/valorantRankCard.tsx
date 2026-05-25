@@ -210,6 +210,7 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
   const [cardPosition, setCardPosition] = useState({ x: 20, y: SCREEN_HEIGHT - 350, width: 0 });
   const [showMatchHistory, setShowMatchHistory] = useState(false);
   const [matchHistoryExpanded, setMatchHistoryExpanded] = useState(false);
+  const [statsScrollEnabled, setStatsScrollEnabled] = useState(true);
   const [statsPage, setStatsPage] = useState(0);
   const [rankHistory, setRankHistory] = useState<RankHistoryEntry[]>([]);
   const [stackShowBack, setStackShowBack] = useState(initialFlipped);
@@ -663,6 +664,7 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
     const dy = e.nativeEvent.pageY - statsDragStartY.current;
     if (statsScrollOffset.current <= 0 && dy > 10 && !isStatsDragging.current) {
       isStatsDragging.current = true;
+      setStatsScrollEnabled(false);
       stackCardOpacityRef.current.setValue(1);
     }
     if (isStatsDragging.current && dy > 0) {
@@ -676,6 +678,7 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
     if (!isStatsDragging.current) return;
     const dy = e.nativeEvent.pageY - statsDragStartY.current;
     isStatsDragging.current = false;
+    setStatsScrollEnabled(true);
     if (dy > SCREEN_HEIGHT / 6) {
       dismissCardRef.current();
     } else {
@@ -1007,8 +1010,8 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
 
           {/* View More - only on stack card */}
           {!isModal && (
-            <TouchableOpacity style={[styles.viewMoreButton, { borderColor: `rgba(${rgb}, 0.3)` }]} onPress={handlePress} activeOpacity={0.7}>
-              <ThemedText style={styles.viewMoreText}>More stats  ›</ThemedText>
+            <TouchableOpacity style={styles.viewMoreButton} onPress={handlePress} activeOpacity={0.7}>
+              <ThemedText style={styles.viewMoreText}>view stats  →</ThemedText>
             </TouchableOpacity>
           )}
         </View>
@@ -1210,7 +1213,7 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
             contentContainerStyle={{ paddingBottom: 40 }}
             scrollEventThrottle={16}
             onScroll={(e) => { statsScrollOffset.current = e.nativeEvent.contentOffset.y; }}
-            scrollEnabled={!isStatsDragging.current}
+            scrollEnabled={statsScrollEnabled}
             bounces={false}
             onTouchStart={handleStatsTouchStart}
             onTouchMove={handleStatsTouchMove}
@@ -1764,19 +1767,15 @@ const styles = StyleSheet.create({
     marginTop: -1,
   },
   viewMoreButton: {
-    alignSelf: 'center',
+    alignSelf: 'flex-end',
     paddingVertical: 3,
     paddingHorizontal: 10,
     marginTop: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   viewMoreText: {
     fontSize: 11,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.5)',
+    color: '#B39DDB',
     letterSpacing: 0.3,
   },
   // Bottom Stats Bar
