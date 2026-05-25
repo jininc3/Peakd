@@ -1,13 +1,14 @@
+import LeaderboardCard from '@/app/components/leaderboardCard';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { LeaderboardsTabSkeleton } from '@/components/ui/Skeleton';
+import { LeaderboardsTabSkeleton, LeaderboardCardSkeleton } from '@/components/ui/Skeleton';
 import CachedImage from '@/components/ui/CachedImage';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from '@/hooks/useRouter';
 import { collection, doc, getDoc, getDocs, query, where, onSnapshot } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { ActivityIndicator, Dimensions, Image, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { formatRankDisplay } from '@/utils/formatRankDisplay';
@@ -258,6 +259,33 @@ interface MutualPlayer {
   isCurrentUser?: boolean;
 }
 
+// Module-level cache for lobbies
+let cachedLobbies: any[] | null = null;
+let prefetchedLobbyImages = new Set<string>();
+
+const MINIMUM_SKELETON_TIME = 400;
+
+const getLobbiesLeagueRankValue = (currentRank: string, lp: number): number => {
+  const rankOrder: { [key: string]: number } = {
+    'CHALLENGER': 10, 'GRANDMASTER': 9, 'MASTER': 8, 'DIAMOND': 7,
+    'EMERALD': 6, 'PLATINUM': 5, 'GOLD': 4, 'SILVER': 3,
+    'BRONZE': 2, 'IRON': 1, 'UNRANKED': 0,
+  };
+  const divisionOrder: { [key: string]: number } = { 'I': 4, 'II': 3, 'III': 2, 'IV': 1 };
+  const parts = currentRank.toUpperCase().split(' ');
+  return (rankOrder[parts[0]] || 0) * 1000 + (divisionOrder[parts[1]] || 0) * 100 + lp;
+};
+
+const getLobbiesValorantRankValue = (currentRank: string, rr: number): number => {
+  const rankOrder: { [key: string]: number } = {
+    'RADIANT': 9, 'IMMORTAL': 8, 'ASCENDANT': 7, 'DIAMOND': 6,
+    'PLATINUM': 5, 'GOLD': 4, 'SILVER': 3, 'BRONZE': 2,
+    'IRON': 1, 'UNRANKED': 0,
+  };
+  const parts = currentRank.toUpperCase().split(' ');
+  return (rankOrder[parts[0]] || 0) * 1000 + (parseInt(parts[1]) || 0) * 100 + rr;
+};
+
 export default function LeaderboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -271,6 +299,15 @@ export default function LeaderboardScreen() {
   const [lobbyCount, setLobbyCount] = useState(0);
   const [rankChanges, setRankChanges] = useState<Record<string, 'up' | 'down' | null>>({});
   const [userGameStats, setUserGameStats] = useState<{ rr: number; lp: number; rrToday: number; lpToday: number } | null>(null);
+  const [activeHeaderTab, setActiveHeaderTab] = useState<'leaderboard' | 'lobbies'>('leaderboard');
+  const pagerRef = useRef<ScrollView>(null);
+
+  // Lobbies state
+  const [lobbies, setLobbies] = useState<any[]>(cachedLobbies || []);
+  const [lobbiesLoading, setLobbiesLoading] = useState(!cachedLobbies);
+  const [lobbiesSubTab, setLobbiesSubTab] = useState<'all' | 'active'>('all');
+  const lobbySkeletonStartTime = useRef<number>(Date.now());
+  const isFirstLobbyLoad = useRef(!cachedLobbies);
 
   // Listen for user's active lobbies count
   useEffect(() => {
@@ -447,6 +484,191 @@ export default function LeaderboardScreen() {
       }
     })();
   }, [selectedMutualGame, leaguePlayers, valorantPlayers]);
+
+  // Fetch lobbies from Firestore
+  useEffect(() => {
+    if (!user?.id) {
+      setLobbiesLoading(false);
+      return;
+    }
+
+    const partiesRef = collection(db, 'parties');
+    const partiesQuery = query(partiesRef, where('members', 'array-contains', user.id));
+
+    const unsubscribe = onSnapshot(partiesQuery, (snapshot) => {
+      setLobbies((prev) => {
+        const updated = snapshot.docs
+          .map((docSnapshot) => {
+            const data = docSnapshot.data();
+            const docId = docSnapshot.id;
+            if (data.type === 'party') return null;
+
+            const existing = prev.find(p => p.id === docId);
+
+            return {
+              id: docId,
+              name: data.partyName,
+              game: data.game,
+              members: data.members?.length || 0,
+              maxMembers: data.maxMembers || 10,
+              memberIds: data.members || [],
+              memberDetails: data.memberDetails || [],
+              description: `Created on ${data.startDate}`,
+              icon: data.game === 'Valorant' ? '🎯' : data.game === 'League of Legends' ? '💎' : '🎮',
+              userRank: existing?.userRank ?? null,
+              isJoined: true,
+              players: existing?.players || [],
+              startDate: data.startDate,
+              endDate: data.endDate,
+              type: data.type || 'leaderboard',
+              coverPhoto: data.coverPhoto || null,
+              partyIcon: data.partyIcon || null,
+              partyId: data.partyId || docId,
+              challengeStatus: data.challengeStatus || 'active',
+              challengeParticipants: data.challengeParticipants || [],
+            };
+          })
+          .filter(Boolean);
+
+        cachedLobbies = updated;
+
+        requestAnimationFrame(() => {
+          updated.forEach((lb: any) => {
+            if (lb.partyIcon && !prefetchedLobbyImages.has(lb.partyIcon)) {
+              prefetchedLobbyImages.add(lb.partyIcon);
+              Image.prefetch(lb.partyIcon).catch(() => {});
+            }
+            const members = lb.memberDetails?.length ? lb.memberDetails : lb.players || [];
+            members.slice(0, 3).forEach((m: any) => {
+              const photo = m?.avatar || m?.photoUrl;
+              if (photo && !prefetchedLobbyImages.has(photo)) {
+                prefetchedLobbyImages.add(photo);
+                Image.prefetch(photo).catch(() => {});
+              }
+            });
+          });
+        });
+
+        return updated;
+      });
+
+      if (isFirstLobbyLoad.current) {
+        const elapsedTime = Date.now() - lobbySkeletonStartTime.current;
+        const remainingTime = Math.max(0, MINIMUM_SKELETON_TIME - elapsedTime);
+        setTimeout(() => {
+          setLobbiesLoading(false);
+          isFirstLobbyLoad.current = false;
+        }, remainingTime);
+      } else {
+        setLobbiesLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.id]);
+
+  // Enrich lobbies with sorted player rank data
+  useEffect(() => {
+    if (lobbiesLoading || lobbies.length === 0) return;
+
+    const enrichWithRanks = async () => {
+      const enriched = await Promise.all(
+        lobbies.map(async (lb: any) => {
+          if (lb.players && lb.players.length > 0 && lb.players[0].currentRank) return lb;
+
+          const memberDetails = lb.memberDetails || [];
+          if (memberDetails.length === 0) return lb;
+
+          const isLeague = lb.game === 'League of Legends' || lb.game === 'League';
+          const gameStatsPath = isLeague ? 'league' : 'valorant';
+
+          try {
+            const playerPromises = memberDetails.map(async (member: any) => {
+              try {
+                const statsDoc = await getDoc(doc(db, 'users', member.userId, 'gameStats', gameStatsPath));
+                let stats = statsDoc.data();
+
+                if (!stats?.currentRank) {
+                  const userDoc = await getDoc(doc(db, 'users', member.userId));
+                  const userData = userDoc.data();
+                  if (isLeague && userData?.riotStats?.rankedSolo) {
+                    stats = { currentRank: `${userData.riotStats.rankedSolo.tier} ${userData.riotStats.rankedSolo.rank}`, lp: userData.riotStats.rankedSolo.leaguePoints || 0 };
+                  } else if (!isLeague && userData?.valorantStats) {
+                    stats = { currentRank: userData.valorantStats.currentRank || 'Unranked', rr: userData.valorantStats.rankRating || 0 };
+                  }
+                }
+
+                return {
+                  userId: member.userId,
+                  username: member.username,
+                  avatar: member.avatar,
+                  currentRank: stats?.currentRank || 'Unranked',
+                  lp: stats?.lp || 0,
+                  rr: stats?.rr || 0,
+                };
+              } catch {
+                return { userId: member.userId, username: member.username, avatar: member.avatar, currentRank: 'Unranked', lp: 0, rr: 0 };
+              }
+            });
+
+            const players = await Promise.all(playerPromises);
+            players.sort((a, b) => {
+              if (isLeague) return getLobbiesLeagueRankValue(b.currentRank, b.lp) - getLobbiesLeagueRankValue(a.currentRank, a.lp);
+              return getLobbiesValorantRankValue(b.currentRank, b.rr) - getLobbiesValorantRankValue(a.currentRank, a.rr);
+            });
+            players.forEach((p: any, i: number) => { p.rank = i + 1; });
+
+            return { ...lb, players };
+          } catch {
+            return lb;
+          }
+        })
+      );
+
+      setLobbies(enriched);
+      cachedLobbies = enriched;
+    };
+
+    enrichWithRanks();
+  }, [lobbiesLoading, lobbies.length]);
+
+  const handleLobbyPress = useCallback((leaderboard: any) => {
+    if (leaderboard.challengeStatus === 'completed') {
+      router.push({
+        pathname: '/partyPages/leaderboardResults',
+        params: {
+          name: leaderboard.name,
+          icon: leaderboard.icon,
+          game: leaderboard.game,
+          members: leaderboard.members.toString(),
+          id: leaderboard.id,
+          startDate: leaderboard.startDate,
+          endDate: leaderboard.endDate,
+        },
+      });
+    } else {
+      router.push({
+        pathname: '/partyPages/leaderboardDetail',
+        params: {
+          name: leaderboard.name,
+          icon: leaderboard.icon,
+          game: leaderboard.game,
+          members: leaderboard.members.toString(),
+          players: JSON.stringify(leaderboard.players),
+          id: leaderboard.id,
+          startDate: leaderboard.startDate,
+          endDate: leaderboard.endDate,
+        },
+      });
+    }
+  }, [router]);
+
+  const filteredLobbies = useMemo(() => {
+    if (lobbiesSubTab === 'active') return lobbies.filter(lb => lb.challengeStatus !== 'completed');
+    return lobbies;
+  }, [lobbies, lobbiesSubTab]);
+
+  const activeLobbiesCount = useMemo(() => lobbies.filter(lb => lb.challengeStatus !== 'completed').length, [lobbies]);
 
   const getBorderColor = (rank: number) => {
     if (rank === 1) return '#FFD700';
@@ -632,127 +854,240 @@ export default function LeaderboardScreen() {
       </View>
 
       <View style={styles.header}>
-        <View>
-          <ThemedText style={styles.headerTitle}>Leaderboards</ThemedText>
-          <ThemedText style={styles.headerSubtitle}>See who's climbing the ranks.</ThemedText>
+        <ThemedText style={styles.headerTitle}>Leaderboards</ThemedText>
+        <ThemedText style={styles.headerSubtitle}>See who's climbing the ranks.</ThemedText>
+        <View style={styles.headerTabs}>
+          <TouchableOpacity
+            style={[styles.headerTab, activeHeaderTab === 'leaderboard' && styles.headerTabActive]}
+            onPress={() => {
+              setActiveHeaderTab('leaderboard');
+              pagerRef.current?.scrollTo({ x: 0, animated: true });
+            }}
+            activeOpacity={0.7}
+          >
+            <IconSymbol size={14} name="list.clipboard" color={activeHeaderTab === 'leaderboard' ? '#8B7FE8' : '#555'} />
+            <ThemedText style={[styles.headerTabText, activeHeaderTab === 'leaderboard' && styles.headerTabTextActive]}>Leaderboard</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.headerTab, activeHeaderTab === 'lobbies' && styles.headerTabActive]}
+            onPress={() => {
+              setActiveHeaderTab('lobbies');
+              pagerRef.current?.scrollTo({ x: screenWidth, animated: true });
+            }}
+            activeOpacity={0.7}
+          >
+            <IconSymbol size={14} name="person.2" color={activeHeaderTab === 'lobbies' ? '#8B7FE8' : '#555'} />
+            <ThemedText style={[styles.headerTabText, activeHeaderTab === 'lobbies' && styles.headerTabTextActive]}>Lobbies</ThemedText>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.lobbiesChip}
-          onPress={() => router.push('/partyPages/lobbies')}
-          activeOpacity={0.7}
-        >
-          <IconSymbol size={16} name="hexagon" color="#8B7FE8" />
-          <ThemedText style={styles.lobbiesChipText}>Lobbies</ThemedText>
-          <IconSymbol size={14} name="chevron.right" color="#8B7FE8" />
-        </TouchableOpacity>
       </View>
 
       <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.pageContent}
+        ref={pagerRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          const page = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+          const newTab = page === 0 ? 'leaderboard' : 'lobbies';
+          if (newTab !== activeHeaderTab) setActiveHeaderTab(newTab);
+        }}
+        style={{ flex: 1 }}
       >
-        {mutualLoading ? (
-          <LeaderboardsTabSkeleton />
-        ) : leaguePlayers.length + valorantPlayers.length === 0 ? (
-          <View style={styles.emptyState}>
-            <ThemedText style={styles.emptyStateTitle}>No friends to{'\n'}rank yet</ThemedText>
-            <ThemedText style={styles.emptyStateSubtext}>
-              Follow users who follow you back to see mutual rankings.
-            </ThemedText>
-          </View>
-        ) : (
-          <View>
-            {(() => {
-              const activePlayers = selectedMutualGame === 'league' ? leaguePlayers : valorantPlayers;
-              const fallbackGame = selectedMutualGame === 'league' ? 'valorant' : 'league';
-              const fallbackPlayers = selectedMutualGame === 'league' ? valorantPlayers : leaguePlayers;
-              const usedPlayers = activePlayers.length > 0 ? activePlayers : fallbackPlayers;
-              const usedGame = activePlayers.length > 0 ? selectedMutualGame : fallbackGame;
+        {/* Leaderboard page */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.pageContent}
+          style={{ width: screenWidth }}
+          nestedScrollEnabled
+        >
+          {mutualLoading ? (
+            <LeaderboardsTabSkeleton />
+          ) : leaguePlayers.length + valorantPlayers.length === 0 ? (
+            <View style={styles.emptyState}>
+              <ThemedText style={styles.emptyStateTitle}>No friends to{'\n'}rank yet</ThemedText>
+              <ThemedText style={styles.emptyStateSubtext}>
+                Follow users who follow you back to see mutual rankings.
+              </ThemedText>
+            </View>
+          ) : (
+            <View>
+              {(() => {
+                const activePlayers = selectedMutualGame === 'league' ? leaguePlayers : valorantPlayers;
+                const fallbackGame = selectedMutualGame === 'league' ? 'valorant' : 'league';
+                const fallbackPlayers = selectedMutualGame === 'league' ? valorantPlayers : leaguePlayers;
+                const usedPlayers = activePlayers.length > 0 ? activePlayers : fallbackPlayers;
+                const usedGame = activePlayers.length > 0 ? selectedMutualGame : fallbackGame;
 
-              const currentUser = usedPlayers.find(p => p.isCurrentUser);
-              const isLeague = usedGame === 'league';
+                const currentUser = usedPlayers.find(p => p.isCurrentUser);
+                const isLeague = usedGame === 'league';
 
-              return (
-                <>
-                  {renderMutualLeaderboard(usedPlayers, usedGame)}
+                return (
+                  <>
+                    {renderMutualLeaderboard(usedPlayers, usedGame)}
 
-                  {/* Your Progress Card */}
-                  {currentUser && (
-                    <View style={styles.yourProgressWrapper}>
-                      {/* Hero section */}
-                      <View style={styles.yourProgressHero}>
-                        <View style={styles.youBadge}>
-                          <ThemedText style={styles.youBadgeText}>YOUR STANDING</ThemedText>
-                        </View>
-                        <View style={styles.yourProgressUserRow}>
-                          <View style={styles.yourProgressUserLeft}>
-                            <View style={styles.yourProgressAvatarRing}>
-                              <View style={styles.yourProgressAvatar}>
-                                {currentUser.avatar ? (
-                                  <CachedImage uri={currentUser.avatar} style={styles.yourProgressAvatarImage} />
-                                ) : (
-                                  <ThemedText style={styles.yourProgressAvatarFallback}>
-                                    {currentUser.username.charAt(0).toUpperCase()}
-                                  </ThemedText>
-                                )}
+                    {/* Your Progress Card */}
+                    {currentUser && (
+                      <View style={styles.yourProgressWrapper}>
+                        <View style={styles.yourProgressHero}>
+                          <View style={styles.youBadge}>
+                            <ThemedText style={styles.youBadgeText}>YOUR STANDING</ThemedText>
+                          </View>
+                          <View style={styles.yourProgressUserRow}>
+                            <View style={styles.yourProgressUserLeft}>
+                              <View style={styles.yourProgressAvatarRing}>
+                                <View style={styles.yourProgressAvatar}>
+                                  {currentUser.avatar ? (
+                                    <CachedImage uri={currentUser.avatar} style={styles.yourProgressAvatarImage} />
+                                  ) : (
+                                    <ThemedText style={styles.yourProgressAvatarFallback}>
+                                      {currentUser.username.charAt(0).toUpperCase()}
+                                    </ThemedText>
+                                  )}
+                                </View>
+                              </View>
+                              <ThemedText style={styles.yourProgressUsername} numberOfLines={1}>
+                                {currentUser.username}
+                              </ThemedText>
+                            </View>
+                            <View style={styles.yourProgressRankRight}>
+                              <Image
+                                source={isLeague ? getLeagueRankIcon(currentUser.currentRank) : getValorantRankIcon(currentUser.currentRank)}
+                                style={styles.yourProgressRankIcon}
+                                resizeMode="contain"
+                              />
+                              <View>
+                                <ThemedText style={styles.yourProgressRankText}>
+                                  {formatRankDisplay(currentUser.currentRank)}
+                                </ThemedText>
+                                <ThemedText style={styles.yourProgressRankPoints}>
+                                  {isLeague ? `${currentUser.lp || 0} LP` : `${currentUser.rr || 0} RR`}
+                                </ThemedText>
                               </View>
                             </View>
-                            <ThemedText style={styles.yourProgressUsername} numberOfLines={1}>
-                              {currentUser.username}
-                            </ThemedText>
-                          </View>
-                          <View style={styles.yourProgressRankRight}>
-                            <Image
-                              source={isLeague ? getLeagueRankIcon(currentUser.currentRank) : getValorantRankIcon(currentUser.currentRank)}
-                              style={styles.yourProgressRankIcon}
-                              resizeMode="contain"
-                            />
-                            <View>
-                              <ThemedText style={styles.yourProgressRankText}>
-                                {formatRankDisplay(currentUser.currentRank)}
-                              </ThemedText>
-                              <ThemedText style={styles.yourProgressRankPoints}>
-                                {isLeague ? `${currentUser.lp || 0} LP` : `${currentUser.rr || 0} RR`}
-                              </ThemedText>
-                            </View>
                           </View>
                         </View>
-                      </View>
 
-                      {/* Progress section */}
-                      <View style={styles.yourProgressBottom}>
-                        {(() => {
-                          const dailyGain = isLeague ? (userGameStats?.lpToday || 0) : (userGameStats?.rrToday || 0);
-                          const unit = isLeague ? 'LP' : 'RR';
-                          if (dailyGain === 0) return null;
-                          return (
-                            <View style={[styles.dailyGainBadge, dailyGain < 0 && styles.dailyGainBadgeNegative]}>
-                              <ThemedText style={[styles.dailyGainText, dailyGain < 0 && styles.dailyGainTextNegative]}>
-                                {dailyGain > 0 ? '+' : ''}{dailyGain} {unit} today
-                              </ThemedText>
-                            </View>
-                          );
-                        })()}
-                        <View style={styles.progressBarTrack}>
-                          <View
-                            style={[
-                              styles.progressBarFill,
-                              { width: `${Math.min(100, isLeague ? (currentUser.lp || 0) : (currentUser.rr || 0))}%` },
-                            ]}
-                          />
+                        <View style={styles.yourProgressBottom}>
+                          {(() => {
+                            const dailyGain = isLeague ? (userGameStats?.lpToday || 0) : (userGameStats?.rrToday || 0);
+                            const unit = isLeague ? 'LP' : 'RR';
+                            if (dailyGain === 0) return null;
+                            return (
+                              <View style={[styles.dailyGainBadge, dailyGain < 0 && styles.dailyGainBadgeNegative]}>
+                                <ThemedText style={[styles.dailyGainText, dailyGain < 0 && styles.dailyGainTextNegative]}>
+                                  {dailyGain > 0 ? '+' : ''}{dailyGain} {unit} today
+                                </ThemedText>
+                              </View>
+                            );
+                          })()}
+                          <View style={styles.progressBarTrack}>
+                            <View
+                              style={[
+                                styles.progressBarFill,
+                                { width: `${Math.min(100, isLeague ? (currentUser.lp || 0) : (currentUser.rr || 0))}%` },
+                              ]}
+                            />
+                          </View>
+                          <ThemedText style={styles.progressBarLabel}>
+                            {isLeague ? `${currentUser.lp || 0}` : `${currentUser.rr || 0}`} / 100 {isLeague ? 'LP' : 'RR'}
+                          </ThemedText>
                         </View>
-                        <ThemedText style={styles.progressBarLabel}>
-                          {isLeague ? `${currentUser.lp || 0}` : `${currentUser.rr || 0}`} / 100 {isLeague ? 'LP' : 'RR'}
-                        </ThemedText>
                       </View>
-                    </View>
-                  )}
-                </>
-              );
-            })()}
+                    )}
+                  </>
+                );
+              })()}
+            </View>
+          )}
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+
+        {/* Lobbies page */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.lobbiesContent}
+          style={{ width: screenWidth }}
+          nestedScrollEnabled
+        >
+          {/* Lobbies sub-tabs + create button */}
+          <View style={styles.lobbiesHeader}>
+            <View style={styles.lobbiesSubTabs}>
+              <TouchableOpacity
+                style={[styles.lobbiesSubTab, lobbiesSubTab === 'all' && styles.lobbiesSubTabActive]}
+                onPress={() => setLobbiesSubTab('all')}
+              >
+                <ThemedText style={[styles.lobbiesSubTabText, lobbiesSubTab === 'all' && styles.lobbiesSubTabTextActive]}>All</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.lobbiesSubTab, lobbiesSubTab === 'active' && styles.lobbiesSubTabActive]}
+                onPress={() => setLobbiesSubTab('active')}
+              >
+                <ThemedText style={[styles.lobbiesSubTabText, lobbiesSubTab === 'active' && styles.lobbiesSubTabTextActive]}>Active</ThemedText>
+                {activeLobbiesCount > 0 && (
+                  <View style={styles.lobbiesSubTabBadge}>
+                    <ThemedText style={styles.lobbiesSubTabBadgeText}>{activeLobbiesCount}</ThemedText>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.lobbiesCreateButton}
+              onPress={() => router.push('/partyPages/createLeaderboardName')}
+              activeOpacity={0.7}
+            >
+              <IconSymbol size={14} name="plus" color="#8B7FE8" />
+              <ThemedText style={styles.lobbiesCreateButtonText}>Create</ThemedText>
+            </TouchableOpacity>
           </View>
-        )}
-        <View style={styles.bottomSpacer} />
+
+          {lobbiesLoading ? (
+            <View>
+              {[1, 2, 3].map((i) => (
+                <LeaderboardCardSkeleton key={i} />
+              ))}
+            </View>
+          ) : filteredLobbies.length > 0 ? (
+            <View>
+              {filteredLobbies.map((leaderboard, index) => (
+                <LeaderboardCard
+                  key={leaderboard.id}
+                  leaderboard={leaderboard}
+                  onPress={handleLobbyPress}
+                  showDivider={index < filteredLobbies.length - 1}
+                  currentUserId={user?.id}
+                />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.lobbiesEmptyState}>
+              <ThemedText style={styles.lobbiesEmptyText}>No lobbies yet</ThemedText>
+              <ThemedText style={styles.lobbiesEmptySubtext}>
+                Create a lobby to compete with friends
+              </ThemedText>
+            </View>
+          )}
+
+          {/* Create lobby card */}
+          <View style={styles.lobbiesCreateCardWrapper}>
+            <TouchableOpacity
+              style={styles.lobbiesCreateCard}
+              onPress={() => router.push('/partyPages/createLeaderboardName')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.lobbiesCreateCardIcon}>
+                <IconSymbol size={32} name="plus.circle.fill" color="#8B7FE8" />
+              </View>
+              <View style={styles.lobbiesCreateCardContent}>
+                <ThemedText style={styles.lobbiesCreateCardTitle}>Create a new lobby</ThemedText>
+                <ThemedText style={styles.lobbiesCreateCardSubtitle}>Start a leaderboard and challenge your friends</ThemedText>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
       </ScrollView>
 
       {/* Game Switcher Dropdown Overlay */}
@@ -819,9 +1154,6 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-15deg' }],
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 61,
     paddingBottom: 4,
@@ -838,6 +1170,33 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#888',
     marginTop: 2,
+  },
+  headerTabs: {
+    flexDirection: 'row',
+    marginTop: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  headerTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingBottom: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  headerTabActive: {
+    borderBottomColor: '#8B7FE8',
+  },
+  headerTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
+  },
+  headerTabTextActive: {
+    color: '#8B7FE8',
   },
   createButton: {
     width: 36,
@@ -865,23 +1224,6 @@ const styles = StyleSheet.create({
   pageContent: {
     paddingHorizontal: 6,
     paddingTop: 20,
-  },
-  lobbiesChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(139, 127, 232, 0.08)',
-    paddingVertical: 10,
-    paddingLeft: 14,
-    paddingRight: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.2)',
-  },
-  lobbiesChipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
   },
   cardsContainer: {
     backgroundColor: '#1a1a1a',
@@ -1202,19 +1544,19 @@ const styles = StyleSheet.create({
   },
   // Your Progress card styles
   yourProgressWrapper: {
-    marginTop: 20,
-    borderRadius: 18,
+    marginTop: 16,
+    borderRadius: 16,
     backgroundColor: '#1a1a1a',
     borderWidth: 1,
     borderColor: 'rgba(139, 127, 232, 0.25)',
     overflow: 'hidden',
   },
   yourProgressHero: {
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    gap: 10,
     alignItems: 'center',
-    paddingTop: 22,
-    paddingBottom: 18,
-    paddingHorizontal: 20,
-    gap: 12,
   },
   yourProgressUserRow: {
     flexDirection: 'row',
@@ -1232,8 +1574,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(139, 127, 232, 0.15)',
     borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginBottom: 8,
+    paddingVertical: 3,
   },
   youBadgeText: {
     fontSize: 10,
@@ -1242,15 +1583,15 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   yourProgressAvatarRing: {
-    borderRadius: 30,
+    borderRadius: 22,
     borderWidth: 2,
     borderColor: 'rgba(139, 127, 232, 0.4)',
-    padding: 2,
+    padding: 1.5,
   },
   yourProgressAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#252525',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1259,15 +1600,15 @@ const styles = StyleSheet.create({
   yourProgressAvatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 26,
+    borderRadius: 19,
   },
   yourProgressAvatarFallback: {
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: '700',
     color: '#888',
   },
   yourProgressUsername: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#fff',
     flexShrink: 1,
@@ -1275,30 +1616,30 @@ const styles = StyleSheet.create({
   yourProgressRankRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   yourProgressRankIcon: {
-    width: 36,
-    height: 36,
+    width: 28,
+    height: 28,
   },
   yourProgressRankText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#fff',
   },
   yourProgressRankPoints: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '500',
     color: '#666',
   },
   yourProgressBottom: {
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: '#151515',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.04)',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   dailyGainBadge: {
     backgroundColor: 'rgba(34, 197, 94, 0.1)',
@@ -1337,5 +1678,124 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#555',
     textAlign: 'right',
+  },
+  // Lobbies tab styles
+  lobbiesContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  lobbiesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  lobbiesSubTabs: {
+    flexDirection: 'row',
+    gap: 20,
+  },
+  lobbiesSubTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingBottom: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  lobbiesSubTabActive: {
+    borderBottomColor: '#8B7FE8',
+  },
+  lobbiesSubTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
+  },
+  lobbiesSubTabTextActive: {
+    color: '#8B7FE8',
+  },
+  lobbiesSubTabBadge: {
+    backgroundColor: '#8B7FE8',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  lobbiesSubTabBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  lobbiesCreateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#8B7FE8',
+  },
+  lobbiesCreateButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8B7FE8',
+  },
+  lobbiesEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  lobbiesEmptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  lobbiesEmptySubtext: {
+    fontSize: 13,
+    color: '#444',
+    textAlign: 'center',
+  },
+  lobbiesCreateCardWrapper: {
+    marginBottom: 12,
+    borderRadius: 15,
+  },
+  lobbiesCreateCard: {
+    backgroundColor: 'transparent',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: 'rgba(139, 127, 232, 0.3)',
+    borderStyle: 'dashed',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    minHeight: 120,
+  },
+  lobbiesCreateCardIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lobbiesCreateCardContent: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  lobbiesCreateCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  lobbiesCreateCardSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

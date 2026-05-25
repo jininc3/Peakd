@@ -1007,15 +1007,6 @@ export default function DuoFinderScreen() {
           <ThemedText style={styles.headerTitle}>Duo Finder</ThemedText>
           <ThemedText style={styles.headerSubtitle}>Find your perfect duo.</ThemedText>
         </View>
-        <TouchableOpacity
-          style={styles.myCardsButton}
-          onPress={() => setShowMyCards(true)}
-          activeOpacity={0.7}
-        >
-          <IconSymbol size={18} name="square.stack.3d.up" color="#8B7FE8" />
-          <ThemedText style={styles.myCardsButtonText}>My Cards</ThemedText>
-          <IconSymbol size={14} name="chevron.right" color="#888" />
-        </TouchableOpacity>
       </View>
 
       {/* Find Duo Feed */}
@@ -1100,6 +1091,13 @@ export default function DuoFinderScreen() {
                     >
                       <IconSymbol size={14} name="plus.circle" color="#fff" />
                       <ThemedText style={styles.postToFeedTabText}>Post to Feed</ThemedText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.myCardsIconButton}
+                      onPress={() => setShowMyCards(true)}
+                      activeOpacity={0.7}
+                    >
+                      <IconSymbol size={18} name="square.stack.3d.up" color="#8B7FE8" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.advancedFiltersTab, activeFilterCount > 0 && styles.advancedFiltersTabActive]}
@@ -1647,6 +1645,17 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: 8,
+  },
+  myCardsIconButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    backgroundColor: 'rgba(139, 127, 232, 0.12)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 127, 232, 0.2)',
     marginBottom: 8,
   },
   advancedFiltersTabActive: {
