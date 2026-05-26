@@ -494,67 +494,101 @@ export const LeaderboardCardSkeleton: React.FC = () => {
 // Mutual leaderboard skeleton - matches the leaderboards tab table structure
 // Renders a game section with header, column headers, and player rows with shimmer
 export const MutualLeaderboardSkeleton: React.FC<{ rowCount?: number; showDropdownChevron?: boolean }> = ({ rowCount = 4, showDropdownChevron = false }) => {
-  // Pre-compute stable name widths so they don't change on re-render
   const nameWidths = React.useMemo(
     () => Array.from({ length: rowCount }, () => 70 + Math.floor(Math.random() * 50)),
     [rowCount]
   );
 
+  const cardWidth = ((screenWidth - 32) / 3) * 1.32;
+  const extraRows = Math.max(0, rowCount - 3);
+
   return (
     <View style={mutualSkeletonStyles.section}>
-      {/* Game header: logo + title + optional chevron */}
+      {/* Game header */}
       <View style={mutualSkeletonStyles.sectionHeader}>
-        <Skeleton width={24} height={24} borderRadius={4} />
-        <Skeleton width={130} height={20} borderRadius={4} style={{ flex: 1 }} />
-        {showDropdownChevron && <Skeleton width={18} height={18} borderRadius={4} style={{ marginRight: 10 }} />}
+        <Skeleton width={210} height={40} borderRadius={20} />
+        <View style={{ flex: 1 }} />
+        <Skeleton width={90} height={36} borderRadius={10} />
       </View>
 
-      {/* Column headers */}
-      <View style={mutualSkeletonStyles.columnHeaders}>
-        <Skeleton width={30} height={10} borderRadius={3} style={{ width: 40 }} />
-        <View style={{ flex: 1, paddingLeft: 40 }}>
-          <Skeleton width={50} height={10} borderRadius={3} />
-        </View>
-        <View style={{ width: 130, alignItems: 'center' }}>
-          <Skeleton width={85} height={10} borderRadius={3} />
-        </View>
-      </View>
-
-      {/* Player rows */}
-      <View style={mutualSkeletonStyles.playerList}>
-        {Array.from({ length: rowCount }).map((_, index) => (
-          <View
-            key={index}
-            style={[
-              mutualSkeletonStyles.playerRow,
-              index % 2 === 0
-                ? mutualSkeletonStyles.evenRow
-                : mutualSkeletonStyles.oddRow,
-              { borderLeftWidth: 3, borderLeftColor: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#333' },
-            ]}
-          >
-            {/* Rank number */}
-            <View style={mutualSkeletonStyles.rankContainer}>
-              <Skeleton width={16} height={14} borderRadius={3} />
-            </View>
-
-            {/* Player info: avatar + name */}
-            <View style={mutualSkeletonStyles.playerInfo}>
-              <Skeleton width={32} height={32} borderRadius={6} />
-              <Skeleton width={nameWidths[index]} height={14} borderRadius={4} />
-            </View>
-
-            {/* Rank icon + text */}
-            <View style={mutualSkeletonStyles.rankInfoContainer}>
+      {/* Top 3 Podium */}
+      <View style={{ alignItems: 'center', marginBottom: 16, gap: 8 }}>
+        {/* 1st place */}
+        <View style={{ width: cardWidth, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', padding: 12, gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Skeleton width={20} height={20} borderRadius={4} />
+            <Skeleton width={34} height={34} borderRadius={8} />
+            <Skeleton width={60} height={13} borderRadius={4} />
+          </View>
+          <View style={{ alignItems: 'center', gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Skeleton width={26} height={26} borderRadius={13} />
-              <View style={mutualSkeletonStyles.rankTextContainer}>
-                <Skeleton width={55} height={11} borderRadius={3} />
-                <Skeleton width={30} height={10} borderRadius={3} style={{ marginTop: 3 }} />
+              <Skeleton width={60} height={20} borderRadius={4} />
+            </View>
+            <Skeleton width={70} height={11} borderRadius={4} />
+          </View>
+        </View>
+        {/* 2nd and 3rd */}
+        <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
+          {[0, 1].map((i) => (
+            <View key={i} style={{ width: cardWidth, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', padding: 12, gap: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Skeleton width={20} height={20} borderRadius={4} />
+                <Skeleton width={34} height={34} borderRadius={8} />
+                <Skeleton width={50} height={13} borderRadius={4} />
+              </View>
+              <View style={{ alignItems: 'center', gap: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Skeleton width={26} height={26} borderRadius={13} />
+                  <Skeleton width={50} height={20} borderRadius={4} />
+                </View>
+                <Skeleton width={65} height={11} borderRadius={4} />
               </View>
             </View>
-          </View>
-        ))}
+          ))}
+        </View>
       </View>
+
+      {/* Remaining rows */}
+      {extraRows > 0 && (
+        <>
+          <View style={mutualSkeletonStyles.columnHeaders}>
+            <Skeleton width={30} height={10} borderRadius={3} style={{ width: 40 }} />
+            <View style={{ flex: 1, paddingLeft: 40 }}>
+              <Skeleton width={50} height={10} borderRadius={3} />
+            </View>
+            <View style={{ width: 145, alignItems: 'center' }}>
+              <Skeleton width={85} height={10} borderRadius={3} />
+            </View>
+          </View>
+          <View style={mutualSkeletonStyles.playerList}>
+            {Array.from({ length: extraRows }).map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  mutualSkeletonStyles.playerRow,
+                  index % 2 === 0 ? mutualSkeletonStyles.evenRow : mutualSkeletonStyles.oddRow,
+                ]}
+              >
+                <View style={mutualSkeletonStyles.rankContainer}>
+                  <Skeleton width={16} height={14} borderRadius={3} />
+                </View>
+                <View style={mutualSkeletonStyles.playerInfo}>
+                  <Skeleton width={28} height={28} borderRadius={14} />
+                  <Skeleton width={nameWidths[index] || 80} height={14} borderRadius={4} />
+                </View>
+                <View style={mutualSkeletonStyles.rankInfoContainer}>
+                  <Skeleton width={22} height={22} borderRadius={11} />
+                  <View style={mutualSkeletonStyles.rankTextContainer}>
+                    <Skeleton width={55} height={11} borderRadius={3} />
+                    <Skeleton width={30} height={10} borderRadius={3} style={{ marginTop: 3 }} />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
     </View>
   );
 };

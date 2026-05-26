@@ -2685,8 +2685,10 @@ const styles = StyleSheet.create({
     color: '#D4A843',
   },
   updateButtonSecondary: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -2700,8 +2702,10 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   inviteButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     backgroundColor: '#1a1a1a',
     paddingVertical: 10,

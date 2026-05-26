@@ -1292,51 +1292,50 @@ export default function HomeScreen() {
       </View>
 
       <View style={[styles.header, { paddingTop: insets.top - 10 }]}>
-        <View>
-          <TouchableOpacity
-            onPress={() => setShowTabDropdown(!showTabDropdown)}
-            activeOpacity={0.7}
-            style={styles.headerDropdownTrigger}
-          >
-            <ThemedText style={styles.headerTitle}>
-              {activeTab === 'forYou' ? 'For You' : 'Following'}
-            </ThemedText>
-            <IconSymbol
-              size={14}
-              name={showTabDropdown ? 'chevron.up' : 'chevron.down'}
-              color="#8B7FE8"
-            />
-          </TouchableOpacity>
-          <ThemedText style={styles.headerSubtitle}>Discover clips, players & moments</ThemedText>
-        </View>
-        <View style={styles.headerActions}>
-            <ScalePress
-              style={styles.headerIconButton}
-              onPress={() => router.push('/chatPages/chatList')}
-            >
-              <IconSymbol size={27} name="bubble.left" color="#fff" />
-              {unreadMessageCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <ThemedText style={styles.notificationBadgeText}>
-                    {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-                  </ThemedText>
-                </View>
-              )}
-            </ScalePress>
-            <ScalePress
-              style={styles.headerIconButton}
-              onPress={() => router.push('/notifications')}
-            >
-              <IconSymbol size={27} name="bell" color="#fff" />
-              {unreadNotificationCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <ThemedText style={styles.notificationBadgeText}>
-                    {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
-                  </ThemedText>
-                </View>
-              )}
-            </ScalePress>
-          </View>
+        <ScalePress
+          style={styles.headerIconButton}
+          onPress={() => router.push('/chatPages/chatList')}
+        >
+          <IconSymbol size={27} name="tray" color="#fff" />
+          {unreadMessageCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <ThemedText style={styles.notificationBadgeText}>
+                {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+              </ThemedText>
+            </View>
+          )}
+        </ScalePress>
+
+        <TouchableOpacity
+          onPress={() => setShowTabDropdown(!showTabDropdown)}
+          activeOpacity={0.7}
+          style={styles.headerDropdownTrigger}
+        >
+          <Image
+            source={require('@/assets/images/peakdlogo2.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <IconSymbol
+            size={14}
+            name={showTabDropdown ? 'chevron.up' : 'chevron.down'}
+            color="#8B7FE8"
+          />
+        </TouchableOpacity>
+
+        <ScalePress
+          style={styles.headerIconButton}
+          onPress={() => router.push('/notifications')}
+        >
+          <IconSymbol size={22} name="bell" color="#fff" />
+          {unreadNotificationCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <ThemedText style={styles.notificationBadgeText}>
+                {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+              </ThemedText>
+            </View>
+          )}
+        </ScalePress>
       </View>
 
       {/* Tab Dropdown Overlay */}
@@ -1668,23 +1667,14 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     zIndex: 100,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#fff',
-    letterSpacing: -0.5,
-    lineHeight: 34,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: '#888',
-    marginTop: 2,
+  headerLogo: {
+    width: 132,
+    height: 55,
   },
   headerDropdownTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 0,
   },
   tabDropdownOverlay: {
     position: 'absolute',
@@ -1692,12 +1682,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: 'transparent',
     zIndex: 200,
     paddingTop: 100,
     paddingHorizontal: 16,
   },
   tabDropdownSheet: {
+    width: 220,
+    alignSelf: 'center',
     backgroundColor: '#161616',
     borderRadius: 14,
     borderWidth: 1,
@@ -1706,7 +1698,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabDropdownCard: {
-    paddingVertical: 16,
+    paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 10,
     alignItems: 'center',

@@ -12,8 +12,8 @@ import { formatRankDisplay } from '@/utils/formatRankDisplay';
 import SharePostModal from '@/app/components/sharePostModal';
 
 const { width: screenWidth } = Dimensions.get('window');
-const cardMargin = 12;
-const cardWidth = screenWidth - (cardMargin * 2);
+const cardMargin = 0;
+const cardWidth = screenWidth;
 const mediaHorizontalPadding = 0;
 const mediaWidth = cardWidth;
 
@@ -913,8 +913,6 @@ const styles = StyleSheet.create({
     marginHorizontal: cardMargin,
     backgroundColor: 'transparent',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
     marginBottom: 12,
     overflow: 'hidden',
   },
@@ -999,7 +997,7 @@ const styles = StyleSheet.create({
   postMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    marginTop: -2,
   },
   postGameTag: {
     fontSize: 12,
@@ -1233,8 +1231,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 12,
+    paddingTop: 0,
+    paddingBottom: 2,
     alignItems: 'center',
   },
   taggedUsersLabel: {

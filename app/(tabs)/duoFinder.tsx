@@ -1004,8 +1004,8 @@ export default function DuoFinderScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <ThemedText style={styles.headerTitle}>Duo Finder</ThemedText>
-          <ThemedText style={styles.headerSubtitle}>Find your perfect duo.</ThemedText>
+          <ThemedText style={styles.headerTitle}>LFG</ThemedText>
+          <ThemedText style={styles.headerSubtitle}>Looking for gamer</ThemedText>
         </View>
       </View>
 
@@ -1700,7 +1700,7 @@ const styles = StyleSheet.create({
   },
   // Live Search Banner
   liveSearchBannerWrapper: {
-    marginHorizontal: 16,
+    marginHorizontal: 0,
     marginBottom: 12,
     position: 'relative',
   },

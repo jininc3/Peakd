@@ -724,33 +724,18 @@ export default function LeaderboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Column Headers */}
-        <View style={styles.columnHeaders}>
-          <ThemedText style={[styles.columnHeaderText, { width: 40 }]}>RANK</ThemedText>
-          <ThemedText style={[styles.columnHeaderText, { flex: 1, paddingLeft: 40 }]}>PLAYER</ThemedText>
-          <ThemedText style={[styles.columnHeaderText, { width: 130, marginLeft: 'auto', textAlign: 'center' }]}>
-            CURRENT RANK
-          </ThemedText>
-        </View>
-
-        {/* Player Rows */}
-        <View style={styles.playerList}>
-          {players.map((player, index) => {
+        {/* Top 3 Podium */}
+        {players.length > 0 && (() => {
+          const renderTop3Card = (player: MutualPlayer, rank: number) => {
             const rankIcon = isLeague
               ? getLeagueRankIcon(player.currentRank)
               : getValorantRankIcon(player.currentRank);
-            const rank = index + 1;
+            const points = isLeague ? `${player.lp || 0} LP` : `${player.rr || 0} RR`;
 
             return (
               <TouchableOpacity
                 key={player.userId}
-                style={[
-                  styles.playerRow,
-                  index % 2 === 0 ? styles.evenRow : styles.oddRow,
-                  { borderLeftWidth: 4, borderLeftColor: getBorderColor(rank) },
-                  rank === 1 && styles.firstPlaceRow,
-                  player.isCurrentUser && styles.currentUserRow,
-                ]}
+                style={styles.top3Card}
                 activeOpacity={player.isCurrentUser ? 1 : 0.7}
                 onPress={() => {
                   if (!player.isCurrentUser) {
@@ -766,56 +751,140 @@ export default function LeaderboardScreen() {
                   }
                 }}
               >
-                {/* Rank Number + Arrow */}
-                <View style={styles.rankContainer}>
-                  <ThemedText style={[styles.rankNumberText, rank <= 3 && { color: getBorderColor(rank) }]}>{rank}</ThemedText>
-                  {rankChanges[player.userId] === 'up' && (
-                    <IconSymbol size={10} name="arrowtriangle.up.fill" color="#22C55E" />
-                  )}
-                  {rankChanges[player.userId] === 'down' && (
-                    <IconSymbol size={10} name="arrowtriangle.down.fill" color="#EF4444" />
-                  )}
-                </View>
-
-                {/* Player Info */}
-                <View style={styles.playerInfo}>
-                  <View style={[
-                    styles.playerAvatarRing,
-                    rank <= 3 && { borderColor: getBorderColor(rank), borderWidth: 2 },
-                  ]}>
-                    <View style={styles.playerAvatar}>
+                {/* Top section: rank number + avatar + username */}
+                <View style={styles.top3CardTop}>
+                  <ThemedText style={[styles.top3RankNumber, { color: getBorderColor(rank) }]}>{rank}</ThemedText>
+                  <View style={[styles.top3AvatarRing, { borderColor: getBorderColor(rank) }]}>
+                    <View style={styles.top3Avatar}>
                       {player.avatar ? (
-                        <CachedImage uri={player.avatar} style={styles.playerAvatarImage} />
+                        <CachedImage uri={player.avatar} style={styles.top3AvatarImage} />
                       ) : (
-                        <ThemedText style={styles.avatarText}>
+                        <ThemedText style={styles.top3AvatarFallback}>
                           {player.username.charAt(0).toUpperCase()}
                         </ThemedText>
                       )}
                     </View>
                   </View>
-                  <View style={styles.playerNameContainer}>
-                    <ThemedText style={[styles.playerName, player.isCurrentUser && styles.currentUserName]} numberOfLines={1}>
-                      {player.username}{player.isCurrentUser ? ' (You)' : ''}
-                    </ThemedText>
-                  </View>
+                  <ThemedText style={[styles.top3Username, player.isCurrentUser && styles.currentUserName]} numberOfLines={1}>
+                    {player.username}
+                  </ThemedText>
                 </View>
 
-                {/* Current Rank with Icon and LP/RR */}
-                <View style={styles.rankInfoContainer}>
-                  <Image source={rankIcon} style={styles.rankIconSmall} resizeMode="contain" />
-                  <View style={styles.rankTextContainer}>
-                    <ThemedText style={styles.currentRankText}>
-                      {formatRankDisplay(player.currentRank)}
-                    </ThemedText>
-                    <ThemedText style={styles.rankPointsText}>
-                      {isLeague ? `${player.lp || 0} LP` : `${player.rr || 0} RR`}
-                    </ThemedText>
+                {/* Center: rank icon + LP/RR */}
+                <View style={styles.top3CenterSection}>
+                  <View style={styles.top3RankRow}>
+                    <Image source={rankIcon} style={styles.top3RankIcon} resizeMode="contain" />
+                    <ThemedText style={styles.top3Points}>{points}</ThemedText>
                   </View>
+                  <ThemedText style={styles.top3RankLabel}>
+                    {formatRankDisplay(player.currentRank)}
+                  </ThemedText>
                 </View>
               </TouchableOpacity>
             );
-          })}
-        </View>
+          };
+
+          return (
+            <View style={styles.top3Podium}>
+              {/* 1st place centered on top */}
+              <View style={styles.top3FirstRow}>
+                {renderTop3Card(players[0], 1)}
+              </View>
+              {/* 2nd and 3rd side by side below */}
+              {players.length >= 2 && (
+                <View style={styles.top3SecondRow}>
+                  {renderTop3Card(players[1], 2)}
+                  {players.length >= 3 && renderTop3Card(players[2], 3)}
+                </View>
+              )}
+            </View>
+          );
+        })()}
+
+        {/* Remaining Player Rows */}
+        {players.length > 3 && (
+          <>
+            <View style={styles.columnHeaders}>
+              <ThemedText style={[styles.columnHeaderText, { width: 40 }]}>RANK</ThemedText>
+              <ThemedText style={[styles.columnHeaderText, { flex: 1, paddingLeft: 40 }]}>PLAYER</ThemedText>
+              <ThemedText style={[styles.columnHeaderText, { width: 145, marginLeft: 'auto', textAlign: 'center' }]}>
+                CURRENT RANK
+              </ThemedText>
+            </View>
+            <View style={styles.playerList}>
+              {players.slice(3).map((player, index) => {
+                const rankIcon = isLeague
+                  ? getLeagueRankIcon(player.currentRank)
+                  : getValorantRankIcon(player.currentRank);
+                const rank = index + 4;
+
+                return (
+                  <TouchableOpacity
+                    key={player.userId}
+                    style={[
+                      styles.playerRow,
+                      index % 2 === 0 ? styles.evenRow : styles.oddRow,
+                      player.isCurrentUser && styles.currentUserRow,
+                    ]}
+                    activeOpacity={player.isCurrentUser ? 1 : 0.7}
+                    onPress={() => {
+                      if (!player.isCurrentUser) {
+                        router.push({
+                          pathname: '/profilePages/profileView',
+                          params: {
+                            userId: player.userId,
+                            username: player.username,
+                            avatar: player.avatar || '',
+                            preloadedFollowing: 'true',
+                          },
+                        });
+                      }
+                    }}
+                  >
+                    <View style={styles.rankContainer}>
+                      <ThemedText style={styles.rankNumberText}>{rank}</ThemedText>
+                      {rankChanges[player.userId] === 'up' && (
+                        <IconSymbol size={10} name="arrowtriangle.up.fill" color="#22C55E" />
+                      )}
+                      {rankChanges[player.userId] === 'down' && (
+                        <IconSymbol size={10} name="arrowtriangle.down.fill" color="#EF4444" />
+                      )}
+                    </View>
+                    <View style={styles.playerInfo}>
+                      <View style={styles.playerAvatarRing}>
+                        <View style={styles.playerAvatar}>
+                          {player.avatar ? (
+                            <CachedImage uri={player.avatar} style={styles.playerAvatarImage} />
+                          ) : (
+                            <ThemedText style={styles.avatarText}>
+                              {player.username.charAt(0).toUpperCase()}
+                            </ThemedText>
+                          )}
+                        </View>
+                      </View>
+                      <View style={styles.playerNameContainer}>
+                        <ThemedText style={[styles.playerName, player.isCurrentUser && styles.currentUserName]} numberOfLines={1}>
+                          {player.username}{player.isCurrentUser ? ' (You)' : ''}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <View style={styles.rankInfoContainer}>
+                      <Image source={rankIcon} style={styles.rankIconSmall} resizeMode="contain" />
+                      <View style={styles.rankTextContainer}>
+                        <ThemedText style={styles.currentRankText}>
+                          {formatRankDisplay(player.currentRank)}
+                        </ThemedText>
+                        <ThemedText style={styles.rankPointsText}>
+                          {isLeague ? `${player.lp || 0} LP` : `${player.rr || 0} RR`}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
       </View>
     );
   };
@@ -858,7 +927,6 @@ export default function LeaderboardScreen() {
 
       <View style={styles.header}>
         <ThemedText style={styles.headerTitle}>Leaderboards</ThemedText>
-        <ThemedText style={styles.headerSubtitle}>See who's climbing the ranks.</ThemedText>
         <View style={styles.headerTabs}>
           <TouchableOpacity
             style={styles.headerTab}
@@ -871,11 +939,11 @@ export default function LeaderboardScreen() {
           >
             <View style={styles.headerTabInner}>
               <Animated.View style={[styles.headerTabInner, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} pointerEvents="none">
-                <IconSymbol size={14} name="list.clipboard" color="#8B7FE8" />
+                <IconSymbol size={14} name="list.number" color="#8B7FE8" />
                 <ThemedText style={[styles.headerTabText, styles.headerTabTextActive]}>Leaderboard</ThemedText>
               </Animated.View>
               <Animated.View style={[styles.headerTabInner, StyleSheet.absoluteFill, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }]} pointerEvents="none">
-                <IconSymbol size={14} name="list.clipboard" color="#555" />
+                <IconSymbol size={14} name="list.number" color="#555" />
                 <ThemedText style={styles.headerTabText}>Leaderboard</ThemedText>
               </Animated.View>
             </View>
@@ -964,75 +1032,6 @@ export default function LeaderboardScreen() {
                   <>
                     {renderMutualLeaderboard(usedPlayers, usedGame)}
 
-                    {/* Your Progress Card */}
-                    {currentUser && (
-                      <View style={styles.yourProgressWrapper}>
-                        <View style={styles.yourProgressHero}>
-                          <View style={styles.youBadge}>
-                            <ThemedText style={styles.youBadgeText}>YOUR STANDING</ThemedText>
-                          </View>
-                          <View style={styles.yourProgressUserRow}>
-                            <View style={styles.yourProgressUserLeft}>
-                              <View style={styles.yourProgressAvatarRing}>
-                                <View style={styles.yourProgressAvatar}>
-                                  {currentUser.avatar ? (
-                                    <CachedImage uri={currentUser.avatar} style={styles.yourProgressAvatarImage} />
-                                  ) : (
-                                    <ThemedText style={styles.yourProgressAvatarFallback}>
-                                      {currentUser.username.charAt(0).toUpperCase()}
-                                    </ThemedText>
-                                  )}
-                                </View>
-                              </View>
-                              <ThemedText style={styles.yourProgressUsername} numberOfLines={1}>
-                                {currentUser.username}
-                              </ThemedText>
-                            </View>
-                            <View style={styles.yourProgressRankRight}>
-                              <Image
-                                source={isLeague ? getLeagueRankIcon(currentUser.currentRank) : getValorantRankIcon(currentUser.currentRank)}
-                                style={styles.yourProgressRankIcon}
-                                resizeMode="contain"
-                              />
-                              <View>
-                                <ThemedText style={styles.yourProgressRankText}>
-                                  {formatRankDisplay(currentUser.currentRank)}
-                                </ThemedText>
-                                <ThemedText style={styles.yourProgressRankPoints}>
-                                  {isLeague ? `${currentUser.lp || 0} LP` : `${currentUser.rr || 0} RR`}
-                                </ThemedText>
-                              </View>
-                            </View>
-                          </View>
-                        </View>
-
-                        <View style={styles.yourProgressBottom}>
-                          {(() => {
-                            const dailyGain = isLeague ? (userGameStats?.lpToday || 0) : (userGameStats?.rrToday || 0);
-                            const unit = isLeague ? 'LP' : 'RR';
-                            if (dailyGain === 0) return null;
-                            return (
-                              <View style={[styles.dailyGainBadge, dailyGain < 0 && styles.dailyGainBadgeNegative]}>
-                                <ThemedText style={[styles.dailyGainText, dailyGain < 0 && styles.dailyGainTextNegative]}>
-                                  {dailyGain > 0 ? '+' : ''}{dailyGain} {unit} today
-                                </ThemedText>
-                              </View>
-                            );
-                          })()}
-                          <View style={styles.progressBarTrack}>
-                            <View
-                              style={[
-                                styles.progressBarFill,
-                                { width: `${Math.min(100, isLeague ? (currentUser.lp || 0) : (currentUser.rr || 0))}%` },
-                              ]}
-                            />
-                          </View>
-                          <ThemedText style={styles.progressBarLabel}>
-                            {isLeague ? `${currentUser.lp || 0}` : `${currentUser.rr || 0}`} / 100 {isLeague ? 'LP' : 'RR'}
-                          </ThemedText>
-                        </View>
-                      </View>
-                    )}
                   </>
                 );
               })()}
@@ -1351,6 +1350,90 @@ const styles = StyleSheet.create({
   mutualSection: {
     marginBottom: 20,
   },
+  top3Podium: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  top3FirstRow: {
+    alignItems: 'center',
+    marginBottom: -4,
+  },
+  top3SecondRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  top3Card: {
+    width: ((screenWidth - 32) / 3) * 1.32,
+    backgroundColor: 'transparent',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 12,
+    gap: 12,
+  },
+  top3CardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  top3RankNumber: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  top3AvatarRing: {
+    borderRadius: 10,
+    borderWidth: 2,
+    padding: 1,
+  },
+  top3Avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#252525',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  top3AvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+  },
+  top3AvatarFallback: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#888',
+  },
+  top3Username: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+    flex: 1,
+  },
+  top3CenterSection: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  top3RankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  top3RankIcon: {
+    width: 26,
+    height: 26,
+  },
+  top3Points: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  top3RankLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#888',
+  },
   mutualSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1360,9 +1443,11 @@ const styles = StyleSheet.create({
   gameSwitchButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 14,
+    width: 210,
     backgroundColor: 'rgba(139, 127, 232, 0.06)',
     borderRadius: 20,
     borderWidth: 1,
@@ -1464,6 +1549,7 @@ const styles = StyleSheet.create({
     width: 40,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 3,
   },
   rankNumberText: {
@@ -1515,9 +1601,11 @@ const styles = StyleSheet.create({
   rankInfoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: 8,
     width: 145,
     marginLeft: 'auto',
+    paddingRight: 4,
   },
   rankIconSmall: {
     width: 22,
@@ -1549,10 +1637,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
     zIndex: 200,
-    paddingTop: 190,
+    paddingTop: 220,
     paddingHorizontal: 6,
   },
   gameDropdownSheet: {
+    alignSelf: 'flex-start',
+    width: 210,
     backgroundColor: '#161616',
     borderRadius: 14,
     borderWidth: 1,
@@ -1563,9 +1653,9 @@ const styles = StyleSheet.create({
   gameDropdownCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
@@ -1576,14 +1666,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(139, 127, 232, 0.1)',
   },
   gameDropdownLogo: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
   },
   gameDropdownText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
     color: '#444',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   gameDropdownTextActive: {
     color: '#fff',

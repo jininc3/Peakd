@@ -94,11 +94,7 @@ export default function TabLayout() {
         options={{
           title: 'Rankings',
           tabBarIcon: ({ color }) => (
-            <Image
-              source={require('@/assets/images/leaderboard.png')}
-              style={{ width: 48, height: 48, tintColor: color }}
-              resizeMode="contain"
-            />
+            <IconSymbol size={28} name="list.number" color={color} />
           ),
         }}
       />

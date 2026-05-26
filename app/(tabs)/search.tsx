@@ -539,12 +539,7 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      <View style={styles.header}>
-        <View>
-          <ThemedText style={styles.headerTitle}>Search</ThemedText>
-          <ThemedText style={styles.headerSubtitle}>Find players & clips.</ThemedText>
-        </View>
-      </View>
+      <View style={styles.header} />
       <View style={styles.searchContainer}>
         <IconSymbol size={18} name="magnifyingglass" color="#666" />
         <TextInput

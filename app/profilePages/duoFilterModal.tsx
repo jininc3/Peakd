@@ -279,11 +279,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#0f0f0f',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '85%',
     minHeight: 400,
+    borderTopWidth: 1,
+    borderColor: 'rgba(139, 127, 232, 0.15)',
   },
   handle: {
     width: 36, height: 4, borderRadius: 2,
@@ -312,7 +314,7 @@ const styles = StyleSheet.create({
   resetText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: '#8B7FE8',
   },
   scrollView: {
     flexGrow: 1,
@@ -355,8 +357,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   chipSelected: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderColor: '#fff',
+    backgroundColor: 'rgba(139, 127, 232, 0.12)',
+    borderColor: 'rgba(139, 127, 232, 0.4)',
   },
   chipText: {
     fontSize: 13,
@@ -364,7 +366,7 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   chipTextSelected: {
-    color: '#fff',
+    color: '#8B7FE8',
   },
   chipIcon: {
     width: 16,
@@ -399,8 +401,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   rankChipSelected: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderColor: '#fff',
+    backgroundColor: 'rgba(139, 127, 232, 0.12)',
+    borderColor: 'rgba(139, 127, 232, 0.4)',
   },
   rankChipText: {
     fontSize: 13,
@@ -409,7 +411,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   rankChipTextSelected: {
-    color: '#fff',
+    color: '#8B7FE8',
   },
   rankDivider: {
     width: 0.5,
@@ -422,7 +424,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   applyBtn: {
-    backgroundColor: '#fff',
+    backgroundColor: '#8B7FE8',
     paddingVertical: 16,
     borderRadius: 28,
     alignItems: 'center',
@@ -430,6 +432,6 @@ const styles = StyleSheet.create({
   applyBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f0f0f',
+    color: '#fff',
   },
 });
