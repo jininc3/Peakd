@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from '@/hooks/useRouter';
 import { collection, doc, getDoc, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { ActivityIndicator, Dimensions, Image, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Image, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { formatRankDisplay } from '@/utils/formatRankDisplay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -301,6 +301,9 @@ export default function LeaderboardScreen() {
   const [userGameStats, setUserGameStats] = useState<{ rr: number; lp: number; rrToday: number; lpToday: number } | null>(null);
   const [activeHeaderTab, setActiveHeaderTab] = useState<'leaderboard' | 'lobbies'>('leaderboard');
   const pagerRef = useRef<ScrollView>(null);
+  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
+  // Stop any stale native-driven animation on mount
+  useEffect(() => { tabIndicatorAnim.stopAnimation(); }, []);
 
   // Lobbies state
   const [lobbies, setLobbies] = useState<any[]>(cachedLobbies || []);
@@ -858,27 +861,58 @@ export default function LeaderboardScreen() {
         <ThemedText style={styles.headerSubtitle}>See who's climbing the ranks.</ThemedText>
         <View style={styles.headerTabs}>
           <TouchableOpacity
-            style={[styles.headerTab, activeHeaderTab === 'leaderboard' && styles.headerTabActive]}
+            style={styles.headerTab}
             onPress={() => {
               setActiveHeaderTab('leaderboard');
+              Animated.spring(tabIndicatorAnim, { toValue: 0, useNativeDriver: false, tension: 68, friction: 12 }).start();
               pagerRef.current?.scrollTo({ x: 0, animated: true });
             }}
             activeOpacity={0.7}
           >
-            <IconSymbol size={14} name="list.clipboard" color={activeHeaderTab === 'leaderboard' ? '#8B7FE8' : '#555'} />
-            <ThemedText style={[styles.headerTabText, activeHeaderTab === 'leaderboard' && styles.headerTabTextActive]}>Leaderboard</ThemedText>
+            <View style={styles.headerTabInner}>
+              <Animated.View style={[styles.headerTabInner, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} pointerEvents="none">
+                <IconSymbol size={14} name="list.clipboard" color="#8B7FE8" />
+                <ThemedText style={[styles.headerTabText, styles.headerTabTextActive]}>Leaderboard</ThemedText>
+              </Animated.View>
+              <Animated.View style={[styles.headerTabInner, StyleSheet.absoluteFill, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }]} pointerEvents="none">
+                <IconSymbol size={14} name="list.clipboard" color="#555" />
+                <ThemedText style={styles.headerTabText}>Leaderboard</ThemedText>
+              </Animated.View>
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerTab, activeHeaderTab === 'lobbies' && styles.headerTabActive]}
+            style={styles.headerTab}
             onPress={() => {
               setActiveHeaderTab('lobbies');
+              Animated.spring(tabIndicatorAnim, { toValue: 1, useNativeDriver: false, tension: 68, friction: 12 }).start();
               pagerRef.current?.scrollTo({ x: screenWidth, animated: true });
             }}
             activeOpacity={0.7}
           >
-            <IconSymbol size={14} name="person.2" color={activeHeaderTab === 'lobbies' ? '#8B7FE8' : '#555'} />
-            <ThemedText style={[styles.headerTabText, activeHeaderTab === 'lobbies' && styles.headerTabTextActive]}>Lobbies</ThemedText>
+            <View style={styles.headerTabInner}>
+              <Animated.View style={[styles.headerTabInner, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }]} pointerEvents="none">
+                <IconSymbol size={14} name="person.2" color="#8B7FE8" />
+                <ThemedText style={[styles.headerTabText, styles.headerTabTextActive]}>Lobbies</ThemedText>
+              </Animated.View>
+              <Animated.View style={[styles.headerTabInner, StyleSheet.absoluteFill, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} pointerEvents="none">
+                <IconSymbol size={14} name="person.2" color="#555" />
+                <ThemedText style={styles.headerTabText}>Lobbies</ThemedText>
+              </Animated.View>
+            </View>
           </TouchableOpacity>
+          <Animated.View
+            style={[
+              styles.headerTabIndicator,
+              {
+                transform: [{
+                  translateX: tabIndicatorAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, (screenWidth - 32) / 2],
+                  }),
+                }],
+              },
+            ]}
+          />
         </View>
       </View>
 
@@ -889,7 +923,10 @@ export default function LeaderboardScreen() {
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={(e) => {
-          const page = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+          const offsetX = e.nativeEvent.contentOffset.x;
+          const progress = Math.min(1, Math.max(0, offsetX / screenWidth));
+          tabIndicatorAnim.setValue(progress);
+          const page = Math.round(progress);
           const newTab = page === 0 ? 'leaderboard' : 'lobbies';
           if (newTab !== activeHeaderTab) setActiveHeaderTab(newTab);
         }}
@@ -1176,19 +1213,28 @@ const styles = StyleSheet.create({
     marginTop: 14,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
+    position: 'relative',
   },
   headerTab: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 10,
+  },
+  headerTabInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingBottom: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
   },
-  headerTabActive: {
-    borderBottomColor: '#8B7FE8',
+  headerTabIndicator: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    width: '50%',
+    height: 2,
+    backgroundColor: '#8B7FE8',
+    borderRadius: 1,
   },
   headerTabText: {
     fontSize: 14,
