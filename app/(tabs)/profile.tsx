@@ -343,7 +343,7 @@ export default function ProfileScreen() {
   const userGames = userGamesBase;
 
   // Fetch Riot account and stats (League and TFT)
-  // Lightweight function to only fetch enabled rank cards (no API calls)
+  // Lightweight function to fetch enabled rank cards and account data from Firestore (no API calls)
   const fetchEnabledRankCards = async () => {
     if (!user?.id) return;
 
@@ -364,16 +364,23 @@ export default function ProfileScreen() {
           updatedCards = updatedCards.filter(c => c !== 'league' && c !== 'tft');
           setRiotAccount(null);
           setRiotStats(null);
+        } else {
+          setRiotAccount(data.riotAccount);
+          if (data.riotStats) setRiotStats(data.riotStats);
         }
         if (!data.valorantAccount) {
           updatedCards = updatedCards.filter(c => c !== 'valorant');
           setValorantAccount(null);
+        } else {
+          setValorantAccount(data.valorantAccount);
+          if (data.valorantStats) setValorantStats(data.valorantStats);
         }
         setEnabledRankCards(updatedCards);
         setClipCategories(data.clipCategories || []);
         if (data.createdAt) {
           setJoinedAt(data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt));
         }
+        setLoadingRankCards(false);
       }
     } catch (error) {
       console.error('Error fetching enabled rank cards:', error);
@@ -595,6 +602,8 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
+        // Always re-fetch rank cards and account data on focus (lightweight Firestore read)
+        fetchEnabledRankCards();
         const now = Date.now();
         if (now - lastProfileFetch.current > 30000) {
           lastProfileFetch.current = now;
@@ -1434,39 +1443,50 @@ export default function ProfileScreen() {
               )}
             </View>
           ) : (
-            <TouchableOpacity
-              style={styles.rankCardsBanner}
-              onPress={() => router.push('/profilePages/newRankCard')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.emptyBannerIconRow}>
-                <View style={styles.emptyBannerIconCircle}>
-                  <Image
-                    source={require('@/assets/images/valorant-logo.png')}
-                    style={{ width: 18, height: 18, tintColor: '#72767d' }}
-                    resizeMode="contain"
-                  />
-                </View>
-                <View style={[styles.emptyBannerIconCircle, styles.emptyBannerIconCircleCenter]}>
-                  <Image
-                    source={require('@/assets/images/riotgames.png')}
-                    style={{ width: 24, height: 24 }}
-                    resizeMode="contain"
-                  />
-                </View>
-                <View style={styles.emptyBannerIconCircle}>
-                  <Image
-                    source={require('@/assets/images/leagueoflegends.png')}
-                    style={{ width: 18, height: 18, tintColor: '#72767d' }}
-                    resizeMode="contain"
-                  />
+            <View style={styles.rankCardsPreview}>
+              {/* Header */}
+              <View style={styles.rankCardsPreviewHeader}>
+                <View style={styles.rankCardsPreviewHeaderLeft}>
+                  <ThemedText style={styles.rankCardsPreviewTitle}>Rank Cards</ThemedText>
+                  <IconSymbol size={16} name="sparkle" color="rgba(255,255,255,0.4)" />
                 </View>
               </View>
-              <View style={styles.emptyBannerTextContainer}>
-                <ThemedText style={styles.emptyBannerTitle}>Show off your rank</ThemedText>
-                <ThemedText style={styles.emptyBannerSubtext}>Link your Riot account to get started</ThemedText>
-              </View>
-            </TouchableOpacity>
+              <ThemedText style={styles.rankCardsPreviewSubtitle}>Your ranked journey</ThemedText>
+
+              <TouchableOpacity
+                style={styles.emptyBanner}
+                onPress={() => router.push('/profilePages/newRankCard')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.emptyBannerIconRow}>
+                  <View style={styles.emptyBannerIconCircle}>
+                    <Image
+                      source={require('@/assets/images/valorant-logo.png')}
+                      style={{ width: 18, height: 18, tintColor: '#72767d' }}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <View style={[styles.emptyBannerIconCircle, styles.emptyBannerIconCircleCenter]}>
+                    <Image
+                      source={require('@/assets/images/riotgames.png')}
+                      style={{ width: 24, height: 24 }}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <View style={styles.emptyBannerIconCircle}>
+                    <Image
+                      source={require('@/assets/images/leagueoflegends.png')}
+                      style={{ width: 18, height: 18, tintColor: '#72767d' }}
+                      resizeMode="contain"
+                    />
+                  </View>
+                </View>
+                <View style={styles.emptyBannerTextContainer}>
+                  <ThemedText style={styles.emptyBannerTitle}>Show off your rank</ThemedText>
+                  <ThemedText style={styles.emptyBannerSubtext}>Link your Riot account to get started</ThemedText>
+                </View>
+              </TouchableOpacity>
+            </View>
           )}
 
           {/* Clips Section */}
