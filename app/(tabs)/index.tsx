@@ -18,7 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View, Alert, RefreshControl, Modal, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from '@/hooks/useRouter';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 const { width, height: screenHeight } = Dimensions.get('window');
 
@@ -1150,6 +1150,18 @@ export default function HomeScreen() {
     }, [])
   );
 
+  // Scroll to top and refresh when Feed tab is pressed while already on Feed
+  const navigation = useNavigation();
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', (e) => {
+      if (navigation.isFocused()) {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        handleRefresh();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, handleRefresh]);
+
   // Check for visible videos when posts load or tab changes (only when screen is focused)
   useEffect(() => {
     if (currentPosts.length > 0 && !loading && isScreenFocused) {
@@ -1668,8 +1680,8 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   headerLogo: {
-    width: 132,
-    height: 55,
+    width: 172,
+    height: 72,
   },
   headerDropdownTrigger: {
     flexDirection: 'row',

@@ -1,4 +1,5 @@
 import DuoCard from '@/app/components/duoCard';
+import LiveSearchContent from '@/app/components/liveSearchContent';
 import { LinearGradient } from 'expo-linear-gradient';
 export interface DuoCardData {
   game: 'valorant' | 'league';
@@ -151,6 +152,11 @@ export default function DuoFinderScreen() {
       ])
     ).start();
   }, []);
+
+  const [activeHeaderTab, setActiveHeaderTab] = useState<'posts' | 'liveSearch'>('posts');
+  const lfgPagerRef = useRef<ScrollView>(null);
+  const lfgTabIndicatorAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => { lfgTabIndicatorAnim.stopAnimation(); }, []);
 
   const [showMyCards, setShowMyCards] = useState(false);
   const [valorantCard, setValorantCard] = useState<DuoCardData | null>(null);
@@ -1003,14 +1009,84 @@ export default function DuoFinderScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <ThemedText style={styles.headerTitle}>LFG</ThemedText>
-          <ThemedText style={styles.headerSubtitle}>Looking for gamer</ThemedText>
+        <ThemedText style={styles.headerTitle}>LFG</ThemedText>
+        <View style={styles.headerTabs}>
+          <TouchableOpacity
+            style={styles.headerTab}
+            onPress={() => {
+              setActiveHeaderTab('posts');
+              Animated.spring(lfgTabIndicatorAnim, { toValue: 0, useNativeDriver: false, tension: 68, friction: 12 }).start();
+              lfgPagerRef.current?.scrollTo({ x: 0, animated: true });
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.headerTabInner}>
+              <Animated.View style={[styles.headerTabInner, { opacity: lfgTabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} pointerEvents="none">
+                <IconSymbol size={14} name="rectangle.stack" color="#8B7FE8" />
+                <ThemedText style={[styles.headerTabText, styles.headerTabTextActive]}>Posts</ThemedText>
+              </Animated.View>
+              <Animated.View style={[styles.headerTabInner, StyleSheet.absoluteFill, { opacity: lfgTabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }]} pointerEvents="none">
+                <IconSymbol size={14} name="rectangle.stack" color="#555" />
+                <ThemedText style={styles.headerTabText}>Posts</ThemedText>
+              </Animated.View>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerTab}
+            onPress={() => {
+              setActiveHeaderTab('liveSearch');
+              Animated.spring(lfgTabIndicatorAnim, { toValue: 1, useNativeDriver: false, tension: 68, friction: 12 }).start();
+              lfgPagerRef.current?.scrollTo({ x: screenWidth, animated: true });
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.headerTabInner}>
+              <Animated.View style={[styles.headerTabInner, { opacity: lfgTabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }]} pointerEvents="none">
+                <Animated.View style={[styles.liveSearchDot, { opacity: pulseAnim, width: 6, height: 6, borderRadius: 3 }]} />
+                <ThemedText style={[styles.headerTabText, styles.headerTabTextActive]}>Live Search</ThemedText>
+              </Animated.View>
+              <Animated.View style={[styles.headerTabInner, StyleSheet.absoluteFill, { opacity: lfgTabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} pointerEvents="none">
+                <Animated.View style={[styles.liveSearchDot, { opacity: pulseAnim, width: 6, height: 6, borderRadius: 3 }]} />
+                <ThemedText style={styles.headerTabText}>Live Search</ThemedText>
+              </Animated.View>
+            </View>
+          </TouchableOpacity>
+          <Animated.View
+            style={[
+              styles.headerTabIndicator,
+              {
+                transform: [{
+                  translateX: lfgTabIndicatorAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, (screenWidth - 32) / 2],
+                  }),
+                }],
+              },
+            ]}
+          />
         </View>
       </View>
 
-      {/* Find Duo Feed */}
-      <FlatList
+      {/* Pager */}
+      <ScrollView
+        ref={lfgPagerRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          const offsetX = e.nativeEvent.contentOffset.x;
+          const progress = Math.min(1, Math.max(0, offsetX / screenWidth));
+          lfgTabIndicatorAnim.setValue(progress);
+          const page = Math.round(progress);
+          const newTab = page === 0 ? 'posts' : 'liveSearch';
+          if (newTab !== activeHeaderTab) setActiveHeaderTab(newTab);
+        }}
+        style={{ flex: 1 }}
+      >
+        {/* Posts page */}
+        <View style={{ width: screenWidth }}>
+          <FlatList
             data={displayedPosts}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
@@ -1033,52 +1109,11 @@ export default function DuoFinderScreen() {
             }
             ListHeaderComponent={
               <View>
-                {/* Live Search Banner */}
-                <View style={styles.liveSearchBannerWrapper}>
-                  <Animated.View style={[styles.liveSearchGlow, { opacity: pulseAnim }]} />
-                  <View style={styles.liveSearchBanner}>
-                    <TouchableOpacity
-                      style={styles.liveSearchLeft}
-                      onPress={() => router.push('/partyPages/liveSearch')}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.liveSearchHeader}>
-                        <Animated.View style={[styles.liveSearchDot, { opacity: pulseAnim }]} />
-                        <ThemedText style={styles.liveSearchLiveText}>LIVE MATCHMAKING</ThemedText>
-                      </View>
-                      <View style={styles.liveSearchTextContent}>
-                        <ThemedText style={styles.liveSearchTitle}>Find a Duo Now</ThemedText>
-                        <ThemedText style={styles.liveSearchSubtitle}>Match with players searching right now</ThemedText>
-                      </View>
-                    </TouchableOpacity>
-                    <View style={styles.liveSearchRight}>
-                      <Animated.View style={[styles.liveSearchWaveform, { opacity: pulseAnim }]}>
-                        <View style={[styles.waveformBar, { height: 16 }]} />
-                        <View style={[styles.waveformBar, { height: 24 }]} />
-                        <View style={[styles.waveformBar, { height: 20 }]} />
-                        <View style={[styles.waveformBar, { height: 32 }]} />
-                        <View style={[styles.waveformBar, { height: 28 }]} />
-                        <View style={[styles.waveformBar, { height: 22 }]} />
-                        <View style={[styles.waveformBar, { height: 26 }]} />
-                        <View style={[styles.waveformBar, { height: 18 }]} />
-                      </Animated.View>
-                      <TouchableOpacity
-                        style={styles.joinQueueButton}
-                        activeOpacity={0.9}
-                        onPress={() => router.push('/partyPages/liveSearch')}
-                      >
-                        <ThemedText style={styles.joinQueueText}>Join Queue</ThemedText>
-                        <IconSymbol size={14} name="chevron.right" color="#fff" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-
                 {/* Tabs */}
                 <View style={styles.tabsWrapper}>
                   <View style={styles.tabsContainer}>
                     <View style={styles.tabButton}>
-                      <ThemedText style={styles.tabButtonText}>Players</ThemedText>
+                      <ThemedText style={styles.tabButtonText}>Recent</ThemedText>
                       <View style={styles.tabBadge}>
                         <ThemedText style={styles.tabBadgeText}>{duoPosts.length}</ThemedText>
                       </View>
@@ -1179,6 +1214,20 @@ export default function DuoFinderScreen() {
             }}
             ListFooterComponent={<View style={styles.bottomSpacer} />}
           />
+        </View>
+
+        {/* Live Search page */}
+        <View style={{ width: screenWidth, flex: 1 }}>
+          <LiveSearchContent
+            valorantCard={valorantCard}
+            leagueCard={leagueCard}
+            valorantInGameIcon={valorantInGameIcon}
+            valorantInGameName={valorantInGameName}
+            leagueInGameIcon={leagueInGameIcon}
+            leagueInGameName={leagueInGameName}
+          />
+        </View>
+      </ScrollView>
 
       {/* My Cards Modal */}
       <Modal
@@ -1540,12 +1589,9 @@ const styles = StyleSheet.create({
   },
   // Header
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 56,
-    paddingBottom: 16,
+    paddingBottom: 0,
   },
   headerTitle: {
     fontSize: 28,
@@ -1559,6 +1605,42 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#888',
     marginTop: 2,
+  },
+  headerTabs: {
+    flexDirection: 'row',
+    marginTop: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    position: 'relative',
+  },
+  headerTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 10,
+  },
+  headerTabInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  headerTabIndicator: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    width: '50%',
+    height: 2,
+    backgroundColor: '#8B7FE8',
+    borderRadius: 1,
+  },
+  headerTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
+  },
+  headerTabTextActive: {
+    color: '#8B7FE8',
   },
   myCardsButton: {
     flexDirection: 'row',
@@ -1578,6 +1660,7 @@ const styles = StyleSheet.create({
   },
   // Tabs
   tabsWrapper: {
+    marginTop: 10,
     marginBottom: 12,
   },
   tabsContainer: {
