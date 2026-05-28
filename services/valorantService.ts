@@ -107,7 +107,10 @@ export const linkValorantAccount = async (
   } catch (error: any) {
     console.error('Error linking Valorant account:', error);
 
-    // Provide more helpful error messages
+    if (error.code === 'auth/user-token-expired' || error.code === 'auth/invalid-user-token') {
+      throw new Error('Your session has expired. Please log in again to link your Valorant account.');
+    }
+
     if (error.code === 'unauthenticated') {
       throw new Error('Authentication error. Please try logging out and back in.');
     }

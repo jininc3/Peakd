@@ -89,15 +89,17 @@ export default function VerifyPhoneLogin() {
       console.error('Verification error:', error);
       if (error.code === 'auth/invalid-verification-code') {
         Alert.alert('Error', 'Invalid verification code. Please try again.');
-      } else if (error?.details?.code === 'not-found' || error?.message?.includes('No account found')) {
-        Alert.alert(
-          'No Account Found',
-          'No account is linked to this phone number. Would you like to sign up?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign Up', onPress: () => router.replace('/(auth)/signUp') },
-          ]
-        );
+      } else if (
+        error?.code === 'functions/not-found' ||
+        error?.details?.code === 'not-found' ||
+        error?.message?.includes('No account found')
+      ) {
+        // Phone verified but no account exists — go straight to signup
+        router.replace({
+          pathname: '/(auth)/signUpBirthday',
+          params: { signupMethod: 'phone', phoneNumber },
+        });
+        return;
       } else {
         Alert.alert('Error', 'Failed to verify code. Please try again.');
       }

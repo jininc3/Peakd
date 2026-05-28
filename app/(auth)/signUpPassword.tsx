@@ -2,7 +2,16 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { completeEmailSignup, completePhoneSignup } from '@/services/authService';
-import { uploadProfilePicture } from '@/services/storageService';
+import { uploadProfilePicture, uploadCoverPhoto } from '@/services/storageService';
+import { Asset } from 'expo-asset';
+
+const DEFAULT_COVER_PHOTOS = [
+  require('@/assets/images/coverphoto1.png'),
+  require('@/assets/images/coverphoto2.png'),
+  require('@/assets/images/coverphoto3.png'),
+  require('@/assets/images/coverphoto4.png'),
+  require('@/assets/images/coverphoto5.png'),
+];
 import { auth, db, functions } from '@/config/firebase';
 
 import { useRouter } from '@/hooks/useRouter';
@@ -62,6 +71,24 @@ export default function SignUpPassword() {
       // Upload avatar if provided
       let avatarUrl = '';
       const avatarUri = params.avatarUri as string;
+      const defaultAvatarIndex = params.defaultAvatarIndex != null ? Number(params.defaultAvatarIndex) : null;
+
+      // Upload matching default cover photo if the user picked a default avatar
+      let coverPhotoUrl = '';
+      if (defaultAvatarIndex != null && defaultAvatarIndex >= 0 && defaultAvatarIndex < DEFAULT_COVER_PHOTOS.length) {
+        try {
+          const uid = auth.currentUser?.uid;
+          if (uid) {
+            const coverAsset = Asset.fromModule(DEFAULT_COVER_PHOTOS[defaultAvatarIndex]);
+            await coverAsset.downloadAsync();
+            if (coverAsset.localUri) {
+              coverPhotoUrl = await uploadCoverPhoto(uid, coverAsset.localUri);
+            }
+          }
+        } catch (error) {
+          console.error('Error uploading default cover photo:', error);
+        }
+      }
 
       if (signupMethod === 'google' || signupMethod === 'apple') {
         const user = auth.currentUser;
@@ -82,6 +109,7 @@ export default function SignUpPassword() {
           usernameLower: (params.username as string).toLowerCase(),
           dateOfBirth: params.dateOfBirth as string,
           avatar: avatarUrl || user.photoURL || '',
+          ...(coverPhotoUrl ? { coverPhoto: coverPhotoUrl } : {}),
           needsUsernameSetup: false,
           updatedAt: new Date(),
         });
@@ -95,6 +123,7 @@ export default function SignUpPassword() {
           phoneNumber: params.phoneNumber as string,
           dateOfBirth: params.dateOfBirth as string,
           avatar: avatarUrl,
+          coverPhoto: coverPhotoUrl,
           password,
         });
       } else {
@@ -107,6 +136,7 @@ export default function SignUpPassword() {
           email: params.email as string,
           dateOfBirth: params.dateOfBirth as string,
           avatar: avatarUrl,
+          coverPhoto: coverPhotoUrl,
           password,
         });
       }

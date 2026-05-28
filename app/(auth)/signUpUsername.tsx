@@ -120,7 +120,13 @@ export default function SignUpUsername() {
 
       router.push({
         pathname: '/(auth)/signUpPassword',
-        params: { ...params, username, avatarUri },
+        params: {
+          ...params,
+          username,
+          avatarUri,
+          // Pass the default avatar index so the password screen can assign the matching cover photo
+          ...(customAvatarUri ? {} : { defaultAvatarIndex: String(selectedDefault) }),
+        },
       });
     } finally {
       setIsNavigating(false);

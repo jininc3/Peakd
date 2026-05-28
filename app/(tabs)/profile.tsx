@@ -373,7 +373,7 @@ export default function ProfileScreen() {
           setValorantAccount(null);
         } else {
           setValorantAccount(data.valorantAccount);
-          if (data.valorantStats) setValorantStats(data.valorantStats);
+          // valorantStats are managed by ValorantStatsContext (loads cached stats on init)
         }
         setEnabledRankCards(updatedCards);
         setClipCategories(data.clipCategories || []);
@@ -1570,10 +1570,14 @@ export default function ProfileScreen() {
                 </View>
               </View>
             ) : (
-              <View style={styles.clipsEmpty}>
-                <IconSymbol size={24} name="video.fill" color="rgba(255,255,255,0.2)" />
-                <ThemedText style={styles.clipsEmptyText}>No clips yet</ThemedText>
-              </View>
+              <TouchableOpacity
+                style={styles.clipsEmpty}
+                onPress={() => router.push('/postPages/createPostVideo')}
+                activeOpacity={0.7}
+              >
+                <IconSymbol size={24} name="plus" color="rgba(255,255,255,0.3)" />
+                <ThemedText style={styles.clipsEmptyText}>Add your first clip</ThemedText>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -1900,7 +1904,7 @@ const styles = StyleSheet.create({
     left: 0,
     width: '100%',
     height: '100%',
-    opacity: 0.9,
+    opacity: 1,
   },
   coverPhotoGradient: {
     width: '100%',
@@ -1911,7 +1915,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 90,
+    height: 30,
   },
   coverPhotoUsernameRow: {
     position: 'absolute',

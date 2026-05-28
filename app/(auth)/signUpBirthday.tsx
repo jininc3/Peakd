@@ -4,8 +4,9 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, TouchableOpacity, View, Platform, Alert } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, Platform, Alert, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { createPhoneAuthAccount, tryResumePhoneSignup } from '@/services/authService';
 
 const PROGRESS: Record<string, string> = {
   email: '14.3%',
@@ -21,8 +22,11 @@ export default function SignUpBirthday() {
   const signupMethod = (params.signupMethod as string) || 'email';
   const [dateOfBirth, setDateOfBirth] = useState(new Date(2000, 0, 1));
   const [showPicker, setShowPicker] = useState(Platform.OS === 'ios');
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
   const canGoBack = navigation.canGoBack();
+  // Phone already verified from login flow — skip phone entry & verification
+  const phoneAlreadyVerified = signupMethod === 'phone' && !!params.phoneNumber;
 
   const getAge = (dob: Date) => {
     const today = new Date();
@@ -32,7 +36,7 @@ export default function SignUpBirthday() {
     return age;
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     const age = getAge(dateOfBirth);
     if (age < 13) {
       Alert.alert('Age Requirement', 'You must be at least 13 years old to use RankdUp.');
@@ -43,6 +47,27 @@ export default function SignUpBirthday() {
 
     if (signupMethod === 'email') {
       router.push({ pathname: '/(auth)/emailSignUpEmail', params: nextParams });
+    } else if (phoneAlreadyVerified) {
+      // Phone was already verified from the login flow — create auth account and skip to username
+      setIsCreatingAccount(true);
+      try {
+        await createPhoneAuthAccount(params.phoneNumber as string);
+      } catch (error: any) {
+        if (error.code === 'auth/email-already-in-use') {
+          const result = await tryResumePhoneSignup(params.phoneNumber as string);
+          if (result === 'resume') {
+            router.replace({ pathname: '/(auth)/signUpUsername', params: nextParams });
+            return;
+          }
+          Alert.alert('Error', 'This phone number already has an account.');
+          return;
+        }
+        Alert.alert('Error', 'Failed to create account. Please try again.');
+        return;
+      } finally {
+        setIsCreatingAccount(false);
+      }
+      router.push({ pathname: '/(auth)/signUpUsername', params: nextParams });
     } else if (signupMethod === 'phone') {
       router.push({ pathname: '/(auth)/phoneSignUpPhone', params: nextParams });
     } else {
@@ -101,8 +126,8 @@ export default function SignUpBirthday() {
       </View>
 
       <View style={styles.bottomSection}>
-        <TouchableOpacity style={styles.continueButton} onPress={handleContinue} activeOpacity={0.8}>
-          <ThemedText style={styles.continueButtonText}>Continue</ThemedText>
+        <TouchableOpacity style={[styles.continueButton, isCreatingAccount && styles.buttonDisabled]} onPress={handleContinue} disabled={isCreatingAccount} activeOpacity={0.8}>
+          <ThemedText style={styles.continueButtonText}>{isCreatingAccount ? 'Setting up...' : 'Continue'}</ThemedText>
         </TouchableOpacity>
       </View>
     </ThemedView>
@@ -124,4 +149,5 @@ const styles = StyleSheet.create({
   bottomSection: { paddingHorizontal: 28, paddingBottom: 40 },
   continueButton: { backgroundColor: '#fff', borderRadius: 28, paddingVertical: 16, alignItems: 'center' },
   continueButtonText: { color: '#0f0f0f', fontSize: 16, fontWeight: '700' },
+  buttonDisabled: { opacity: 0.4 },
 });

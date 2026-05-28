@@ -25,6 +25,14 @@ const defaultAvatars = [
   require('@/assets/images/avatar5.png'),
 ];
 
+const defaultCoverPhotos = [
+  require('@/assets/images/coverphoto1.png'),
+  require('@/assets/images/coverphoto2.png'),
+  require('@/assets/images/coverphoto3.png'),
+  require('@/assets/images/coverphoto4.png'),
+  require('@/assets/images/coverphoto5.png'),
+];
+
 export default function EditProfileScreen() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -49,6 +57,10 @@ export default function EditProfileScreen() {
   // Default avatar modal
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [pendingDefaultAvatarIndex, setPendingDefaultAvatarIndex] = useState<number | null>(null);
+
+  // Default cover photo modal
+  const [showCoverModal, setShowCoverModal] = useState(false);
+  const [pendingDefaultCoverIndex, setPendingDefaultCoverIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -76,7 +88,8 @@ export default function EditProfileScreen() {
         pendingCoverPhotoUri !== null ||
         pendingRemoveProfileImage ||
         pendingRemoveCoverPhoto ||
-        pendingDefaultAvatarIndex !== null;
+        pendingDefaultAvatarIndex !== null ||
+        pendingDefaultCoverIndex !== null;
 
       if (!changesExist) return;
 
@@ -181,19 +194,28 @@ export default function EditProfileScreen() {
     }
   };
 
+  const selectDefaultCover = (index: number) => {
+    setPendingDefaultCoverIndex(index);
+    setPendingCoverPhotoUri(null);
+    setPendingRemoveCoverPhoto(false);
+    setShowCoverModal(false);
+  };
+
   const showCoverPhotoOptions = () => {
     const options: any[] = [
+      { text: 'Choose Default', onPress: () => setShowCoverModal(true) },
       { text: 'Take Photo', onPress: () => takeCoverPhoto() },
       { text: 'Choose from Library', onPress: () => pickCoverPhoto() },
     ];
 
-    if (coverPhoto || pendingCoverPhotoUri) {
+    if (coverPhoto || pendingCoverPhotoUri || pendingDefaultCoverIndex !== null) {
       options.push({
         text: 'Remove Photo',
         style: 'destructive',
         onPress: () => {
           setPendingRemoveCoverPhoto(true);
           setPendingCoverPhotoUri(null);
+          setPendingDefaultCoverIndex(null);
         },
       });
     }
@@ -219,6 +241,7 @@ export default function EditProfileScreen() {
       if (!result.canceled && result.assets[0]) {
         setPendingCoverPhotoUri(result.assets[0].uri);
         setPendingRemoveCoverPhoto(false);
+        setPendingDefaultCoverIndex(null);
       }
     } catch (error: any) {
       Alert.alert('Error', 'Failed to take photo');
@@ -243,6 +266,7 @@ export default function EditProfileScreen() {
       if (!result.canceled && result.assets[0]) {
         setPendingCoverPhotoUri(result.assets[0].uri);
         setPendingRemoveCoverPhoto(false);
+        setPendingDefaultCoverIndex(null);
       }
     } catch (error: any) {
       Alert.alert('Error', 'Failed to pick image');
@@ -259,6 +283,7 @@ export default function EditProfileScreen() {
     if (pendingRemoveProfileImage) return true;
     if (pendingRemoveCoverPhoto) return true;
     if (pendingDefaultAvatarIndex !== null) return true;
+    if (pendingDefaultCoverIndex !== null) return true;
     return false;
   };
 
@@ -319,6 +344,18 @@ export default function EditProfileScreen() {
               if (pendingRemoveCoverPhoto) {
                 updateData.coverPhoto = '';
                 updateData.coverPhotoColor = '';
+              } else if (pendingDefaultCoverIndex !== null) {
+                // User explicitly picked a default cover photo
+                try {
+                  const coverAsset = Asset.fromModule(defaultCoverPhotos[pendingDefaultCoverIndex]);
+                  await coverAsset.downloadAsync();
+                  if (coverAsset.localUri) {
+                    const coverUrl = await uploadCoverPhoto(user.id, coverAsset.localUri);
+                    updateData.coverPhoto = coverUrl;
+                  }
+                } catch (error) {
+                  console.error('Error uploading default cover photo:', error);
+                }
               } else if (pendingCoverPhotoUri) {
                 const coverUrl = await uploadCoverPhoto(user.id, pendingCoverPhotoUri);
                 updateData.coverPhoto = coverUrl;
@@ -335,6 +372,19 @@ export default function EditProfileScreen() {
                   }
                 } catch {
                   updateData.coverPhotoColor = '#24243e';
+                }
+              } else if (pendingDefaultAvatarIndex !== null && !user.coverPhoto) {
+                // Auto-assign matching default cover photo when picking a default avatar
+                // and the user has no existing cover photo
+                try {
+                  const coverAsset = Asset.fromModule(defaultCoverPhotos[pendingDefaultAvatarIndex]);
+                  await coverAsset.downloadAsync();
+                  if (coverAsset.localUri) {
+                    const coverUrl = await uploadCoverPhoto(user.id, coverAsset.localUri);
+                    updateData.coverPhoto = coverUrl;
+                  }
+                } catch (error) {
+                  console.error('Error uploading default cover photo:', error);
                 }
               }
 
@@ -363,10 +413,11 @@ export default function EditProfileScreen() {
     return null;
   };
 
-  const getDisplayedCover = () => {
+  const getDisplayedCover = (): { type: 'uri'; uri: string } | { type: 'default'; index: number } | null => {
     if (pendingRemoveCoverPhoto) return null;
-    if (pendingCoverPhotoUri) return pendingCoverPhotoUri;
-    if (coverPhoto) return coverPhoto;
+    if (pendingDefaultCoverIndex !== null) return { type: 'default', index: pendingDefaultCoverIndex };
+    if (pendingCoverPhotoUri) return { type: 'uri', uri: pendingCoverPhotoUri };
+    if (coverPhoto) return { type: 'uri', uri: coverPhoto };
     return null;
   };
 
@@ -523,7 +574,11 @@ export default function EditProfileScreen() {
           <ThemedText style={styles.sectionTitle}>Cover Photo</ThemedText>
           <TouchableOpacity style={styles.coverPhotoBox} onPress={showCoverPhotoOptions} disabled={isLoading} activeOpacity={0.7}>
             {displayedCover ? (
-              <CachedImage uri={displayedCover} style={styles.coverPhotoImage} />
+              displayedCover.type === 'default' ? (
+                <Image source={defaultCoverPhotos[displayedCover.index]} style={styles.coverPhotoImage} />
+              ) : (
+                <CachedImage uri={displayedCover.uri} style={styles.coverPhotoImage} />
+              )
             ) : (
               <View style={styles.coverPhotoPlaceholder}>
                 <IconSymbol size={28} name="photo" color="#555" />
@@ -564,6 +619,43 @@ export default function EditProfileScreen() {
                   <Image source={avatarImg} style={styles.avatarOptionImage} />
                   {pendingDefaultAvatarIndex === index && (
                     <View style={styles.avatarCheckmark}>
+                      <IconSymbol size={16} name="checkmark" color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Default Cover Photo Selection Modal */}
+      <Modal
+        visible={showCoverModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCoverModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Choose Cover Photo</ThemedText>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowCoverModal(false)}>
+                <IconSymbol size={24} name="xmark" color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.coverGrid}>
+              {defaultCoverPhotos.map((coverImg, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[styles.coverOption, pendingDefaultCoverIndex === index && styles.coverOptionSelected]}
+                  onPress={() => selectDefaultCover(index)}
+                  activeOpacity={0.7}
+                >
+                  <Image source={coverImg} style={styles.coverOptionImage} />
+                  {pendingDefaultCoverIndex === index && (
+                    <View style={styles.coverCheckmark}>
                       <IconSymbol size={16} name="checkmark" color="#fff" />
                     </View>
                   )}
@@ -832,6 +924,35 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coverGrid: {
+    gap: 12,
+  },
+  coverOption: {
+    width: '100%',
+    height: 100,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: 'transparent',
+  },
+  coverOptionSelected: {
+    borderColor: '#fff',
+  },
+  coverOptionImage: {
+    width: '100%',
+    height: '100%',
+  },
+  coverCheckmark: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
     width: 24,
     height: 24,
     borderRadius: 12,

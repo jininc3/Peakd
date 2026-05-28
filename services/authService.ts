@@ -102,6 +102,7 @@ export async function completeEmailSignup(data: {
   email: string;
   dateOfBirth: string;
   avatar?: string;
+  coverPhoto?: string;
   password: string;
 }): Promise<UserProfile> {
   try {
@@ -125,6 +126,7 @@ export async function completeEmailSignup(data: {
       username: data.username,
       usernameLower: data.username.toLowerCase(),
       avatar: data.avatar || '',
+      ...(data.coverPhoto ? { coverPhoto: data.coverPhoto } : {}),
       bio: '',
       discordLink: '',
       instagramLink: '',
@@ -198,6 +200,7 @@ export async function completePhoneSignup(data: {
   phoneNumber: string;
   dateOfBirth: string;
   avatar?: string;
+  coverPhoto?: string;
   password: string;
 }): Promise<UserProfile> {
   try {
@@ -221,6 +224,7 @@ export async function completePhoneSignup(data: {
       username: data.username,
       usernameLower: data.username.toLowerCase(),
       avatar: data.avatar || '',
+      ...(data.coverPhoto ? { coverPhoto: data.coverPhoto } : {}),
       bio: '',
       discordLink: '',
       instagramLink: '',
@@ -465,6 +469,8 @@ export async function updateUserProfile(
     discordLink?: string;
     instagramLink?: string;
     avatar?: string;
+    coverPhoto?: string;
+    coverPhotoColor?: string;
   }
 ): Promise<void> {
   try {

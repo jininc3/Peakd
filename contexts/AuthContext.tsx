@@ -432,6 +432,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return;
             }
 
+            // Phone users mid-signup (no profile yet) — keep them in auth screens
+            if (isEmailProvider && firebaseUser.email?.endsWith('@peakd-phone.internal') && !isGoogleUser && !isAppleUser) {
+              setUser(null);
+              setLoadingFalse();
+              return;
+            }
+
             setUser({
               id: firebaseUser.uid,
               username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',

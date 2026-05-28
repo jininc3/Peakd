@@ -12,7 +12,8 @@
       "Bash(cp \"C:\\\\Users\\\\jinha\\\\Desktop\\\\Peakd\\\\assets\\\\images\\\\Peakd-logo-black.png\" \"C:\\\\Users\\\\jinha\\\\Desktop\\\\Peakd\\\\landing\\\\public\\\\peakd-logo-black.png\")",
       "Bash(ls:*)",
       "Bash(npx next:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(find /c/Users/jinha/Desktop/Peakd/assets/images -type f -name *cover*)"
     ],
     "deny": [],
     "ask": []
