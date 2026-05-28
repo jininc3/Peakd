@@ -1141,7 +1141,7 @@ export default function ProfileViewScreen() {
                 <View style={styles.clipsFeatured}>
                   <TouchableOpacity
                     style={StyleSheet.absoluteFillObject}
-                    onPress={() => router.push({ pathname: '/postViewer', params: { postId: posts[0].id } })}
+                    onPress={() => router.push({ pathname: '/postViewer', params: { postId: posts[0].id, allPostIds: JSON.stringify(posts.map(p => p.id)) } })}
                     activeOpacity={0.85}
                   >
                     <CachedImage
@@ -1170,7 +1170,7 @@ export default function ProfileViewScreen() {
                     <View key={post.id} style={styles.clipsStackItem}>
                       <TouchableOpacity
                         style={StyleSheet.absoluteFillObject}
-                        onPress={() => router.push({ pathname: '/postViewer', params: { postId: post.id } })}
+                        onPress={() => router.push({ pathname: '/postViewer', params: { postId: post.id, allPostIds: JSON.stringify(posts.map(p => p.id)) } })}
                         activeOpacity={0.85}
                       >
                         <CachedImage

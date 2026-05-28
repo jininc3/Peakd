@@ -13,7 +13,8 @@
       "Bash(ls:*)",
       "Bash(npx next:*)",
       "Bash(npx tsc:*)",
-      "Bash(find /c/Users/jinha/Desktop/Peakd/assets/images -type f -name *cover*)"
+      "Bash(find /c/Users/jinha/Desktop/Peakd/assets/images -type f -name *cover*)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []

@@ -299,11 +299,7 @@ export default function LeaderboardScreen() {
   const [lobbyCount, setLobbyCount] = useState(0);
   const [rankChanges, setRankChanges] = useState<Record<string, 'up' | 'down' | null>>({});
   const [userGameStats, setUserGameStats] = useState<{ rr: number; lp: number; rrToday: number; lpToday: number } | null>(null);
-  const [activeHeaderTab, setActiveHeaderTab] = useState<'leaderboard' | 'lobbies'>('leaderboard');
-  const pagerRef = useRef<ScrollView>(null);
-  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
-  // Stop any stale native-driven animation on mount
-  useEffect(() => { tabIndicatorAnim.stopAnimation(); }, []);
+  const [leaderboardExpanded, setLeaderboardExpanded] = useState(false);
 
   // Lobbies state
   const [lobbies, setLobbies] = useState<any[]>(cachedLobbies || []);
@@ -802,89 +798,149 @@ export default function LeaderboardScreen() {
         })()}
 
         {/* Remaining Player Rows */}
-        {players.length > 3 && (
-          <>
-            <View style={styles.columnHeaders}>
-              <ThemedText style={[styles.columnHeaderText, { width: 40 }]}>RANK</ThemedText>
-              <ThemedText style={[styles.columnHeaderText, { flex: 1, paddingLeft: 40 }]}>PLAYER</ThemedText>
-              <ThemedText style={[styles.columnHeaderText, { width: 145, marginLeft: 'auto', textAlign: 'center' }]}>
-                CURRENT RANK
-              </ThemedText>
-            </View>
-            <View style={styles.playerList}>
-              {players.slice(3).map((player, index) => {
-                const rankIcon = isLeague
-                  ? getLeagueRankIcon(player.currentRank)
-                  : getValorantRankIcon(player.currentRank);
-                const rank = index + 4;
+        {players.length > 3 && (() => {
+          const remainingPlayers = players.slice(3);
 
-                return (
-                  <TouchableOpacity
-                    key={player.userId}
-                    style={[
-                      styles.playerRow,
-                      index % 2 === 0 ? styles.evenRow : styles.oddRow,
-                      player.isCurrentUser && styles.currentUserRow,
-                    ]}
-                    activeOpacity={player.isCurrentUser ? 1 : 0.7}
-                    onPress={() => {
-                      if (!player.isCurrentUser) {
-                        router.push({
-                          pathname: '/profilePages/profileView',
-                          params: {
-                            userId: player.userId,
-                            username: player.username,
-                            avatar: player.avatar || '',
-                            preloadedFollowing: 'true',
-                          },
-                        });
-                      }
-                    }}
-                  >
-                    <View style={styles.rankContainer}>
-                      <ThemedText style={styles.rankNumberText}>{rank}</ThemedText>
-                      {rankChanges[player.userId] === 'up' && (
-                        <IconSymbol size={10} name="arrowtriangle.up.fill" color="#22C55E" />
+          // Build visible players for collapsed view
+          let visiblePlayers: { player: MutualPlayer; rank: number }[];
+          let showSeparator = false;
+          let separatorAfterIndex = -1;
+
+          if (leaderboardExpanded) {
+            visiblePlayers = remainingPlayers.map((p, i) => ({ player: p, rank: i + 4 }));
+          } else {
+            const currentUserIdx = remainingPlayers.findIndex(p => p.isCurrentUser);
+
+            if (currentUserIdx > 2) {
+              // User is beyond rank 6 — show neighbor above, user, neighbor below
+              const above = currentUserIdx - 1;
+              const below = Math.min(currentUserIdx + 1, remainingPlayers.length - 1);
+              const userSection: { player: MutualPlayer; rank: number }[] = [];
+              if (above >= 0) userSection.push({ player: remainingPlayers[above], rank: above + 4 });
+              userSection.push({ player: remainingPlayers[currentUserIdx], rank: currentUserIdx + 4 });
+              if (below < remainingPlayers.length && below !== currentUserIdx) {
+                userSection.push({ player: remainingPlayers[below], rank: below + 4 });
+              }
+              visiblePlayers = userSection;
+            } else {
+              // User is in top 6 — show first 3 remaining (ranks 4-6)
+              visiblePlayers = remainingPlayers.slice(0, 3).map((p, i) => ({ player: p, rank: i + 4 }));
+            }
+          }
+
+          const hasMore = remainingPlayers.length > 3 && !leaderboardExpanded;
+
+          return (
+            <>
+              <View style={styles.columnHeaders}>
+                <ThemedText style={[styles.columnHeaderText, { width: 40 }]}>RANK</ThemedText>
+                <ThemedText style={[styles.columnHeaderText, { flex: 1, paddingLeft: 40 }]}>PLAYER</ThemedText>
+                <ThemedText style={[styles.columnHeaderText, { width: 145, marginLeft: 'auto', textAlign: 'center' }]}>
+                  CURRENT RANK
+                </ThemedText>
+              </View>
+              <View style={styles.playerList}>
+                {visiblePlayers.map(({ player, rank }, index) => {
+                  const rankIcon = isLeague
+                    ? getLeagueRankIcon(player.currentRank)
+                    : getValorantRankIcon(player.currentRank);
+
+                  return (
+                    <View key={player.userId}>
+                      {showSeparator && index === separatorAfterIndex + 1 && (
+                        <View style={styles.leaderboardSeparator}>
+                          <View style={styles.separatorDot} />
+                          <View style={styles.separatorDot} />
+                          <View style={styles.separatorDot} />
+                        </View>
                       )}
-                      {rankChanges[player.userId] === 'down' && (
-                        <IconSymbol size={10} name="arrowtriangle.down.fill" color="#EF4444" />
-                      )}
-                    </View>
-                    <View style={styles.playerInfo}>
-                      <View style={styles.playerAvatarRing}>
-                        <View style={styles.playerAvatar}>
-                          {player.avatar ? (
-                            <CachedImage uri={player.avatar} style={styles.playerAvatarImage} />
-                          ) : (
-                            <ThemedText style={styles.avatarText}>
-                              {player.username.charAt(0).toUpperCase()}
-                            </ThemedText>
+                      <TouchableOpacity
+                        style={[
+                          styles.playerRow,
+                          index % 2 === 0 ? styles.evenRow : styles.oddRow,
+                          player.isCurrentUser && styles.currentUserRow,
+                        ]}
+                        activeOpacity={player.isCurrentUser ? 1 : 0.7}
+                        onPress={() => {
+                          if (!player.isCurrentUser) {
+                            router.push({
+                              pathname: '/profilePages/profileView',
+                              params: {
+                                userId: player.userId,
+                                username: player.username,
+                                avatar: player.avatar || '',
+                                preloadedFollowing: 'true',
+                              },
+                            });
+                          }
+                        }}
+                      >
+                        <View style={styles.rankContainer}>
+                          <ThemedText style={styles.rankNumberText}>{rank}</ThemedText>
+                          {rankChanges[player.userId] === 'up' && (
+                            <IconSymbol size={10} name="arrowtriangle.up.fill" color="#22C55E" />
+                          )}
+                          {rankChanges[player.userId] === 'down' && (
+                            <IconSymbol size={10} name="arrowtriangle.down.fill" color="#EF4444" />
                           )}
                         </View>
-                      </View>
-                      <View style={styles.playerNameContainer}>
-                        <ThemedText style={[styles.playerName, player.isCurrentUser && styles.currentUserName]} numberOfLines={1}>
-                          {player.username}{player.isCurrentUser ? ' (You)' : ''}
-                        </ThemedText>
-                      </View>
+                        <View style={styles.playerInfo}>
+                          <View style={styles.playerAvatarRing}>
+                            <View style={styles.playerAvatar}>
+                              {player.avatar ? (
+                                <CachedImage uri={player.avatar} style={styles.playerAvatarImage} />
+                              ) : (
+                                <ThemedText style={styles.avatarText}>
+                                  {player.username.charAt(0).toUpperCase()}
+                                </ThemedText>
+                              )}
+                            </View>
+                          </View>
+                          <View style={styles.playerNameContainer}>
+                            <ThemedText style={[styles.playerName, player.isCurrentUser && styles.currentUserName]} numberOfLines={1}>
+                              {player.username}{player.isCurrentUser ? ' (You)' : ''}
+                            </ThemedText>
+                          </View>
+                        </View>
+                        <View style={styles.rankInfoContainer}>
+                          <Image source={rankIcon} style={styles.rankIconSmall} resizeMode="contain" />
+                          <View style={styles.rankTextContainer}>
+                            <ThemedText style={styles.currentRankText}>
+                              {formatRankDisplay(player.currentRank)}
+                            </ThemedText>
+                            <ThemedText style={styles.rankPointsText}>
+                              {isLeague ? `${player.lp || 0} LP` : `${player.rr || 0} RR`}
+                            </ThemedText>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
                     </View>
-                    <View style={styles.rankInfoContainer}>
-                      <Image source={rankIcon} style={styles.rankIconSmall} resizeMode="contain" />
-                      <View style={styles.rankTextContainer}>
-                        <ThemedText style={styles.currentRankText}>
-                          {formatRankDisplay(player.currentRank)}
-                        </ThemedText>
-                        <ThemedText style={styles.rankPointsText}>
-                          {isLeague ? `${player.lp || 0} LP` : `${player.rr || 0} RR`}
-                        </ThemedText>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </>
-        )}
+                  );
+                })}
+              </View>
+              {hasMore && (
+                <TouchableOpacity
+                  style={styles.viewFullButton}
+                  onPress={() => setLeaderboardExpanded(true)}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={styles.viewFullButtonText}>View full leaderboard</ThemedText>
+                  <IconSymbol size={14} name="chevron.down" color="#8B7FE8" />
+                </TouchableOpacity>
+              )}
+              {leaderboardExpanded && remainingPlayers.length > 3 && (
+                <TouchableOpacity
+                  style={styles.viewFullButton}
+                  onPress={() => setLeaderboardExpanded(false)}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={styles.viewFullButtonText}>Collapse</ThemedText>
+                  <IconSymbol size={14} name="chevron.up" color="#8B7FE8" />
+                </TouchableOpacity>
+              )}
+            </>
+          );
+        })()}
       </View>
     );
   };
@@ -927,203 +983,160 @@ export default function LeaderboardScreen() {
 
       <View style={styles.header}>
         <ThemedText style={styles.headerTitle}>Leaderboards</ThemedText>
-        <View style={styles.headerTabs}>
-          <TouchableOpacity
-            style={styles.headerTab}
-            onPress={() => {
-              setActiveHeaderTab('leaderboard');
-              Animated.spring(tabIndicatorAnim, { toValue: 0, useNativeDriver: false, tension: 68, friction: 12 }).start();
-              pagerRef.current?.scrollTo({ x: 0, animated: true });
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.headerTabInner}>
-              <Animated.View style={[styles.headerTabInner, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} pointerEvents="none">
-                <IconSymbol size={14} name="list.number" color="#8B7FE8" />
-                <ThemedText style={[styles.headerTabText, styles.headerTabTextActive]}>Leaderboard</ThemedText>
-              </Animated.View>
-              <Animated.View style={[styles.headerTabInner, StyleSheet.absoluteFill, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }]} pointerEvents="none">
-                <IconSymbol size={14} name="list.number" color="#555" />
-                <ThemedText style={styles.headerTabText}>Leaderboard</ThemedText>
-              </Animated.View>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerTab}
-            onPress={() => {
-              setActiveHeaderTab('lobbies');
-              Animated.spring(tabIndicatorAnim, { toValue: 1, useNativeDriver: false, tension: 68, friction: 12 }).start();
-              pagerRef.current?.scrollTo({ x: screenWidth, animated: true });
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.headerTabInner}>
-              <Animated.View style={[styles.headerTabInner, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }]} pointerEvents="none">
-                <IconSymbol size={14} name="person.2" color="#8B7FE8" />
-                <ThemedText style={[styles.headerTabText, styles.headerTabTextActive]}>Lobbies</ThemedText>
-              </Animated.View>
-              <Animated.View style={[styles.headerTabInner, StyleSheet.absoluteFill, { opacity: tabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} pointerEvents="none">
-                <IconSymbol size={14} name="person.2" color="#555" />
-                <ThemedText style={styles.headerTabText}>Lobbies</ThemedText>
-              </Animated.View>
-            </View>
-          </TouchableOpacity>
-          <Animated.View
-            style={[
-              styles.headerTabIndicator,
-              {
-                transform: [{
-                  translateX: tabIndicatorAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, (screenWidth - 32) / 2],
-                  }),
-                }],
-              },
-            ]}
-          />
-        </View>
       </View>
 
       <ScrollView
-        ref={pagerRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={(e) => {
-          const offsetX = e.nativeEvent.contentOffset.x;
-          const progress = Math.min(1, Math.max(0, offsetX / screenWidth));
-          tabIndicatorAnim.setValue(progress);
-          const page = Math.round(progress);
-          const newTab = page === 0 ? 'leaderboard' : 'lobbies';
-          if (newTab !== activeHeaderTab) setActiveHeaderTab(newTab);
-        }}
-        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.pageContent}
       >
-        {/* Leaderboard page */}
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.pageContent}
-          style={{ width: screenWidth }}
-          nestedScrollEnabled
-        >
-          {mutualLoading ? (
-            <LeaderboardsTabSkeleton />
-          ) : leaguePlayers.length + valorantPlayers.length === 0 ? (
-            <View style={styles.emptyState}>
-              <ThemedText style={styles.emptyStateTitle}>No friends to{'\n'}rank yet</ThemedText>
-              <ThemedText style={styles.emptyStateSubtext}>
-                Follow users who follow you back to see mutual rankings.
-              </ThemedText>
-            </View>
-          ) : (
-            <View>
-              {(() => {
-                const activePlayers = selectedMutualGame === 'league' ? leaguePlayers : valorantPlayers;
-                const fallbackGame = selectedMutualGame === 'league' ? 'valorant' : 'league';
-                const fallbackPlayers = selectedMutualGame === 'league' ? valorantPlayers : leaguePlayers;
-                const usedPlayers = activePlayers.length > 0 ? activePlayers : fallbackPlayers;
-                const usedGame = activePlayers.length > 0 ? selectedMutualGame : fallbackGame;
+        {/* Leaderboard Section */}
+        {mutualLoading ? (
+          <LeaderboardsTabSkeleton />
+        ) : leaguePlayers.length + valorantPlayers.length === 0 ? (
+          <View style={styles.emptyState}>
+            <ThemedText style={styles.emptyStateTitle}>No friends to{'\n'}rank yet</ThemedText>
+            <ThemedText style={styles.emptyStateSubtext}>
+              Follow users who follow you back to see mutual rankings.
+            </ThemedText>
+          </View>
+        ) : (
+          <View style={styles.leaderboardContainer}>
+            {(() => {
+              const activePlayers = selectedMutualGame === 'league' ? leaguePlayers : valorantPlayers;
+              const fallbackGame = selectedMutualGame === 'league' ? 'valorant' : 'league';
+              const fallbackPlayers = selectedMutualGame === 'league' ? valorantPlayers : leaguePlayers;
+              const usedPlayers = activePlayers.length > 0 ? activePlayers : fallbackPlayers;
+              const usedGame = activePlayers.length > 0 ? selectedMutualGame : fallbackGame;
 
-                const currentUser = usedPlayers.find(p => p.isCurrentUser);
-                const isLeague = usedGame === 'league';
+              return renderMutualLeaderboard(usedPlayers, usedGame);
+            })()}
+          </View>
+        )}
 
-                return (
-                  <>
-                    {renderMutualLeaderboard(usedPlayers, usedGame)}
-
-                  </>
-                );
-              })()}
-            </View>
-          )}
-          <View style={styles.bottomSpacer} />
-        </ScrollView>
-
-        {/* Lobbies page */}
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.lobbiesContent}
-          style={{ width: screenWidth }}
-          nestedScrollEnabled
-        >
-          {/* Lobbies sub-tabs + create button */}
-          <View style={styles.lobbiesHeader}>
-            <View style={styles.lobbiesSubTabs}>
-              <TouchableOpacity
-                style={[styles.lobbiesSubTab, lobbiesSubTab === 'all' && styles.lobbiesSubTabActive]}
-                onPress={() => setLobbiesSubTab('all')}
-              >
-                <ThemedText style={[styles.lobbiesSubTabText, lobbiesSubTab === 'all' && styles.lobbiesSubTabTextActive]}>All</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.lobbiesSubTab, lobbiesSubTab === 'active' && styles.lobbiesSubTabActive]}
-                onPress={() => setLobbiesSubTab('active')}
-              >
-                <ThemedText style={[styles.lobbiesSubTabText, lobbiesSubTab === 'active' && styles.lobbiesSubTabTextActive]}>Active</ThemedText>
-                {activeLobbiesCount > 0 && (
-                  <View style={styles.lobbiesSubTabBadge}>
-                    <ThemedText style={styles.lobbiesSubTabBadgeText}>{activeLobbiesCount}</ThemedText>
-                  </View>
-                )}
-              </TouchableOpacity>
+        {/* Active Lobbies Section */}
+        <View style={styles.activeLobbiesSection}>
+          <View style={styles.activeLobbiesHeader}>
+            <View style={styles.activeLobbiesHeaderLeft}>
+              <IconSymbol size={20} name="person.2.fill" color="#fff" />
+              <ThemedText style={styles.activeLobbiesTitle}>Active Lobbies</ThemedText>
             </View>
             <TouchableOpacity
-              style={styles.lobbiesCreateButton}
-              onPress={() => router.push('/partyPages/createLeaderboardName')}
+              onPress={() => router.push('/partyPages/lobbies')}
               activeOpacity={0.7}
             >
-              <IconSymbol size={14} name="plus" color="#8B7FE8" />
-              <ThemedText style={styles.lobbiesCreateButtonText}>Create</ThemedText>
+              <ThemedText style={styles.activeLobbiesViewAll}>View All</ThemedText>
             </TouchableOpacity>
           </View>
 
           {lobbiesLoading ? (
-            <View>
-              {[1, 2, 3].map((i) => (
-                <LeaderboardCardSkeleton key={i} />
-              ))}
-            </View>
+            <ActivityIndicator size="small" color="#8B7FE8" style={{ paddingVertical: 24 }} />
           ) : filteredLobbies.length > 0 ? (
-            <View>
-              {filteredLobbies.map((leaderboard, index) => (
-                <LeaderboardCard
-                  key={leaderboard.id}
-                  leaderboard={leaderboard}
-                  onPress={handleLobbyPress}
-                  showDivider={index < filteredLobbies.length - 1}
-                  currentUserId={user?.id}
-                />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.lobbiesEmptyState}>
-              <ThemedText style={styles.lobbiesEmptyText}>No lobbies yet</ThemedText>
-              <ThemedText style={styles.lobbiesEmptySubtext}>
-                Create a lobby to compete with friends
-              </ThemedText>
-            </View>
-          )}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.activeLobbiesScroll}
+            >
+              {filteredLobbies.map((lobby: any) => {
+                const isLeague = lobby.game === 'League of Legends' || lobby.game === 'League';
+                const members = lobby.memberDetails || [];
+                const displayMembers = members.slice(0, 3);
+                const extraCount = Math.max(0, members.length - 3);
 
-          {/* Create lobby card */}
-          <View style={styles.lobbiesCreateCardWrapper}>
+                // Calculate average rank
+                const players = lobby.players || [];
+                let avgRankLabel = 'Unranked';
+                if (players.length > 0) {
+                  const rankedPlayers = players.filter((p: any) => p.currentRank && p.currentRank !== 'Unranked');
+                  if (rankedPlayers.length > 0) {
+                    // Use the median player's rank as representative
+                    const midIdx = Math.floor(rankedPlayers.length / 2);
+                    avgRankLabel = formatRankDisplay(rankedPlayers[midIdx].currentRank);
+                  }
+                }
+                const avgRankIcon = isLeague
+                  ? getLeagueRankIcon(players.length > 0 ? players[Math.floor(players.length / 2)]?.currentRank || 'Unranked' : 'Unranked')
+                  : getValorantRankIcon(players.length > 0 ? players[Math.floor(players.length / 2)]?.currentRank || 'Unranked' : 'Unranked');
+
+                return (
+                  <TouchableOpacity
+                    key={lobby.id}
+                    style={styles.lobbyCard}
+                    onPress={() => handleLobbyPress(lobby)}
+                    activeOpacity={0.8}
+                  >
+                    {/* Type badge */}
+                    <View style={styles.lobbyTypeBadge}>
+                      <ThemedText style={styles.lobbyTypeBadgeText}>
+                        {lobby.type === 'party' ? 'PARTY' : isLeague ? 'RANKED SOLO' : 'RANKED FLEX'}
+                      </ThemedText>
+                    </View>
+
+                    {/* Stacked avatars */}
+                    <View style={styles.lobbyAvatars}>
+                      {displayMembers.map((member: any, idx: number) => (
+                        <View key={member.userId || idx} style={[styles.lobbyAvatarWrapper, { marginLeft: idx > 0 ? -12 : 0, zIndex: displayMembers.length - idx }]}>
+                          {member.avatar ? (
+                            <CachedImage uri={member.avatar} style={styles.lobbyAvatarImage} />
+                          ) : (
+                            <View style={styles.lobbyAvatarFallback}>
+                              <ThemedText style={styles.lobbyAvatarFallbackText}>
+                                {(member.username || '?').charAt(0).toUpperCase()}
+                              </ThemedText>
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                      {extraCount > 0 && (
+                        <View style={[styles.lobbyAvatarWrapper, styles.lobbyAvatarExtra, { marginLeft: -12 }]}>
+                          <ThemedText style={styles.lobbyAvatarExtraText}>+{extraCount}</ThemedText>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Lobby name & description */}
+                    <ThemedText style={styles.lobbyCardName} numberOfLines={1}>{lobby.name}</ThemedText>
+
+                    {/* Average rank */}
+                    <View style={styles.lobbyRankRow}>
+                      <Image source={avgRankIcon} style={styles.lobbyRankIcon} resizeMode="contain" />
+                      <ThemedText style={styles.lobbyRankText}>{avgRankLabel}+</ThemedText>
+                    </View>
+
+                    {/* Footer: member count + join */}
+                    <View style={styles.lobbyCardFooter}>
+                      <ThemedText style={styles.lobbyMemberCount}>{lobby.members} / {lobby.maxMembers}</ThemedText>
+                      <View style={styles.lobbyJoinButton}>
+                        <ThemedText style={styles.lobbyJoinButtonText}>View</ThemedText>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* Create new lobby card */}
+              <TouchableOpacity
+                style={[styles.lobbyCard, styles.lobbyCardCreate]}
+                onPress={() => router.push('/partyPages/createLeaderboardName')}
+                activeOpacity={0.7}
+              >
+                <IconSymbol size={32} name="plus.circle.fill" color="#8B7FE8" />
+                <ThemedText style={styles.lobbyCardCreateText}>Create Lobby</ThemedText>
+              </TouchableOpacity>
+            </ScrollView>
+          ) : (
             <TouchableOpacity
-              style={styles.lobbiesCreateCard}
+              style={styles.activeLobbiesEmpty}
               onPress={() => router.push('/partyPages/createLeaderboardName')}
               activeOpacity={0.7}
             >
-              <View style={styles.lobbiesCreateCardIcon}>
-                <IconSymbol size={32} name="plus.circle.fill" color="#8B7FE8" />
-              </View>
-              <View style={styles.lobbiesCreateCardContent}>
-                <ThemedText style={styles.lobbiesCreateCardTitle}>Create a new lobby</ThemedText>
-                <ThemedText style={styles.lobbiesCreateCardSubtitle}>Start a leaderboard and challenge your friends</ThemedText>
-              </View>
+              <IconSymbol size={28} name="plus.circle.fill" color="#8B7FE8" />
+              <ThemedText style={styles.activeLobbiesEmptyText}>Create your first lobby</ThemedText>
+              <ThemedText style={styles.activeLobbiesEmptySubtext}>Compete with friends on a leaderboard</ThemedText>
             </TouchableOpacity>
-          </View>
+          )}
+        </View>
 
-          <View style={styles.bottomSpacer} />
-        </ScrollView>
+        <View style={styles.bottomSpacer} />
       </ScrollView>
 
       {/* Game Switcher Dropdown Overlay */}
@@ -1336,10 +1349,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#1a1a1a',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 10,
   },
   updateButtonText: {
     fontSize: 13,
@@ -1348,7 +1359,7 @@ const styles = StyleSheet.create({
   },
   // Mutual leaderboard styles
   mutualSection: {
-    marginBottom: 20,
+    marginBottom: 0,
   },
   top3Podium: {
     marginBottom: 16,
@@ -1448,10 +1459,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     width: 210,
-    backgroundColor: 'rgba(139, 127, 232, 0.06)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.15)',
     overflow: 'hidden',
   },
   gameSwitchGlow: {
@@ -1461,7 +1468,7 @@ const styles = StyleSheet.create({
     right: -10,
     bottom: -10,
     borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    backgroundColor: 'transparent',
   },
   gameLogoSmall: {
     width: 24,
@@ -1933,5 +1940,211 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  // Leaderboard container
+  leaderboardContainer: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    marginHorizontal: 6,
+    paddingBottom: 0,
+    overflow: 'hidden',
+  },
+  viewFullButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    marginHorizontal: 16,
+  },
+  leaderboardSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  separatorDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#444',
+  },
+  viewFullButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8B7FE8',
+  },
+  // Active Lobbies Section
+  activeLobbiesSection: {
+    marginTop: 28,
+    paddingBottom: 8,
+  },
+  activeLobbiesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  activeLobbiesHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activeLobbiesTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  activeLobbiesViewAll: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8B7FE8',
+  },
+  activeLobbiesScroll: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  lobbyCard: {
+    width: 170,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 14,
+    gap: 10,
+  },
+  lobbyCardCreate: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderStyle: 'dashed',
+    borderColor: 'rgba(139, 127, 232, 0.3)',
+  },
+  lobbyCardCreateText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8B7FE8',
+    marginTop: 8,
+  },
+  lobbyTypeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  lobbyTypeBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#8B7FE8',
+    letterSpacing: 0.5,
+  },
+  lobbyAvatars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  lobbyAvatarWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+    overflow: 'hidden',
+  },
+  lobbyAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+  },
+  lobbyAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(139, 127, 232, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lobbyAvatarFallbackText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8B7FE8',
+  },
+  lobbyAvatarExtra: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lobbyAvatarExtraText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    lineHeight: 32,
+  },
+  lobbyCardName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  lobbyRankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  lobbyRankIcon: {
+    width: 20,
+    height: 20,
+  },
+  lobbyRankText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#888',
+    textTransform: 'uppercase',
+  },
+  lobbyCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  lobbyMemberCount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  lobbyJoinButton: {
+    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+  },
+  lobbyJoinButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8B7FE8',
+  },
+  activeLobbiesEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 32,
+    marginHorizontal: 16,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  activeLobbiesEmptyText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  activeLobbiesEmptySubtext: {
+    fontSize: 13,
+    color: '#555',
   },
 });

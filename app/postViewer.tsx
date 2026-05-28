@@ -34,48 +34,75 @@ export default function PostViewerScreen() {
   const params = useLocalSearchParams();
   const { user: currentUser, addReportedPost } = useAuth();
   const [post, setPost] = useState<Post | null>(null);
+  const [allPosts, setAllPosts] = useState<Post[]>([]);
+  const [startIndex, setStartIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [reportingPost, setReportingPost] = useState<Post | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
 
   const postId = params.postId as string;
+  const allPostIdsRaw = params.allPostIds as string | undefined;
 
   useEffect(() => {
-    const fetchPost = async () => {
+    const parsePost = (postSnap: any): Post => {
+      const postData = postSnap.data();
+      return {
+        id: postSnap.id,
+        userId: postData.userId,
+        username: postData.username,
+        avatar: postData.avatar,
+        mediaUrl: postData.mediaUrl,
+        mediaUrls: postData.mediaUrls,
+        mediaType: postData.mediaType,
+        mediaTypes: postData.mediaTypes,
+        thumbnailUrl: postData.thumbnailUrl,
+        caption: postData.caption,
+        taggedPeople: postData.taggedPeople,
+        taggedGame: postData.taggedGame,
+        createdAt: postData.createdAt,
+        likes: postData.likes || 0,
+        commentsCount: postData.commentsCount || 0,
+      };
+    };
+
+    const fetchPosts = async () => {
       if (!postId) {
         router.back();
         return;
       }
 
       try {
-        const postRef = doc(db, 'posts', postId);
-        const postSnap = await getDoc(postRef);
+        let postIds: string[] = [];
+        if (allPostIdsRaw) {
+          try { postIds = JSON.parse(allPostIdsRaw); } catch {}
+        }
 
-        if (postSnap.exists()) {
-          const postData = postSnap.data();
-          const fetchedPost: Post = {
-            id: postSnap.id,
-            userId: postData.userId,
-            username: postData.username,
-            avatar: postData.avatar,
-            mediaUrl: postData.mediaUrl,
-            mediaUrls: postData.mediaUrls,
-            mediaType: postData.mediaType,
-            mediaTypes: postData.mediaTypes,
-            thumbnailUrl: postData.thumbnailUrl,
-            caption: postData.caption,
-            taggedPeople: postData.taggedPeople,
-            taggedGame: postData.taggedGame,
-            createdAt: postData.createdAt,
-            likes: postData.likes || 0,
-            commentsCount: postData.commentsCount || 0,
-          };
-          setPost(fetchedPost);
+        if (postIds.length > 1) {
+          // Fetch all posts
+          const snapshots = await Promise.all(
+            postIds.map(id => getDoc(doc(db, 'posts', id)))
+          );
+          const fetched = snapshots
+            .filter(snap => snap.exists())
+            .map(snap => parsePost(snap));
+          const idx = fetched.findIndex(p => p.id === postId);
+          setAllPosts(fetched);
+          setStartIndex(idx >= 0 ? idx : 0);
+          setPost(fetched[idx >= 0 ? idx : 0] || null);
           setShowModal(true);
         } else {
-          // Post not found, go back
-          router.back();
+          // Single post
+          const postSnap = await getDoc(doc(db, 'posts', postId));
+          if (postSnap.exists()) {
+            const fetchedPost = parsePost(postSnap);
+            setPost(fetchedPost);
+            setAllPosts([fetchedPost]);
+            setStartIndex(0);
+            setShowModal(true);
+          } else {
+            router.back();
+          }
         }
       } catch (error) {
         console.error('Error fetching post:', error);
@@ -85,7 +112,7 @@ export default function PostViewerScreen() {
       }
     };
 
-    fetchPost();
+    fetchPosts();
   }, [postId]);
 
   const handleClose = () => {
@@ -127,8 +154,8 @@ export default function PostViewerScreen() {
           visible={true}
           useModal={false}
           post={post}
-          posts={[post]}
-          currentIndex={0}
+          posts={allPosts}
+          currentIndex={startIndex}
           userAvatar={currentUser?.avatar}
           onClose={handleClose}
           onReport={(p) => {
