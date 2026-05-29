@@ -4,7 +4,7 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, TouchableOpacity, View, Dimensions } from 'react-native';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -16,6 +16,11 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 export default function LiveSearchScreen() {
   const { user } = useAuth();
   const router = useRouter();
+
+  const [liveMatchState, setLiveMatchState] = useState<'idle' | 'searching' | 'accepting' | 'matched'>('idle');
+  const handleMatchStateChange = useCallback((state: 'idle' | 'searching' | 'accepting' | 'matched') => {
+    setLiveMatchState(state);
+  }, []);
 
   const [valorantCard, setValorantCard] = useState<DuoCardData | null>(null);
   const [leagueCard, setLeagueCard] = useState<DuoCardData | null>(null);
@@ -108,15 +113,17 @@ export default function LiveSearchScreen() {
         </View>
       </View>
 
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <IconSymbol size={20} name="chevron.left" color="#fff" />
-        </TouchableOpacity>
-        <ThemedText style={styles.headerTitle}>Live Search</ThemedText>
-        <TouchableOpacity style={styles.helpButton}>
-          <IconSymbol size={18} name="questionmark.circle" color="#666" />
-        </TouchableOpacity>
-      </View>
+      {liveMatchState !== 'matched' && (
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <IconSymbol size={20} name="chevron.left" color="#fff" />
+          </TouchableOpacity>
+          <ThemedText style={styles.headerTitle}>Live Search</ThemedText>
+          <TouchableOpacity style={styles.helpButton}>
+            <IconSymbol size={18} name="questionmark.circle" color="#666" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <LiveSearchContent
         valorantCard={valorantCard}
@@ -125,6 +132,7 @@ export default function LiveSearchScreen() {
         valorantInGameName={valorantInGameName}
         leagueInGameIcon={leagueInGameIcon}
         leagueInGameName={leagueInGameName}
+        onMatchStateChange={handleMatchStateChange}
       />
     </ThemedView>
   );

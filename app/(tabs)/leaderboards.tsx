@@ -1067,7 +1067,7 @@ export default function LeaderboardScreen() {
                     {/* Type badge */}
                     <View style={styles.lobbyTypeBadge}>
                       <ThemedText style={styles.lobbyTypeBadgeText}>
-                        {lobby.type === 'party' ? 'PARTY' : isLeague ? 'RANKED SOLO' : 'RANKED FLEX'}
+                        {lobby.type === 'party' ? 'PARTY' : isLeague ? 'RANKED SOLO' : 'RANKED'}
                       </ThemedText>
                     </View>
 
@@ -2117,7 +2117,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   lobbyJoinButton: {
-    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 5,
@@ -2125,7 +2125,7 @@ const styles = StyleSheet.create({
   lobbyJoinButtonText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#8B7FE8',
+    color: '#fff',
   },
   activeLobbiesEmpty: {
     alignItems: 'center',

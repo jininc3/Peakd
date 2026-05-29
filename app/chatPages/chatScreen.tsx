@@ -15,6 +15,7 @@ import {
   InteractionManager,
   Image,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -398,6 +399,47 @@ export default function ChatScreen() {
       );
     }
 
+    // Game username card
+    if (item.type === 'game_username' && item.gameUsername) {
+      const gu = item.gameUsername;
+      const gameIcon = gu.game === 'valorant'
+        ? require('@/assets/images/valorant-red.png')
+        : require('@/assets/images/lol-icon.png');
+      const gameLabel = gu.game === 'valorant' ? 'Valorant' : 'League of Legends';
+
+      return (
+        <View style={styles.messageContainer}>
+          {showTimestamp && (
+            <ThemedText style={styles.timestamp}>{formatTime(item.timestamp)}</ThemedText>
+          )}
+          <TouchableOpacity
+            style={[
+              styles.gameUsernameCard,
+              isCurrentUser ? styles.gameUsernameCardSent : styles.gameUsernameCardReceived,
+            ]}
+            activeOpacity={0.7}
+            onPress={async () => {
+              await Clipboard.setStringAsync(gu.inGameName);
+              Alert.alert('Copied!', `${gu.inGameName} copied to clipboard`);
+            }}
+          >
+            <View style={styles.gameUsernameHeader}>
+              <Image source={gameIcon} style={styles.gameUsernameIcon} resizeMode="contain" />
+              <ThemedText style={styles.gameUsernameLabel}>{gameLabel} Username</ThemedText>
+            </View>
+            <ThemedText style={styles.gameUsernameText}>{gu.inGameName}</ThemedText>
+            <View style={styles.gameUsernameCopyRow}>
+              <IconSymbol size={12} name="doc.on.doc" color="#8B7FE8" />
+              <ThemedText style={styles.gameUsernameCopyText}>Tap to copy</ThemedText>
+            </View>
+          </TouchableOpacity>
+          {showReadReceipt && (
+            <ThemedText style={styles.readReceipt}>Read</ThemedText>
+          )}
+        </View>
+      );
+    }
+
     return (
       <View style={styles.messageContainer}>
         {showTimestamp && (
@@ -652,6 +694,54 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: 2,
     marginRight: 4,
+  },
+  // Game Username Card
+  gameUsernameCard: {
+    maxWidth: '75%',
+    borderRadius: 14,
+    padding: 14,
+    gap: 8,
+    borderWidth: 1,
+  },
+  gameUsernameCardSent: {
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(139, 127, 232, 0.1)',
+    borderColor: 'rgba(139, 127, 232, 0.25)',
+  },
+  gameUsernameCardReceived: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(139, 127, 232, 0.1)',
+    borderColor: 'rgba(139, 127, 232, 0.25)',
+  },
+  gameUsernameHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  gameUsernameIcon: {
+    width: 18,
+    height: 18,
+  },
+  gameUsernameLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#888',
+  },
+  gameUsernameText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: -0.2,
+  },
+  gameUsernameCopyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  gameUsernameCopyText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#8B7FE8',
   },
   sharedPostCard: {
     maxWidth: '75%',

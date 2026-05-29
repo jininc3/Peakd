@@ -316,6 +316,7 @@ export default function CreateLeaderboardScreen() {
               fromUserId: user.id,
               fromUsername: userData?.username || 'Unknown',
               fromAvatar: userData?.avatar || '',
+              fromUserAvatar: userData?.avatar || '',
               partyId: generatedPartyId,
               partyName: leaderboardName,
               game: selectedGame.name,

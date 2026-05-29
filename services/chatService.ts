@@ -31,14 +31,20 @@ export interface SharedPostData {
   postMediaType: 'image' | 'video';
 }
 
+export interface GameUsernameData {
+  game: 'valorant' | 'league';
+  inGameName: string;
+}
+
 export interface ChatMessage {
   id: string;
   senderId: string;
   text: string;
   timestamp: Timestamp;
   read: boolean;
-  type?: 'text' | 'image' | 'game_invite' | 'shared_post';
+  type?: 'text' | 'image' | 'game_invite' | 'shared_post' | 'game_username';
   sharedPost?: SharedPostData;
+  gameUsername?: GameUsernameData;
 }
 
 export interface Chat {
@@ -154,8 +160,9 @@ export const sendMessage = async (
   chatId: string,
   senderId: string,
   text: string,
-  type: 'text' | 'image' | 'game_invite' | 'shared_post' = 'text',
-  sharedPost?: SharedPostData
+  type: 'text' | 'image' | 'game_invite' | 'shared_post' | 'game_username' = 'text',
+  sharedPost?: SharedPostData,
+  gameUsername?: GameUsernameData
 ): Promise<string> => {
   const now = Timestamp.now();
 
@@ -188,6 +195,10 @@ export const sendMessage = async (
 
   if (sharedPost) {
     messageData.sharedPost = sharedPost;
+  }
+
+  if (gameUsername) {
+    messageData.gameUsername = gameUsername;
   }
 
   const docRef = await addDoc(messagesRef, messageData);

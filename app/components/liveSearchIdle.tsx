@@ -62,6 +62,10 @@ interface LiveSearchIdleProps {
   onPickGame: (game: 'valorant' | 'league') => void;
   onSearch: () => void;
   onCreateCard: () => void;
+  valorantInGameName?: string;
+  leagueInGameName?: string;
+  valorantInGameIcon?: string;
+  leagueInGameIcon?: string;
 }
 
 export default function LiveSearchIdle({
@@ -74,8 +78,14 @@ export default function LiveSearchIdle({
   onPickGame,
   onSearch,
   onCreateCard,
+  valorantInGameName,
+  leagueInGameName,
+  valorantInGameIcon,
+  leagueInGameIcon,
 }: LiveSearchIdleProps) {
   const activeCard = searchGamePick === 'valorant' ? valorantCard : searchGamePick === 'league' ? leagueCard : null;
+  const activeInGameName = searchGamePick === 'valorant' ? valorantInGameName : searchGamePick === 'league' ? leagueInGameName : undefined;
+  const activeInGameIcon = searchGamePick === 'valorant' ? valorantInGameIcon : searchGamePick === 'league' ? leagueInGameIcon : undefined;
 
   // Auto-select game if none selected
   useEffect(() => {
@@ -86,24 +96,15 @@ export default function LiveSearchIdle({
   }, [hasCards, valorantCard, leagueCard]);
 
   // Animations
-  const ringScale = useSharedValue(1);
-  const ringOpacity = useSharedValue(0.5);
+  const dotOpacity = useSharedValue(0.4);
   const contentOpacity = useSharedValue(0);
   const contentTranslateY = useSharedValue(16);
 
   useEffect(() => {
-    ringScale.value = withRepeat(
+    dotOpacity.value = withRepeat(
       withSequence(
-        withTiming(1.06, { duration: 2400, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-      false
-    );
-    ringOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0.8, { duration: 2400, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.3, { duration: 2400, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.4, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
       false
@@ -112,9 +113,8 @@ export default function LiveSearchIdle({
     contentTranslateY.value = withDelay(200, withTiming(0, { duration: 500, easing: Easing.out(Easing.ease) }));
   }, []);
 
-  const ringStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: ringScale.value }],
-    opacity: ringOpacity.value,
+  const dotPulseStyle = useAnimatedStyle(() => ({
+    opacity: dotOpacity.value,
   }));
 
   const contentStyle = useAnimatedStyle(() => ({
@@ -132,29 +132,49 @@ export default function LiveSearchIdle({
 
   return (
     <View style={styles.container}>
-      {/* Animated Orb */}
-      <View style={styles.orbContainer}>
-        <Animated.View style={[styles.orbRing, ringStyle]} />
-        <Animated.View style={[styles.orbRingOuter, ringStyle]} />
-        <View style={styles.orbInner}>
-          {searchGamePick ? (
+      {/* Summary Card */}
+      <Animated.View style={[styles.summaryCard, contentStyle]}>
+        <LinearGradient
+          colors={['rgba(74, 222, 128, 0.08)', 'rgba(139, 127, 232, 0.06)', 'transparent']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.summaryHeader}>
+          <Animated.View style={[styles.summaryDot, dotPulseStyle]} />
+          <ThemedText style={styles.summaryLiveText}>LIVE SEARCH</ThemedText>
+        </View>
+        <ThemedText style={styles.summaryTitle}>Find Teammates</ThemedText>
+        {activeInGameName ? (
+          <View style={styles.summaryUserRow}>
+            {activeInGameIcon ? (
+              <Image source={{ uri: activeInGameIcon }} style={styles.summaryUserIcon} />
+            ) : null}
+            <ThemedText style={styles.summaryUsername}>{activeInGameName}</ThemedText>
+          </View>
+        ) : null}
+        {activeCard && searchGamePick ? (
+          <View style={styles.summaryDetails}>
             <Image
-              source={searchGamePick === 'league'
-                ? require('@/assets/images/lol-icon.png')
-                : require('@/assets/images/valorant-red.png')}
-              style={styles.orbLogo}
+              source={getRankIcon(activeCard.currentRank, searchGamePick)}
+              style={styles.summaryRankIcon}
               resizeMode="contain"
             />
-          ) : (
-            <IconSymbol size={44} name="gamecontroller.fill" color="rgba(180, 170, 255, 0.45)" />
-          )}
-        </View>
-      </View>
-
-      {/* Title */}
-      <Animated.View style={[styles.titleGroup, contentStyle]}>
-        <ThemedText style={styles.title}>Ready Up</ThemedText>
-        <ThemedText style={styles.subtitle}>Find teammates. Play better. Win together.</ThemedText>
+            <ThemedText style={styles.summaryDetailText}>
+              {activeCard.currentRank || 'Unranked'}
+            </ThemedText>
+            {activeCard.mainRole ? (
+              <>
+                <ThemedText style={styles.summaryDotSeparator}>•</ThemedText>
+                <ThemedText style={styles.summaryDetailText}>{activeCard.mainRole}</ThemedText>
+              </>
+            ) : null}
+            <ThemedText style={styles.summaryDotSeparator}>•</ThemedText>
+            <ThemedText style={styles.summaryDetailText}>{activeCard.region || 'NA'}</ThemedText>
+          </View>
+        ) : (
+          <ThemedText style={styles.summarySubtitle}>Select a game and mode to start</ThemedText>
+        )}
       </Animated.View>
 
       <Animated.View style={[styles.content, contentStyle]}>
@@ -178,9 +198,9 @@ export default function LiveSearchIdle({
                   LFG
                 </ThemedText>
                 <ThemedText style={styles.modeCardDesc}>
-                  Find a full squad{'\n'}ready to compete
+                  Need one more for{'\n'}a 5 stack?
                 </ThemedText>
-                <ThemedText style={styles.modeCardWait}>~15s avg. wait</ThemedText>
+                <ThemedText style={styles.modeCardWait}>Wider rank range</ThemedText>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -309,64 +329,79 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
 
-  // Orb
-  orbContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 150,
-    height: 150,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  orbRing: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 2,
-    borderColor: '#8b7fe8',
-  },
-  orbRingOuter: {
-    position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+  // Summary Card
+  summaryCard: {
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.2)',
+    borderColor: 'rgba(74, 222, 128, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    padding: 18,
+    marginTop: 32,
+    marginBottom: 36,
+    gap: 8,
+    overflow: 'hidden',
   },
-  orbInner: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: '#1a1a2e',
+  summaryHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.15)',
+    gap: 7,
   },
-  orbLogo: {
-    width: 56,
-    height: 56,
-    opacity: 0.6,
+  summaryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4ADE80',
   },
-
-  // Title
-  titleGroup: {
-    alignItems: 'center',
-    marginBottom: 20,
-    overflow: 'visible',
+  summaryLiveText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#4ADE80',
+    letterSpacing: 1,
   },
-  title: {
-    fontSize: 30,
+  summaryTitle: {
+    fontSize: 22,
     fontWeight: '800',
     color: '#fff',
-    marginBottom: 6,
-    paddingTop: 2,
+    letterSpacing: -0.3,
   },
-  subtitle: {
+  summaryUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  summaryUserIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  summaryUsername: {
     fontSize: 14,
-    color: '#777',
-    textAlign: 'center',
+    fontWeight: '600',
+    color: '#8B7FE8',
+  },
+  summaryDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  summaryRankIcon: {
+    width: 20,
+    height: 20,
+  },
+  summaryDetailText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ccc',
+  },
+  summaryDotSeparator: {
+    fontSize: 14,
+    color: '#555',
+  },
+  summarySubtitle: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
   },
 
   content: {

@@ -410,6 +410,7 @@ export default function ChallengeDetail() {
         fromUserId: user.id,
         fromUsername: user.username || '',
         fromAvatar: user.avatar || '',
+        fromUserAvatar: user.avatar || '',
         partyId: id,
         partyName: partyData?.partyName || '',
         game: game,

@@ -20,6 +20,7 @@ interface LiveSearchContentProps {
   valorantInGameName?: string;
   leagueInGameIcon?: string;
   leagueInGameName?: string;
+  onMatchStateChange?: (state: 'idle' | 'searching' | 'accepting' | 'matched') => void;
 }
 
 export default function LiveSearchContent({
@@ -29,6 +30,7 @@ export default function LiveSearchContent({
   valorantInGameName,
   leagueInGameIcon,
   leagueInGameName,
+  onMatchStateChange,
 }: LiveSearchContentProps) {
   const { user } = useAuth();
   const router = useRouter();
@@ -36,7 +38,11 @@ export default function LiveSearchContent({
   const [showDuoProfile, setShowDuoProfile] = useState(false);
 
   // Live search state
-  const [matchState, setMatchState] = useState<'idle' | 'searching' | 'accepting' | 'matched'>('idle');
+  const [matchState, setMatchStateInternal] = useState<'idle' | 'searching' | 'accepting' | 'matched'>('idle');
+  const setMatchState = useCallback((state: 'idle' | 'searching' | 'accepting' | 'matched') => {
+    setMatchStateInternal(state);
+    onMatchStateChange?.(state);
+  }, [onMatchStateChange]);
   const [searchGame, setSearchGame] = useState<'valorant' | 'league' | null>(null);
   const [searchGamePick, setSearchGamePick] = useState<'valorant' | 'league' | null>(null);
   const [searchModePick, setSearchModePick] = useState<'lfg' | 'duo' | null>(null);
@@ -50,9 +56,17 @@ export default function LiveSearchContent({
   const unsubscribeQueueRef = useRef<(() => void) | null>(null);
   const unsubscribeMatchRef = useRef<(() => void) | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const acceptPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastCardDataRef = useRef<{ username: string; avatar?: string; inGameIcon?: string; inGameName?: string; currentRank?: string; mainRole?: string; mainAgent?: string } | null>(null);
 
   const hasCards = valorantCard !== null || leagueCard !== null;
+
+  const acceptPollCleanup = useCallback(() => {
+    if (acceptPollRef.current) {
+      clearInterval(acceptPollRef.current);
+      acceptPollRef.current = null;
+    }
+  }, []);
 
   const cleanupSearch = useCallback(() => {
     if (unsubscribeQueueRef.current) {
@@ -67,6 +81,7 @@ export default function LiveSearchContent({
       clearTimeout(searchTimeoutRef.current);
       searchTimeoutRef.current = null;
     }
+    acceptPollCleanup();
   }, []);
 
   const startLiveSearch = async (game: 'valorant' | 'league', mode: 'lfg' | 'duo' = 'duo') => {
@@ -118,7 +133,7 @@ export default function LiveSearchContent({
             setMatchedUserCard(otherCard);
             setMatchedUserId(match.user1Id === user.id ? match.user2Id : match.user1Id);
             setCurrentMatchId(data.matchId);
-            setMatchExpiresAt(match.expiresAt?.toDate ? match.expiresAt.toDate() : new Date(Date.now() + 60000));
+            setMatchExpiresAt(match.expiresAt?.toDate ? match.expiresAt.toDate() : new Date(Date.now() + 30000));
             setHasAccepted(false);
             setOtherAccepted(false);
             setMatchState('accepting');
@@ -133,7 +148,7 @@ export default function LiveSearchContent({
               setHasAccepted(myAccepted === true);
               setOtherAccepted(theirAccepted === true);
 
-              if (updatedMatch.status === 'active') {
+              if (updatedMatch.status === 'active' || (myAccepted === true && theirAccepted === true)) {
                 if (unsubscribeMatchRef.current) {
                   unsubscribeMatchRef.current();
                   unsubscribeMatchRef.current = null;
@@ -166,7 +181,7 @@ export default function LiveSearchContent({
                         setMatchedUserCard(newOtherCard);
                         setMatchedUserId(newMatch.user1Id === user.id ? newMatch.user2Id : newMatch.user1Id);
                         setCurrentMatchId(requeueData.matchId);
-                        setMatchExpiresAt(newMatch.expiresAt?.toDate ? newMatch.expiresAt.toDate() : new Date(Date.now() + 60000));
+                        setMatchExpiresAt(newMatch.expiresAt?.toDate ? newMatch.expiresAt.toDate() : new Date(Date.now() + 30000));
                         setHasAccepted(false);
                         setOtherAccepted(false);
                         setMatchState('accepting');
@@ -181,7 +196,7 @@ export default function LiveSearchContent({
                           setHasAccepted(myAcc === true);
                           setOtherAccepted(theirAcc === true);
 
-                          if (updatedNewMatch.status === 'active') {
+                          if (updatedNewMatch.status === 'active' || (myAcc === true && theirAcc === true)) {
                             if (unsubscribeMatchRef.current) {
                               unsubscribeMatchRef.current();
                               unsubscribeMatchRef.current = null;
@@ -268,6 +283,32 @@ export default function LiveSearchContent({
     setHasAccepted(true);
     try {
       await acceptMatch(currentMatchId, user.id);
+
+      // Poll as fallback in case the snapshot listener misses the update
+      if (acceptPollRef.current) clearInterval(acceptPollRef.current);
+      const matchId = currentMatchId;
+      acceptPollRef.current = setInterval(async () => {
+        try {
+          const match = await getDuoMatch(matchId);
+          if (!match) {
+            if (acceptPollRef.current) clearInterval(acceptPollRef.current);
+            return;
+          }
+          const isUser1 = match.user1Id === user.id;
+          const theirAccepted = isUser1 ? match.user2Accepted : match.user1Accepted;
+          if (match.status === 'active' || theirAccepted === true) {
+            if (acceptPollRef.current) clearInterval(acceptPollRef.current);
+            if (unsubscribeMatchRef.current) {
+              unsubscribeMatchRef.current();
+              unsubscribeMatchRef.current = null;
+            }
+            setOtherAccepted(true);
+            setMatchState('matched');
+          }
+        } catch (e) {
+          console.error('Error polling match:', e);
+        }
+      }, 2000);
     } catch (error) {
       console.error('Error accepting match:', error);
     }
@@ -329,7 +370,6 @@ export default function LiveSearchContent({
 
     const myInGameName = searchGame === 'valorant' ? valorantInGameName : leagueInGameName;
     const gameLabel = searchGame === 'valorant' ? 'Valorant' : 'League';
-    const usernameMessage = myInGameName ? `My ${gameLabel} username: ${myInGameName}` : '';
 
     try {
       const chatId = await createOrGetChat(
@@ -341,11 +381,18 @@ export default function LiveSearchContent({
         matchedUserCard.avatar || undefined,
       );
 
-      if (usernameMessage) {
-        await sendMessage(chatId, user.id, usernameMessage);
+      if (myInGameName) {
+        await sendMessage(
+          chatId,
+          user.id,
+          `My ${gameLabel} username: ${myInGameName}`,
+          'game_username',
+          undefined,
+          { game: searchGame, inGameName: myInGameName }
+        );
       }
 
-      router.push({
+      router.replace({
         pathname: '/chatPages/chatScreen',
         params: {
           chatId,
@@ -356,7 +403,7 @@ export default function LiveSearchContent({
       });
     } catch (error) {
       console.error('Error auto-navigating to chat:', error);
-      router.push({
+      router.replace({
         pathname: '/chatPages/chatScreen',
         params: {
           otherUserId: matchedUserCard.userId,
@@ -403,9 +450,16 @@ export default function LiveSearchContent({
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        style={{ overflow: 'visible' }}
       >
         {matchState === 'searching' && searchGame ? (
-          <DuoSearchingAnimation game={searchGame} onCancel={cancelSearch} />
+          <DuoSearchingAnimation
+            game={searchGame}
+            onCancel={cancelSearch}
+            currentRank={lastCardDataRef.current?.currentRank}
+            mainRole={lastCardDataRef.current?.mainRole}
+            region={searchGame === 'valorant' ? valorantCard?.region : leagueCard?.region}
+          />
         ) : matchState === 'accepting' && matchedUserCard && searchGame && matchExpiresAt ? (
           <DuoAcceptScreen
             matchedUser={matchedUserCard}
@@ -437,6 +491,10 @@ export default function LiveSearchContent({
             onPickGame={(game) => setSearchGamePick(game)}
             onSearch={() => searchGamePick && searchModePick && startLiveSearch(searchGamePick, searchModePick)}
             onCreateCard={() => router.push('/profilePages/rankCards')}
+            valorantInGameName={valorantInGameName}
+            leagueInGameName={leagueInGameName}
+            valorantInGameIcon={valorantInGameIcon}
+            leagueInGameIcon={leagueInGameIcon}
           />
         )}
       </ScrollView>
@@ -465,10 +523,12 @@ export default function LiveSearchContent({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'visible',
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 8,
+    justifyContent: 'center',
   },
 });

@@ -76,9 +76,10 @@ export const onMessageCreated = onDocumentCreated(
         }
       }
 
-      // Get sender's username from chat participant details
-      const senderUsername =
-        chatData.participantDetails?.[message.senderId]?.username || 'Someone';
+      // Get sender's username and avatar from chat participant details
+      const senderDetails = chatData.participantDetails?.[message.senderId];
+      const senderUsername = senderDetails?.username || 'Someone';
+      const senderAvatar = senderDetails?.avatar || null;
 
       // Build notification
       const title = senderUsername;
@@ -93,6 +94,10 @@ export const onMessageCreated = onDocumentCreated(
         messageId: messageId,
         senderId: message.senderId,
         senderUsername: senderUsername,
+        fromUserId: message.senderId,
+        fromUsername: senderUsername,
+        fromUserAvatar: senderAvatar,
+        messageText: message.text,
         timestamp: now.toISOString(),
       });
 

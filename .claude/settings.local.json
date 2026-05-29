@@ -14,7 +14,8 @@
       "Bash(npx next:*)",
       "Bash(npx tsc:*)",
       "Bash(find /c/Users/jinha/Desktop/Peakd/assets/images -type f -name *cover*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(npx firebase:*)"
     ],
     "deny": [],
     "ask": []

@@ -148,6 +148,7 @@ export default function CreateLeaderboardInvite() {
             fromUserId: user.id,
             fromUsername: userData?.username || 'Unknown',
             fromAvatar: userData?.avatar || '',
+            fromUserAvatar: userData?.avatar || '',
             partyId,
             partyName: params.name as string,
             game: params.gameName as string,

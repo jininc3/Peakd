@@ -217,7 +217,7 @@ export default function PostDuoCard({
       const userData = userDoc.data();
 
       const now = new Date();
-      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const expiresAt = new Date(now.getTime() + 72 * 60 * 60 * 1000);
 
       const postData = {
         userId: user.id,
@@ -387,7 +387,7 @@ export default function PostDuoCard({
           </View>
 
           {selectedCard && (
-            <ThemedText style={styles.hint}>Your card will be visible in the feed for 24 hours</ThemedText>
+            <ThemedText style={styles.hint}>Your card will be visible in the feed for 72 hours</ThemedText>
           )}
 
           {/* Role picker */}

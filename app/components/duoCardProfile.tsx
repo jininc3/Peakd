@@ -307,7 +307,7 @@ export default function DuoCardDetailModal({ visible, onClose, expiresAt, card }
             <View style={styles.timerBarBg}>
               <View style={[
                 styles.timerBarFill,
-                { width: `${(timeLeft / 60) * 100}%` },
+                { width: `${(timeLeft / 30) * 100}%` },
                 timeLeft <= 10 && styles.timerBarUrgent,
               ]} />
             </View>

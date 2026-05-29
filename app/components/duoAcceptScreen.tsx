@@ -25,7 +25,7 @@ export default function DuoAcceptScreen({
   onDecline,
   onViewProfile,
 }: DuoAcceptScreenProps) {
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(30);
   const fadeIn = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export default function DuoAcceptScreen({
     }).start();
   }, []);
 
-  const progress = timeLeft / 60;
+  const progress = timeLeft / 30;
   const isUrgent = timeLeft <= 10;
 
   return (

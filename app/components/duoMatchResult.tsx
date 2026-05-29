@@ -1,6 +1,6 @@
 import CompactDuoCard from '@/app/components/compactDuoCard';
 import { ThemedText } from '@/components/themed-text';
-import { StyleSheet, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -39,7 +39,6 @@ export default function DuoMatchResult({
   const ringOpacity = useSharedValue(0);
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(30);
-  const buttonsOpacity = useSharedValue(0);
   const statusOpacity = useSharedValue(0);
 
   useEffect(() => {
@@ -58,28 +57,18 @@ export default function DuoMatchResult({
     cardOpacity.value = withDelay(400, withTiming(1, { duration: 400 }));
     cardTranslateY.value = withDelay(400, withSpring(0, { damping: 12, stiffness: 100 }));
 
-    // Buttons fade in
-    buttonsOpacity.value = withDelay(700, withTiming(1, { duration: 350 }));
-
     // "Opening chat..." fade in
-    statusOpacity.value = withDelay(1500, withTiming(1, { duration: 400 }));
+    statusOpacity.value = withDelay(2000, withTiming(1, { duration: 400 }));
 
-    // Auto-navigate after 2 seconds
+    // Auto-navigate after 5 seconds
     autoNavTimer.current = setTimeout(() => {
       onAutoNavigate();
-    }, 2000);
+    }, 5000);
 
     return () => {
       if (autoNavTimer.current) clearTimeout(autoNavTimer.current);
     };
   }, []);
-
-  const cancelAutoNav = () => {
-    if (autoNavTimer.current) {
-      clearTimeout(autoNavTimer.current);
-      autoNavTimer.current = null;
-    }
-  };
 
   const ringStyle = useAnimatedStyle(() => ({
     transform: [{ scale: ringScale.value }],
@@ -94,10 +83,6 @@ export default function DuoMatchResult({
   const cardStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
     transform: [{ translateY: cardTranslateY.value }],
-  }));
-
-  const buttonsStyle = useAnimatedStyle(() => ({
-    opacity: buttonsOpacity.value,
   }));
 
   const statusStyle = useAnimatedStyle(() => ({
@@ -126,10 +111,6 @@ export default function DuoMatchResult({
           currentRank={matchedUser.currentRank || undefined}
           mainRole={matchedUser.mainRole || undefined}
           mainAgent={matchedUser.mainAgent || undefined}
-          onViewProfile={() => {
-            cancelAutoNav();
-            onViewProfile();
-          }}
           showContent={true}
         />
       </Animated.View>
@@ -139,32 +120,6 @@ export default function DuoMatchResult({
         <ActivityIndicator size="small" color="#888" />
         <ThemedText style={styles.statusText}>Opening chat...</ThemedText>
       </Animated.View>
-
-      {/* Buttons */}
-      <Animated.View style={[styles.buttonsContainer, buttonsStyle]}>
-        <View style={styles.secondaryRow}>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => {
-              cancelAutoNav();
-              onViewProfile();
-            }}
-            activeOpacity={0.7}
-          >
-            <ThemedText style={styles.secondaryButtonText}>View Profile</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => {
-              cancelAutoNav();
-              onSearchAgain();
-            }}
-            activeOpacity={0.7}
-          >
-            <ThemedText style={styles.secondaryButtonText}>Search Again</ThemedText>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
     </View>
   );
 }
@@ -173,11 +128,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
-    paddingTop: 40,
+    justifyContent: 'center',
+    overflow: 'visible',
   },
   ringContainer: {
     position: 'absolute',
-    top: 40,
     alignSelf: 'center',
   },
   ring: {
@@ -188,48 +143,29 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   headerContainer: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   matchedText: {
     fontSize: 32,
     fontWeight: '800',
     color: '#fff',
     letterSpacing: -0.5,
+    lineHeight: 44,
   },
   cardContainer: {
     width: '100%',
     paddingHorizontal: 4,
+    overflow: 'visible',
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 16,
+    marginTop: 24,
   },
   statusText: {
     fontSize: 14,
     color: '#888',
     fontWeight: '500',
-  },
-  buttonsContainer: {
-    width: '100%',
-    gap: 10,
-    marginTop: 16,
-  },
-  secondaryRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  secondaryButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderRadius: 24,
-    backgroundColor: '#1a1a1a',
-  },
-  secondaryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#888',
   },
 });

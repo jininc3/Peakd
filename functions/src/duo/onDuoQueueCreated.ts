@@ -95,7 +95,7 @@ export const onDuoQueueCreated = onDocumentCreated(
         // Create the match document
         const matchRef = db.collection("duoMatches").doc();
         const now = new Date();
-        const expiresAt = new Date(now.getTime() + 60 * 1000); // 60 seconds
+        const expiresAt = new Date(now.getTime() + 30 * 1000); // 30 seconds
 
         const matchData = {
           game: game,

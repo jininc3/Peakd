@@ -1,5 +1,4 @@
 import DuoCard from '@/app/components/duoCard';
-import LiveSearchContent from '@/app/components/liveSearchContent';
 import { LinearGradient } from 'expo-linear-gradient';
 export interface DuoCardData {
   game: 'valorant' | 'league';
@@ -153,10 +152,6 @@ export default function DuoFinderScreen() {
     ).start();
   }, []);
 
-  const [activeHeaderTab, setActiveHeaderTab] = useState<'posts' | 'liveSearch'>('posts');
-  const lfgPagerRef = useRef<ScrollView>(null);
-  const lfgTabIndicatorAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => { lfgTabIndicatorAnim.stopAnimation(); }, []);
 
   const [showMyCards, setShowMyCards] = useState(false);
   const [valorantCard, setValorantCard] = useState<DuoCardData | null>(null);
@@ -1010,88 +1005,14 @@ export default function DuoFinderScreen() {
       {/* Header */}
       <View style={styles.header}>
         <ThemedText style={styles.headerTitle}>LFG</ThemedText>
-        <View style={styles.headerTabs}>
-          <TouchableOpacity
-            style={styles.headerTab}
-            onPress={() => {
-              setActiveHeaderTab('posts');
-              Animated.spring(lfgTabIndicatorAnim, { toValue: 0, useNativeDriver: false, tension: 68, friction: 12 }).start();
-              lfgPagerRef.current?.scrollTo({ x: 0, animated: true });
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.headerTabInner}>
-              <Animated.View style={[styles.headerTabInner, { opacity: lfgTabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} pointerEvents="none">
-                <IconSymbol size={14} name="rectangle.stack" color="#8B7FE8" />
-                <ThemedText style={[styles.headerTabText, styles.headerTabTextActive]}>Posts</ThemedText>
-              </Animated.View>
-              <Animated.View style={[styles.headerTabInner, StyleSheet.absoluteFill, { opacity: lfgTabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }]} pointerEvents="none">
-                <IconSymbol size={14} name="rectangle.stack" color="#555" />
-                <ThemedText style={styles.headerTabText}>Posts</ThemedText>
-              </Animated.View>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerTab}
-            onPress={() => {
-              setActiveHeaderTab('liveSearch');
-              Animated.spring(lfgTabIndicatorAnim, { toValue: 1, useNativeDriver: false, tension: 68, friction: 12 }).start();
-              lfgPagerRef.current?.scrollTo({ x: screenWidth, animated: true });
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.headerTabInner}>
-              <Animated.View style={[styles.headerTabInner, { opacity: lfgTabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }]} pointerEvents="none">
-                <Animated.View style={[styles.liveSearchDot, { opacity: pulseAnim, width: 6, height: 6, borderRadius: 3 }]} />
-                <ThemedText style={[styles.headerTabText, styles.headerTabTextActive]}>Live Search</ThemedText>
-              </Animated.View>
-              <Animated.View style={[styles.headerTabInner, StyleSheet.absoluteFill, { opacity: lfgTabIndicatorAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} pointerEvents="none">
-                <Animated.View style={[styles.liveSearchDot, { opacity: pulseAnim, width: 6, height: 6, borderRadius: 3 }]} />
-                <ThemedText style={styles.headerTabText}>Live Search</ThemedText>
-              </Animated.View>
-            </View>
-          </TouchableOpacity>
-          <Animated.View
-            style={[
-              styles.headerTabIndicator,
-              {
-                transform: [{
-                  translateX: lfgTabIndicatorAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, (screenWidth - 32) / 2],
-                  }),
-                }],
-              },
-            ]}
-          />
-        </View>
       </View>
 
-      {/* Pager */}
-      <ScrollView
-        ref={lfgPagerRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={(e) => {
-          const offsetX = e.nativeEvent.contentOffset.x;
-          const progress = Math.min(1, Math.max(0, offsetX / screenWidth));
-          lfgTabIndicatorAnim.setValue(progress);
-          const page = Math.round(progress);
-          const newTab = page === 0 ? 'posts' : 'liveSearch';
-          if (newTab !== activeHeaderTab) setActiveHeaderTab(newTab);
-        }}
-        style={{ flex: 1 }}
-      >
-        {/* Posts page */}
-        <View style={{ width: screenWidth }}>
-          <FlatList
+      {/* Posts feed */}
+      <FlatList
             data={displayedPosts}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.feedContent}
-            nestedScrollEnabled
             onEndReached={loadMorePosts}
             onEndReachedThreshold={0.3}
             refreshControl={
@@ -1109,6 +1030,53 @@ export default function DuoFinderScreen() {
             }
             ListHeaderComponent={
               <View>
+                {/* Live Search Banner */}
+                <View style={styles.liveSearchBannerOuter}>
+                  <TouchableOpacity
+                    style={styles.liveSearchBannerCard}
+                    activeOpacity={0.85}
+                    onPress={() => router.push('/partyPages/liveSearch')}
+                  >
+                    <LinearGradient
+                      colors={['rgba(139, 127, 232, 0.12)', 'rgba(74, 222, 128, 0.04)', 'rgba(139, 127, 232, 0.08)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <View style={styles.liveSearchBannerContent}>
+                      <View style={styles.liveSearchBannerTopRow}>
+                        <View style={styles.liveSearchBannerLiveBadge}>
+                          <Animated.View style={[styles.liveSearchBannerDot, { opacity: pulseAnim }]} />
+                          <ThemedText style={styles.liveSearchBannerLiveText}>LIVE</ThemedText>
+                        </View>
+                        <View style={styles.liveSearchBannerWaveform}>
+                          {[12, 18, 8, 22, 14, 10, 16].map((h, i) => (
+                            <Animated.View
+                              key={i}
+                              style={[
+                                styles.liveSearchBannerBar,
+                                { height: h, opacity: pulseAnim.interpolate({
+                                  inputRange: [0.4, 1],
+                                  outputRange: [0.3 + (i % 3) * 0.2, 0.6 + (i % 3) * 0.15],
+                                }) },
+                              ]}
+                            />
+                          ))}
+                        </View>
+                      </View>
+                      <View style={styles.liveSearchBannerBottomRow}>
+                        <View style={styles.liveSearchBannerTextCol}>
+                          <ThemedText style={styles.liveSearchBannerTitle}>Find a Duo</ThemedText>
+                          <ThemedText style={styles.liveSearchBannerDesc}>Match with players in real-time</ThemedText>
+                        </View>
+                        <View style={styles.liveSearchBannerArrow}>
+                          <IconSymbol size={18} name="arrow.right" color="#8B7FE8" />
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
                 {/* Tabs */}
                 <View style={styles.tabsWrapper}>
                   <View style={styles.tabsContainer}>
@@ -1214,20 +1182,6 @@ export default function DuoFinderScreen() {
             }}
             ListFooterComponent={<View style={styles.bottomSpacer} />}
           />
-        </View>
-
-        {/* Live Search page */}
-        <View style={{ width: screenWidth, flex: 1 }}>
-          <LiveSearchContent
-            valorantCard={valorantCard}
-            leagueCard={leagueCard}
-            valorantInGameIcon={valorantInGameIcon}
-            valorantInGameName={valorantInGameName}
-            leagueInGameIcon={leagueInGameIcon}
-            leagueInGameName={leagueInGameName}
-          />
-        </View>
-      </ScrollView>
 
       {/* My Cards Modal */}
       <Modal
@@ -1657,6 +1611,97 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  // Live Search Banner
+  liveSearchBannerOuter: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  liveSearchBannerCard: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 127, 232, 0.3)',
+    borderTopColor: 'rgba(139, 127, 232, 0.45)',
+    shadowColor: '#8B7FE8',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  liveSearchBannerContent: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  liveSearchBannerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  liveSearchBannerLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 222, 128, 0.2)',
+  },
+  liveSearchBannerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4ADE80',
+  },
+  liveSearchBannerLiveText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#4ADE80',
+    letterSpacing: 1,
+  },
+  liveSearchBannerWaveform: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2.5,
+  },
+  liveSearchBannerBar: {
+    width: 2.5,
+    backgroundColor: '#4ADE80',
+    borderRadius: 1.5,
+  },
+  liveSearchBannerBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  liveSearchBannerTextCol: {
+    flex: 1,
+    gap: 2,
+  },
+  liveSearchBannerTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: -0.3,
+  },
+  liveSearchBannerDesc: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#888',
+  },
+  liveSearchBannerArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(139, 127, 232, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 127, 232, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Tabs
   tabsWrapper: {
