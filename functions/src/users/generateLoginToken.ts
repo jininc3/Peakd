@@ -5,9 +5,8 @@ import {logger} from "firebase-functions/v2";
 /**
  * Passwordless login helper.
  * Called after the user has verified their identity via OTP (phone).
- * Sets a temporary password on the user's Firebase Auth account and
- * returns it along with the auth email so the client can sign in
- * via signInWithEmailAndPassword on the web SDK.
+ * Creates a custom token so the client can sign in without overwriting
+ * the user's stored password.
  */
 export const generateLoginTokenFunction = onCall(
   {invoker: "public"},
@@ -45,27 +44,13 @@ export const generateLoginTokenFunction = onCall(
     const userId = snapshot.docs[0].id;
 
     try {
-      // Get the user's Firebase Auth email
-      const authUser = await admin.auth().getUser(userId);
-      const authEmail = authUser.email;
+      const customToken = await admin.auth().createCustomToken(userId);
 
-      if (!authEmail) {
-        throw new HttpsError("failed-precondition", "Account has no auth email.");
-      }
-
-      // Set a temporary password so the client can sign in via the web SDK
-      const tempPassword = Array.from({length: 32}, () =>
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-          .charAt(Math.floor(Math.random() * 62))
-      ).join("");
-
-      await admin.auth().updateUser(userId, {password: tempPassword});
-
-      logger.info(`Generated login credentials for user ${userId}`);
-      return {authEmail, tempPassword};
+      logger.info(`Generated custom token for user ${userId}`);
+      return {customToken};
     } catch (error: any) {
       if (error instanceof HttpsError) throw error;
-      logger.error("Error generating login credentials:", error);
+      logger.error("Error generating login token:", error);
       throw new HttpsError("internal", "Failed to generate login credentials.");
     }
   }

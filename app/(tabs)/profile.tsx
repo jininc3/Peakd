@@ -1142,7 +1142,7 @@ export default function ProfileScreen() {
                     onPress={() => router.push('/chatPages/chatList')}
                     activeOpacity={0.7}
                   >
-                    <IconSymbol size={27} name="bubble.left" color="#fff" />
+                    <IconSymbol size={27} name="tray" color="#fff" />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.headerIconButton}
@@ -1187,7 +1187,7 @@ export default function ProfileScreen() {
                     onPress={() => router.push('/chatPages/chatList')}
                     activeOpacity={0.7}
                   >
-                    <IconSymbol size={27} name="bubble.left" color="#fff" />
+                    <IconSymbol size={27} name="tray" color="#fff" />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.headerIconButton}

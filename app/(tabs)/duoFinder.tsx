@@ -1066,7 +1066,7 @@ export default function DuoFinderScreen() {
                       </View>
                       <View style={styles.liveSearchBannerBottomRow}>
                         <View style={styles.liveSearchBannerTextCol}>
-                          <ThemedText style={styles.liveSearchBannerTitle}>Find a Duo</ThemedText>
+                          <ThemedText style={styles.liveSearchBannerTitle}>Find Gamers Playing Now</ThemedText>
                           <ThemedText style={styles.liveSearchBannerDesc}>Match with players in real-time</ThemedText>
                         </View>
                         <View style={styles.liveSearchBannerArrow}>
@@ -1614,7 +1614,6 @@ const styles = StyleSheet.create({
   },
   // Live Search Banner
   liveSearchBannerOuter: {
-    marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 4,
   },

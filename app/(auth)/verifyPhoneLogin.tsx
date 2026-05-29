@@ -18,7 +18,7 @@ import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
 import rnfbAuth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { auth, functions } from '@/config/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithCustomToken } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 
 export default function VerifyPhoneLogin() {
@@ -78,12 +78,12 @@ export default function VerifyPhoneLogin() {
       // Sign out of native SDK — it's a separate instance from the web SDK
       await rnfbAuth().signOut();
 
-      // Get temp credentials from Cloud Function and sign in via web SDK
+      // Get custom token from Cloud Function and sign in via web SDK
       const generateLogin = httpsCallable(functions, 'generateLoginToken');
       const result = await generateLogin({ phoneNumber });
-      const { authEmail, tempPassword } = result.data as { authEmail: string; tempPassword: string };
+      const { customToken } = result.data as { customToken: string };
 
-      await signInWithEmailAndPassword(auth, authEmail, tempPassword);
+      await signInWithCustomToken(auth, customToken);
       // AuthContext detects the sign-in via onAuthStateChanged and navigates automatically
     } catch (error: any) {
       console.error('Verification error:', error);

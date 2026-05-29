@@ -365,17 +365,15 @@ export default function LeaderboardScreen() {
                 };
               }
 
-              if (leagueStats?.currentRank && leagueStats.currentRank !== 'Unranked') {
-                leagueResults.push({
-                  userId,
-                  username,
-                  avatar,
-                  currentRank: leagueStats.currentRank,
-                  lp: leagueStats.lp || 0,
-                  rr: 0,
-                  isCurrentUser: userId === user.id,
-                });
-              }
+              leagueResults.push({
+                userId,
+                username,
+                avatar,
+                currentRank: leagueStats?.currentRank || 'Unranked',
+                lp: leagueStats?.lp || 0,
+                rr: 0,
+                isCurrentUser: userId === user.id,
+              });
             }
 
             // Skip Valorant if this user has no Valorant account linked
@@ -391,17 +389,15 @@ export default function LeaderboardScreen() {
                 };
               }
 
-              if (valStats?.currentRank && valStats.currentRank !== 'Unranked') {
-                valorantResults.push({
-                  userId,
-                  username,
-                  avatar,
-                  currentRank: valStats.currentRank,
-                  lp: 0,
-                  rr: valStats.rr || 0,
-                  isCurrentUser: userId === user.id,
-                });
-              }
+              valorantResults.push({
+                userId,
+                username,
+                avatar,
+                currentRank: valStats?.currentRank || 'Unranked',
+                lp: 0,
+                rr: valStats?.rr || 0,
+                isCurrentUser: userId === user.id,
+              });
             }
           } catch (error) {
             console.error(`Error fetching stats for user ${userId}:`, error);
@@ -811,24 +807,27 @@ export default function LeaderboardScreen() {
           } else {
             const currentUserIdx = remainingPlayers.findIndex(p => p.isCurrentUser);
 
-            if (currentUserIdx > 2) {
-              // User is beyond rank 6 — show neighbor above, user, neighbor below
+            if (currentUserIdx >= 0 && currentUserIdx > 2) {
+              // User is beyond rank 6 — show ranks 4-6, then separator, then neighbor above, user, neighbor below
+              const topSection = remainingPlayers.slice(0, 3).map((p, i) => ({ player: p, rank: i + 4 }));
               const above = currentUserIdx - 1;
               const below = Math.min(currentUserIdx + 1, remainingPlayers.length - 1);
               const userSection: { player: MutualPlayer; rank: number }[] = [];
-              if (above >= 0) userSection.push({ player: remainingPlayers[above], rank: above + 4 });
+              if (above >= 3) userSection.push({ player: remainingPlayers[above], rank: above + 4 });
               userSection.push({ player: remainingPlayers[currentUserIdx], rank: currentUserIdx + 4 });
               if (below < remainingPlayers.length && below !== currentUserIdx) {
                 userSection.push({ player: remainingPlayers[below], rank: below + 4 });
               }
-              visiblePlayers = userSection;
+              visiblePlayers = [...topSection, ...userSection];
+              showSeparator = true;
+              separatorAfterIndex = topSection.length - 1;
             } else {
-              // User is in top 6 — show first 3 remaining (ranks 4-6)
+              // User is in top 6 or not in list — show first 3 remaining (ranks 4-6)
               visiblePlayers = remainingPlayers.slice(0, 3).map((p, i) => ({ player: p, rank: i + 4 }));
             }
           }
 
-          const hasMore = remainingPlayers.length > 3 && !leaderboardExpanded;
+          const hasMore = remainingPlayers.length > visiblePlayers.length && !leaderboardExpanded;
 
           return (
             <>
@@ -1045,17 +1044,18 @@ export default function LeaderboardScreen() {
                 // Calculate average rank
                 const players = lobby.players || [];
                 let avgRankLabel = 'Unranked';
+                let avgRankRaw = 'Unranked';
                 if (players.length > 0) {
                   const rankedPlayers = players.filter((p: any) => p.currentRank && p.currentRank !== 'Unranked');
                   if (rankedPlayers.length > 0) {
-                    // Use the median player's rank as representative
                     const midIdx = Math.floor(rankedPlayers.length / 2);
-                    avgRankLabel = formatRankDisplay(rankedPlayers[midIdx].currentRank);
+                    avgRankRaw = rankedPlayers[midIdx].currentRank;
+                    avgRankLabel = formatRankDisplay(avgRankRaw);
                   }
                 }
                 const avgRankIcon = isLeague
-                  ? getLeagueRankIcon(players.length > 0 ? players[Math.floor(players.length / 2)]?.currentRank || 'Unranked' : 'Unranked')
-                  : getValorantRankIcon(players.length > 0 ? players[Math.floor(players.length / 2)]?.currentRank || 'Unranked' : 'Unranked');
+                  ? getLeagueRankIcon(avgRankRaw)
+                  : getValorantRankIcon(avgRankRaw);
 
                 return (
                   <TouchableOpacity
