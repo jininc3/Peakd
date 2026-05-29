@@ -83,10 +83,14 @@ export default function NotificationsScreen() {
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
   // Load and listen to notifications in real-time
+  const isFirstLoad = useRef(!cachedNotifications);
   useEffect(() => {
     if (!currentUser?.id) return;
 
-    setLoading(true);
+    // Only show loading spinner on first-ever load (no cache)
+    if (isFirstLoad.current) {
+      setLoading(true);
+    }
 
     // Set up real-time listener for notifications
     const notificationsRef = collection(db, 'users', currentUser.id, 'notifications');
@@ -169,6 +173,7 @@ export default function NotificationsScreen() {
       cachedNotifications = filteredNotifs;
       setNotifications(filteredNotifs);
       setLoading(false);
+      isFirstLoad.current = false;
     });
 
     // Clean up old notifications (30 days) on load

@@ -1,15 +1,48 @@
-import LeaderboardCard from '@/app/components/leaderboardCard';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { LeaderboardCardSkeleton } from '@/components/ui/Skeleton';
+import CachedImage from '@/components/ui/CachedImage';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from '@/hooks/useRouter';
+import { formatRankDisplay } from '@/utils/formatRankDisplay';
 import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+
+const VALORANT_RANK_ICONS: { [key: string]: any } = {
+  iron: require('@/assets/images/valorantranks/iron.png'),
+  bronze: require('@/assets/images/valorantranks/bronze.png'),
+  silver: require('@/assets/images/valorantranks/silver.png'),
+  gold: require('@/assets/images/valorantranks/gold.png'),
+  platinum: require('@/assets/images/valorantranks/platinum.png'),
+  diamond: require('@/assets/images/valorantranks/diamond.png'),
+  ascendant: require('@/assets/images/valorantranks/ascendant.png'),
+  immortal: require('@/assets/images/valorantranks/immortal.png'),
+  radiant: require('@/assets/images/valorantranks/radiant.png'),
+  unranked: require('@/assets/images/valorantranks/unranked.png'),
+};
+const LEAGUE_RANK_ICONS: { [key: string]: any } = {
+  iron: require('@/assets/images/leagueranks/iron.png'),
+  bronze: require('@/assets/images/leagueranks/bronze.png'),
+  silver: require('@/assets/images/leagueranks/silver.png'),
+  gold: require('@/assets/images/leagueranks/gold.png'),
+  platinum: require('@/assets/images/leagueranks/platinum.png'),
+  emerald: require('@/assets/images/leagueranks/emerald.png'),
+  diamond: require('@/assets/images/leagueranks/diamond.png'),
+  master: require('@/assets/images/leagueranks/masters.png'),
+  grandmaster: require('@/assets/images/leagueranks/grandmaster.png'),
+  challenger: require('@/assets/images/leagueranks/challenger.png'),
+  unranked: require('@/assets/images/leagueranks/unranked.png'),
+};
+const getRankIcon = (rank: string, game: string) => {
+  const isLeague = game === 'League of Legends' || game === 'League';
+  const icons = isLeague ? LEAGUE_RANK_ICONS : VALORANT_RANK_ICONS;
+  if (!rank || rank === 'Unranked') return icons.unranked;
+  const tier = rank.split(' ')[0].toLowerCase();
+  return icons[tier] || icons.unranked;
+};
 
 const MINIMUM_SKELETON_TIME = 400;
 
@@ -294,22 +327,87 @@ export default function LobbiesScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {loading ? (
-          <View>
-            {[1, 2, 3].map((i) => (
-              <LeaderboardCardSkeleton key={i} />
-            ))}
-          </View>
+          <ActivityIndicator size="small" color="#8B7FE8" style={{ paddingVertical: 40 }} />
         ) : filteredLeaderboards.length > 0 ? (
-          <View>
-            {filteredLeaderboards.map((leaderboard, index) => (
-              <LeaderboardCard
-                key={leaderboard.id}
-                leaderboard={leaderboard}
-                onPress={handleLeaderboardPress}
-                showDivider={index < filteredLeaderboards.length - 1}
-                currentUserId={user?.id}
-              />
-            ))}
+          <View style={styles.lobbyList}>
+            {filteredLeaderboards.map((lobby) => {
+              const isLeague = lobby.game === 'League of Legends' || lobby.game === 'League';
+              const members = lobby.memberDetails || [];
+              const displayMembers = members.slice(0, 3);
+              const extraCount = Math.max(0, members.length - 3);
+
+              const players = lobby.players || [];
+              let avgRankLabel = 'Unranked';
+              let avgRankRaw = 'Unranked';
+              if (players.length > 0) {
+                const rankedPlayers = players.filter((p: any) => p.currentRank && p.currentRank !== 'Unranked');
+                if (rankedPlayers.length > 0) {
+                  const midIdx = Math.floor(rankedPlayers.length / 2);
+                  avgRankRaw = rankedPlayers[midIdx].currentRank;
+                  avgRankLabel = formatRankDisplay(avgRankRaw);
+                }
+              }
+              const avgRankIcon = getRankIcon(avgRankRaw, lobby.game);
+
+              return (
+                <TouchableOpacity
+                  key={lobby.id}
+                  style={styles.lobbyCard}
+                  onPress={() => handleLeaderboardPress(lobby)}
+                  activeOpacity={0.8}
+                >
+                  {/* Lobby icon */}
+                  {lobby.partyIcon ? (
+                    <CachedImage uri={lobby.partyIcon} style={styles.lobbyIcon} />
+                  ) : (
+                    <View style={styles.lobbyIconPlaceholder}>
+                      <ThemedText style={styles.lobbyIconInitial}>{(lobby.name || '?').charAt(0)}</ThemedText>
+                    </View>
+                  )}
+
+                  {/* Avatars stacked */}
+                  <View style={styles.lobbyAvatars}>
+                    {displayMembers.map((member: any, idx: number) => (
+                      <View key={member.userId || idx} style={[styles.lobbyAvatarWrapper, { marginLeft: idx > 0 ? -10 : 0, zIndex: displayMembers.length - idx }]}>
+                        {member.avatar ? (
+                          <CachedImage uri={member.avatar} style={styles.lobbyAvatarImage} />
+                        ) : (
+                          <View style={styles.lobbyAvatarFallback}>
+                            <ThemedText style={styles.lobbyAvatarFallbackText}>
+                              {(member.username || '?').charAt(0).toUpperCase()}
+                            </ThemedText>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                    {extraCount > 0 && (
+                      <View style={[styles.lobbyAvatarWrapper, styles.lobbyAvatarExtra, { marginLeft: -10 }]}>
+                        <ThemedText style={styles.lobbyAvatarExtraText}>+{extraCount}</ThemedText>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Middle: name + badge + rank */}
+                  <View style={styles.lobbyInfo}>
+                    <ThemedText style={styles.lobbyCardName} numberOfLines={1}>{lobby.name}</ThemedText>
+                    <View style={styles.lobbyTypeBadge}>
+                      <ThemedText style={styles.lobbyTypeBadgeText}>
+                        {lobby.type === 'party' ? 'PARTY' : isLeague ? 'RANKED SOLO' : 'RANKED'}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.lobbyMeta}>
+                      <Image source={avgRankIcon} style={styles.lobbyRankIcon} resizeMode="contain" />
+                      <ThemedText style={styles.lobbyRankText}>{avgRankLabel}+</ThemedText>
+                      <View style={styles.lobbyMetaDot} />
+                      <ThemedText style={styles.lobbyMemberCount}>{lobby.members}/{lobby.maxMembers}</ThemedText>
+                    </View>
+                  </View>
+
+                  {/* Right: chevron */}
+                  <IconSymbol size={16} name="chevron.right" color="#444" />
+                </TouchableOpacity>
+              );
+            })}
           </View>
         ) : (
           <View style={styles.emptyState}>
@@ -320,22 +418,6 @@ export default function LobbiesScreen() {
           </View>
         )}
 
-        {/* Create lobby card */}
-        <View style={styles.createCardWrapper}>
-          <TouchableOpacity
-            style={styles.createCard}
-            onPress={() => router.push('/partyPages/createLeaderboardName')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.createCardIcon}>
-              <IconSymbol size={32} name="plus.circle.fill" color="#8B7FE8" />
-            </View>
-            <View style={styles.createCardContent}>
-              <ThemedText style={styles.createCardTitle}>Create a new lobby</ThemedText>
-              <ThemedText style={styles.createCardSubtitle}>Start a leaderboard and challenge your friends</ThemedText>
-            </View>
-          </TouchableOpacity>
-        </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -446,7 +528,127 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 12,
+  },
+  lobbyList: {
+    gap: 8,
+  },
+  lobbyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 14,
+    gap: 12,
+  },
+  lobbyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+  },
+  lobbyIconPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lobbyIconInitial: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#8B7FE8',
+  },
+  lobbyAvatars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  lobbyAvatarWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+    overflow: 'hidden',
+  },
+  lobbyAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+  },
+  lobbyAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(139, 127, 232, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lobbyAvatarFallbackText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8B7FE8',
+  },
+  lobbyAvatarExtra: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lobbyAvatarExtraText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  lobbyInfo: {
+    flex: 1,
+    gap: 5,
+  },
+  lobbyCardName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  lobbyTypeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  lobbyTypeBadgeText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#8B7FE8',
+    letterSpacing: 0.5,
+  },
+  lobbyMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  lobbyRankIcon: {
+    width: 16,
+    height: 16,
+  },
+  lobbyRankText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#888',
+    textTransform: 'uppercase',
+  },
+  lobbyMetaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#444',
+  },
+  lobbyMemberCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#666',
   },
   emptyState: {
     alignItems: 'center',
@@ -463,44 +665,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#444',
     textAlign: 'center',
-  },
-  // Create lobby card
-  createCardWrapper: {
-    marginBottom: 12,
-    borderRadius: 15,
-  },
-  createCard: {
-    backgroundColor: 'transparent',
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: 'rgba(139, 127, 232, 0.3)',
-    borderStyle: 'dashed',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    minHeight: 120,
-  },
-  createCardIcon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  createCardContent: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  createCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  createCardSubtitle: {
-    fontSize: 13,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 18,
   },
 });

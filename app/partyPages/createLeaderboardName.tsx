@@ -3,14 +3,26 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from '@/hooks/useRouter';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StyleSheet, TouchableOpacity, View, TextInput, Image, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+
+const DEFAULT_LOBBY_ICONS = [
+  { id: 'lobby1', source: require('@/assets/images/lobby1.png') },
+  { id: 'lobby2', source: require('@/assets/images/lobby2.png') },
+  { id: 'lobby3', source: require('@/assets/images/lobby3.png') },
+  { id: 'lobby4', source: require('@/assets/images/lobby4.png') },
+  { id: 'lobby5', source: require('@/assets/images/lobby5.png') },
+];
 
 export default function CreateLeaderboardName() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [iconUri, setIconUri] = useState<string | null>(null);
+  const [customIconUri, setCustomIconUri] = useState<string | null>(null);
+  const [selectedDefaultIcon, setSelectedDefaultIcon] = useState<string>(() => {
+    const idx = Math.floor(Math.random() * DEFAULT_LOBBY_ICONS.length);
+    return DEFAULT_LOBBY_ICONS[idx].id;
+  });
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -26,16 +38,31 @@ export default function CreateLeaderboardName() {
       aspect: [1, 1],
       quality: 0.8,
     });
-    if (!result.canceled) setIconUri(result.assets[0].uri);
+    if (!result.canceled) {
+      setCustomIconUri(result.assets[0].uri);
+      setSelectedDefaultIcon('');
+    }
   };
+
+  const resolvedIconUri = useMemo(() => {
+    if (customIconUri) return customIconUri;
+    const defaultIcon = DEFAULT_LOBBY_ICONS.find(i => i.id === selectedDefaultIcon);
+    if (defaultIcon) return Image.resolveAssetSource(defaultIcon.source).uri;
+    return '';
+  }, [customIconUri, selectedDefaultIcon]);
 
   const handleContinue = () => {
     if (!name.trim()) return;
     router.push({
       pathname: '/partyPages/createLeaderboardGame',
-      params: { name: name.trim().toUpperCase(), iconUri: iconUri || '' },
+      params: { name: name.trim().toUpperCase(), iconUri: resolvedIconUri },
     });
   };
+
+  // Current display icon
+  const displaySource = customIconUri
+    ? { uri: customIconUri }
+    : DEFAULT_LOBBY_ICONS.find(i => i.id === selectedDefaultIcon)?.source;
 
   return (
     <ThemedView style={styles.container}>
@@ -63,19 +90,50 @@ export default function CreateLeaderboardName() {
           <ThemedText style={styles.step}>Step 1 of 5</ThemedText>
           <ThemedText style={styles.title}>Name your{'\n'}leaderboard</ThemedText>
 
-          <TouchableOpacity style={styles.iconPicker} onPress={pickIcon} activeOpacity={0.7}>
-            {iconUri ? (
-              <Image source={{ uri: iconUri }} style={styles.iconImage} />
+          {/* Main icon display */}
+          <View style={styles.iconPicker}>
+            {displaySource ? (
+              <Image source={displaySource} style={styles.iconImage} />
             ) : (
               <View style={styles.iconPlaceholder}>
                 <IconSymbol size={28} name="trophy.fill" color="#555" />
               </View>
             )}
-            <View style={styles.iconBadge}>
-              <IconSymbol size={12} name="plus" color="#0f0f0f" />
-            </View>
-          </TouchableOpacity>
-          <ThemedText style={styles.iconHint}>Add an icon (optional)</ThemedText>
+          </View>
+
+          {/* Default icon choices + custom upload */}
+          <View style={styles.iconSelectionRow}>
+            {DEFAULT_LOBBY_ICONS.map((icon) => (
+              <TouchableOpacity
+                key={icon.id}
+                style={[
+                  styles.iconOption,
+                  !customIconUri && selectedDefaultIcon === icon.id && styles.iconOptionSelected,
+                ]}
+                onPress={() => {
+                  setSelectedDefaultIcon(icon.id);
+                  setCustomIconUri(null);
+                }}
+                activeOpacity={0.7}
+              >
+                <Image source={icon.source} style={styles.iconOptionImage} />
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[
+                styles.iconOption,
+                customIconUri && styles.iconOptionSelected,
+              ]}
+              onPress={pickIcon}
+              activeOpacity={0.7}
+            >
+              {customIconUri ? (
+                <Image source={{ uri: customIconUri }} style={styles.iconOptionImage} />
+              ) : (
+                <IconSymbol size={18} name="camera.fill" color="#555" />
+              )}
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.inputContainer}>
             <TextInput
@@ -125,7 +183,7 @@ const styles = StyleSheet.create({
   contentInner: { paddingTop: 16, paddingBottom: 20 },
   step: { fontSize: 13, color: '#555', marginBottom: 8 },
   title: { fontSize: 28, fontWeight: '800', color: '#fff', lineHeight: 36, marginBottom: 24 },
-  iconPicker: { alignSelf: 'center', marginBottom: 8 },
+  iconPicker: { alignSelf: 'center', marginBottom: 12 },
   iconImage: { width: 80, height: 80, borderRadius: 16 },
   iconPlaceholder: {
     width: 80, height: 80, borderRadius: 16,
@@ -133,12 +191,31 @@ const styles = StyleSheet.create({
     borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },
-  iconBadge: {
-    position: 'absolute', bottom: -2, right: -2,
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+  iconSelectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 24,
   },
-  iconHint: { fontSize: 12, color: '#444', textAlign: 'center', marginBottom: 24 },
+  iconOption: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  iconOptionSelected: {
+    borderColor: '#8B7FE8',
+  },
+  iconOptionImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+  },
   inputContainer: { marginTop: 8 },
   input: {
     backgroundColor: 'rgba(255,255,255,0.06)',

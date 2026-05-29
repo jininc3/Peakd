@@ -24,6 +24,14 @@ import { db } from '@/config/firebase';
 import { collection, getDocs, doc, getDoc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { uploadPartyIcon, uploadPartyCoverPhoto } from '@/services/storageService';
 
+const DEFAULT_LOBBY_ICONS = [
+  { id: 'lobby1', source: require('@/assets/images/lobby1.png') },
+  { id: 'lobby2', source: require('@/assets/images/lobby2.png') },
+  { id: 'lobby3', source: require('@/assets/images/lobby3.png') },
+  { id: 'lobby4', source: require('@/assets/images/lobby4.png') },
+  { id: 'lobby5', source: require('@/assets/images/lobby5.png') },
+];
+
 // Available games
 const AVAILABLE_GAMES = [
   {
@@ -62,6 +70,7 @@ export default function CreateLeaderboardScreen() {
   const [loadingFollowers, setLoadingFollowers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [leaderboardIcon, setLeaderboardIcon] = useState<string | null>(null);
+  const [selectedDefaultIcon, setSelectedDefaultIcon] = useState<string>('lobby1');
   const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
@@ -287,14 +296,21 @@ export default function CreateLeaderboardScreen() {
       // Update with partyId field
       await updateDoc(leaderboardDocRef, { partyId: generatedPartyId });
 
-      // Upload leaderboard icon if selected
-      if (leaderboardIcon) {
-        try {
-          const iconUrl = await uploadPartyIcon(generatedPartyId, leaderboardIcon);
-          await updateDoc(leaderboardDocRef, { partyIcon: iconUrl });
-        } catch (uploadError) {
-          console.error('Error uploading leaderboard icon:', uploadError);
+      // Upload leaderboard icon (custom or default)
+      try {
+        let iconUri = leaderboardIcon;
+        if (!iconUri && selectedDefaultIcon) {
+          const defaultIcon = DEFAULT_LOBBY_ICONS.find(i => i.id === selectedDefaultIcon);
+          if (defaultIcon) {
+            iconUri = Image.resolveAssetSource(defaultIcon.source).uri;
+          }
         }
+        if (iconUri) {
+          const iconUrl = await uploadPartyIcon(generatedPartyId, iconUri);
+          await updateDoc(leaderboardDocRef, { partyIcon: iconUrl });
+        }
+      } catch (uploadError) {
+        console.error('Error uploading leaderboard icon:', uploadError);
       }
 
       // Upload cover photo if selected
@@ -405,25 +421,45 @@ export default function CreateLeaderboardScreen() {
           <ThemedText style={styles.nameCharCount}>{leaderboardName.length}/30</ThemedText>
         </View>
 
-        {/* Icon + Game Selection - grid layout */}
-        <View style={styles.formGrid}>
-          <View style={styles.formGridItem}>
-            <ThemedText style={styles.formLabel}>ICON</ThemedText>
+        {/* Icon Selection */}
+        <View style={styles.formSection}>
+          <ThemedText style={styles.formLabel}>ICON</ThemedText>
+          <View style={styles.iconSelectionRow}>
+            {DEFAULT_LOBBY_ICONS.map((icon) => (
+              <TouchableOpacity
+                key={icon.id}
+                style={[
+                  styles.defaultIconOption,
+                  !leaderboardIcon && selectedDefaultIcon === icon.id && styles.defaultIconOptionSelected,
+                ]}
+                onPress={() => {
+                  setSelectedDefaultIcon(icon.id);
+                  setLeaderboardIcon(null);
+                }}
+                activeOpacity={0.7}
+              >
+                <Image source={icon.source} style={styles.defaultIconImage} />
+              </TouchableOpacity>
+            ))}
             <TouchableOpacity
-              style={styles.leaderboardIconPicker}
+              style={[
+                styles.defaultIconOption,
+                leaderboardIcon && styles.defaultIconOptionSelected,
+              ]}
               onPress={handlePickLeaderboardIcon}
               activeOpacity={0.7}
             >
               {leaderboardIcon ? (
-                <Image source={{ uri: leaderboardIcon }} style={styles.leaderboardIconPreview} />
+                <Image source={{ uri: leaderboardIcon }} style={styles.defaultIconImage} />
               ) : (
-                <View style={styles.leaderboardIconPlaceholder}>
-                  <IconSymbol size={24} name="camera.fill" color="#555" />
-                </View>
+                <IconSymbol size={22} name="camera.fill" color="#555" />
               )}
             </TouchableOpacity>
           </View>
+        </View>
 
+        {/* Game Selection */}
+        <View style={styles.formSection}>
           <View style={styles.formGridItemFlex}>
             <ThemedText style={styles.formLabel}>GAME</ThemedText>
             <View style={styles.gameRow}>
@@ -687,6 +723,8 @@ export default function CreateLeaderboardScreen() {
               <View style={pvStyles.iconWrapper}>
                 {leaderboardIcon ? (
                   <Image source={{ uri: leaderboardIcon }} style={pvStyles.icon} />
+                ) : selectedDefaultIcon ? (
+                  <Image source={DEFAULT_LOBBY_ICONS.find(i => i.id === selectedDefaultIcon)?.source} style={pvStyles.icon} />
                 ) : selectedGame ? (
                   <View style={pvStyles.iconPlaceholder}>
                     <Image source={GAME_LOGOS[selectedGame.name]} style={pvStyles.iconGameLogo} resizeMode="contain" />
@@ -974,7 +1012,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Icon
+  // Icon Selection
+  iconSelectionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  defaultIconOption: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#1a1a1a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  defaultIconOptionSelected: {
+    borderColor: '#8B7FE8',
+  },
+  defaultIconImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
   leaderboardIconPicker: {
     width: 56,
     height: 56,

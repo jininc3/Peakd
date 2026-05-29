@@ -18,6 +18,14 @@ import CachedImage from '@/components/ui/CachedImage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+const DEFAULT_LOBBY_ICONS = [
+  { id: 'lobby1', source: require('@/assets/images/lobby1.png') },
+  { id: 'lobby2', source: require('@/assets/images/lobby2.png') },
+  { id: 'lobby3', source: require('@/assets/images/lobby3.png') },
+  { id: 'lobby4', source: require('@/assets/images/lobby4.png') },
+  { id: 'lobby5', source: require('@/assets/images/lobby5.png') },
+];
+
 // Game logo mapping
 const GAME_LOGOS: { [key: string]: any } = {
   'Valorant': require('@/assets/images/valorant-red.png'),
@@ -194,6 +202,7 @@ export default function LeaderboardDetail() {
   const [partyDocId, setPartyDocId] = useState<string>('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showIconPickerModal, setShowIconPickerModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [mutuals, setMutuals] = useState<{ id: string; username: string; avatar: string }[]>([]);
   const [loadingMutuals, setLoadingMutuals] = useState(false);
@@ -624,7 +633,22 @@ export default function LeaderboardDetail() {
   };
 
   // Handle changing leaderboard icon
-  const handleChangeLeaderboardIcon = async () => {
+  const handleSelectDefaultIcon = async (iconSource: any) => {
+    setShowIconPickerModal(false);
+    setUploading(true);
+    try {
+      const iconUri = Image.resolveAssetSource(iconSource).uri;
+      const iconUrl = await uploadPartyIcon(partyDocId, iconUri);
+      const partyRef = doc(db, 'parties', partyDocId);
+      await updateDoc(partyRef, { partyIcon: iconUrl });
+    } catch (error) {
+      console.error('Error uploading default icon:', error);
+      Alert.alert('Error', 'Failed to update leaderboard icon');
+    }
+    setUploading(false);
+  };
+
+  const handlePickCustomIcon = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -634,7 +658,7 @@ export default function LeaderboardDetail() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setShowEditModal(false);
+        setShowIconPickerModal(false);
         setUploading(true);
         try {
           const iconUrl = await uploadPartyIcon(partyDocId, result.assets[0].uri);
@@ -1177,24 +1201,6 @@ export default function LeaderboardDetail() {
             </View>
           </View>
 
-          {/* Challenge Button */}
-          {isNone && isCreator ? (
-            <TouchableOpacity
-              style={styles.createChallengeInlineBtn}
-              onPress={() => {
-                setSelectedChallengeMembers([]);
-                setChallengeTypeSelection('climbing');
-                setDurationSelection(30);
-                setShowCustomDuration(false);
-                setCustomDurationText('');
-                setShowCreateChallengeModal(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <IconSymbol size={14} name="trophy.fill" color="#fff" />
-              <ThemedText style={styles.createChallengeInlineBtnText}>Create Challenge</ThemedText>
-            </TouchableOpacity>
-          ) : null}
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
@@ -1534,7 +1540,7 @@ export default function LeaderboardDetail() {
               <IconSymbol size={16} name="chevron.right" color="#444" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.editModalOption} onPress={handleChangeLeaderboardIcon}>
+            <TouchableOpacity style={styles.editModalOption} onPress={() => { setShowEditModal(false); setShowIconPickerModal(true); }}>
               <View style={styles.editModalOptionIcon}>
                 <IconSymbol size={18} name="square.and.pencil" color="#888" />
               </View>
@@ -1601,6 +1607,30 @@ export default function LeaderboardDetail() {
               </View>
               <IconSymbol size={16} name="chevron.right" color="#444" />
             </TouchableOpacity>
+
+            {isNone && (
+              <TouchableOpacity
+                style={styles.editModalOption}
+                onPress={() => {
+                  setShowEditModal(false);
+                  setSelectedChallengeMembers([]);
+                  setChallengeTypeSelection('climbing');
+                  setDurationSelection(30);
+                  setShowCustomDuration(false);
+                  setCustomDurationText('');
+                  setShowCreateChallengeModal(true);
+                }}
+              >
+                <View style={styles.editModalOptionIcon}>
+                  <IconSymbol size={18} name="trophy.fill" color="#888" />
+                </View>
+                <View style={styles.editModalOptionText}>
+                  <ThemedText style={styles.editModalOptionTitle}>Create Challenge</ThemedText>
+                  <ThemedText style={styles.editModalOptionSubtitle}>Start a ranked challenge with members</ThemedText>
+                </View>
+                <IconSymbol size={16} name="chevron.right" color="#444" />
+              </TouchableOpacity>
+            )}
 
             {inviteCode && (
               <TouchableOpacity
@@ -2019,6 +2049,52 @@ export default function LeaderboardDetail() {
         </TouchableOpacity>
       </Modal>
 
+
+      {/* Icon Picker Modal */}
+      <Modal
+        visible={showIconPickerModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowIconPickerModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowIconPickerModal(false)}
+        >
+          <View style={styles.editModalContent} onStartShouldSetResponder={() => true}>
+            <View style={styles.editModalHeader}>
+              <ThemedText style={styles.editModalTitle}>Choose Icon</ThemedText>
+              <TouchableOpacity onPress={() => setShowIconPickerModal(false)}>
+                <IconSymbol size={22} name="xmark" color="#888" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.iconPickerGrid}>
+              {DEFAULT_LOBBY_ICONS.map((icon) => (
+                <TouchableOpacity
+                  key={icon.id}
+                  style={styles.iconPickerOption}
+                  onPress={() => handleSelectDefaultIcon(icon.source)}
+                  activeOpacity={0.7}
+                >
+                  <Image source={icon.source} style={styles.iconPickerImage} />
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.iconPickerOption}
+                onPress={handlePickCustomIcon}
+                activeOpacity={0.7}
+              >
+                <View style={styles.iconPickerCustom}>
+                  <IconSymbol size={24} name="camera.fill" color="#555" />
+                  <ThemedText style={styles.iconPickerCustomText}>Custom</ThemedText>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {uploading && (
         <View style={styles.uploadingOverlay}>
@@ -3084,6 +3160,37 @@ const styles = StyleSheet.create({
   editModalOptionSubtitle: {
     fontSize: 12,
     color: '#666',
+  },
+  // Icon Picker
+  iconPickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingTop: 8,
+  },
+  iconPickerOption: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  iconPickerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  iconPickerCustom: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  iconPickerCustomText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#555',
   },
   // Invite Modal
   inviteModalContent: {
