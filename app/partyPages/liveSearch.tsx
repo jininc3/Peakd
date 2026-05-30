@@ -119,9 +119,7 @@ export default function LiveSearchScreen() {
             <IconSymbol size={20} name="chevron.left" color="#fff" />
           </TouchableOpacity>
           <ThemedText style={styles.headerTitle}>Live Search</ThemedText>
-          <TouchableOpacity style={styles.helpButton}>
-            <IconSymbol size={18} name="questionmark.circle" color="#666" />
-          </TouchableOpacity>
+          <View style={{ width: 36 }} />
         </View>
       )}
 
