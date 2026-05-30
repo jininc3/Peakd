@@ -45,7 +45,7 @@ export default function LiveSearchContent({
   }, [onMatchStateChange]);
   const [searchGame, setSearchGame] = useState<'valorant' | 'league' | null>(null);
   const [searchGamePick, setSearchGamePick] = useState<'valorant' | 'league' | null>(null);
-  const [searchModePick, setSearchModePick] = useState<'lfg' | 'duo' | null>(null);
+  const [searchModePick, setSearchModePick] = useState<'lfg' | 'duo' | null>('lfg');
   const [searchMode, setSearchMode] = useState<'lfg' | 'duo' | null>(null);
   const [matchedUserCard, setMatchedUserCard] = useState<DuoMatchCardData | null>(null);
   const [matchedUserId, setMatchedUserId] = useState<string | null>(null);

@@ -738,7 +738,6 @@ export default function LeaderboardScreen() {
                         userId: player.userId,
                         username: player.username,
                         avatar: player.avatar || '',
-                        preloadedFollowing: 'true',
                       },
                     });
                   }
@@ -869,7 +868,6 @@ export default function LeaderboardScreen() {
                                 userId: player.userId,
                                 username: player.username,
                                 avatar: player.avatar || '',
-                                preloadedFollowing: 'true',
                               },
                             });
                           }

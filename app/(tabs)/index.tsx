@@ -1231,7 +1231,7 @@ export default function HomeScreen() {
     } else {
       router.push({
         pathname: '/profilePages/profileView',
-        params: { userId, username: username || '', avatar: avatar || '' },
+        params: { userId, username: username || '', avatar: avatar || '', preloadedFollowing: 'true' },
       });
     }
 

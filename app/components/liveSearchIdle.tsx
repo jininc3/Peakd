@@ -300,9 +300,9 @@ export default function LiveSearchIdle({
             disabled={hasCards && !canSearch}
           >
             <LinearGradient
-              colors={['#5a4fcf', '#7B6FE8']}
+              colors={['rgba(30, 40, 35, 0.95)', 'rgba(20, 30, 25, 0.98)']}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              end={{ x: 0, y: 1 }}
               style={styles.searchBtnGradient}
             >
               <View style={styles.searchBtnContent}>
@@ -314,9 +314,15 @@ export default function LiveSearchIdle({
                     <ThemedText style={styles.searchBtnSub}>~18s estimated wait</ThemedText>
                   )}
                 </View>
-                <IconSymbol size={18} name="chevron.right" color="rgba(255,255,255,0.6)" />
+                <IconSymbol size={18} name="chevron.right" color="rgba(255,255,255,0.4)" />
               </View>
             </LinearGradient>
+            <LinearGradient
+              colors={['transparent', 'rgba(74, 222, 128, 0.5)', 'transparent']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.searchBtnGlow}
+            />
           </TouchableOpacity>
         </View>
 
@@ -615,7 +621,10 @@ const styles = StyleSheet.create({
   },
   searchBtn: {
     flex: 1,
-    borderRadius: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 222, 128, 0.2)',
+    backgroundColor: 'rgba(20, 30, 25, 0.95)',
     overflow: 'hidden',
   },
   searchBtnDisabled: {
@@ -623,10 +632,13 @@ const styles = StyleSheet.create({
   },
   searchBtnGradient: {
     flex: 1,
-    borderRadius: 14,
     justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  searchBtnGlow: {
+    width: '100%',
+    height: 3,
   },
   searchBtnContent: {
     flexDirection: 'row',
@@ -640,7 +652,7 @@ const styles = StyleSheet.create({
   },
   searchBtnSub: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: 'rgba(255, 255, 255, 0.4)',
     marginTop: 2,
   },
 

@@ -147,7 +147,7 @@ export default function FollowersScreen() {
               <View key={follower.id} style={styles.followerItem}>
                 <TouchableOpacity
                   style={styles.followerLeft}
-                  onPress={() => router.push({ pathname: '/profilePages/profileView', params: { userId: follower.id, username: follower.username || '', avatar: follower.avatar || '' } })}
+                  onPress={() => router.push({ pathname: '/profilePages/profileView', params: { userId: follower.id, username: follower.username || '', avatar: follower.avatar || '', preloadedFollowing: follower.isFollowing ? 'true' : '' } })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.avatar}>

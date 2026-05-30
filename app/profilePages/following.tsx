@@ -140,7 +140,7 @@ export default function FollowingScreen() {
               <View key={user.id} style={styles.userItem}>
                 <TouchableOpacity
                   style={styles.userLeft}
-                  onPress={() => router.push({ pathname: '/profilePages/profileView', params: { userId: user.id, username: user.username || '', avatar: user.avatar || '' } })}
+                  onPress={() => router.push({ pathname: '/profilePages/profileView', params: { userId: user.id, username: user.username || '', avatar: user.avatar || '', preloadedFollowing: 'true' } })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.avatar}>

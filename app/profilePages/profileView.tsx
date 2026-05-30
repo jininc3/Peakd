@@ -141,6 +141,7 @@ export default function ProfileViewScreen() {
   const [selectedPostIndex, setSelectedPostIndex] = useState(0);
   const [showPostViewer, setShowPostViewer] = useState(false);
   const [isFollowing, setIsFollowing] = useState(params.preloadedFollowing === 'true');
+  const [followChecked, setFollowChecked] = useState(params.preloadedFollowing === 'true');
   const [followLoading, setFollowLoading] = useState(false);
   const [isTargetPrivate, setIsTargetPrivate] = useState(false);
   const [hasRequested, setHasRequested] = useState(false);
@@ -445,6 +446,7 @@ export default function ProfileViewScreen() {
 
       // Update follow status
       setIsFollowing(followStatus);
+      setFollowChecked(true);
     } catch (error) {
       console.error('Error fetching profile data:', error);
       setLoadingUser(false);
@@ -944,16 +946,18 @@ export default function ProfileViewScreen() {
 
             {/* Action Row: Follow Button + Social Icons */}
             <View style={styles.actionRow}>
-              <TouchableOpacity
-                style={[styles.followButton, (isFollowing || hasRequested) && styles.followButtonFollowing]}
-                onPress={handleFollowToggle}
-                disabled={followLoading}
-                activeOpacity={0.7}
-              >
-                <ThemedText style={[styles.followButtonText, (isFollowing || hasRequested) && styles.followButtonTextFollowing]}>
-                  {followLoading ? '...' : isFollowing ? 'Following' : hasRequested ? 'Requested' : 'Follow'}
-                </ThemedText>
-              </TouchableOpacity>
+              {followChecked && (
+                <TouchableOpacity
+                  style={[styles.followButton, (isFollowing || hasRequested) && styles.followButtonFollowing]}
+                  onPress={handleFollowToggle}
+                  disabled={followLoading}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={[styles.followButtonText, (isFollowing || hasRequested) && styles.followButtonTextFollowing]}>
+                    {followLoading ? '...' : isFollowing ? 'Following' : hasRequested ? 'Requested' : 'Follow'}
+                  </ThemedText>
+                </TouchableOpacity>
+              )}
 
               <View style={styles.socialIconsGroup}>
                 {/* Messages */}
