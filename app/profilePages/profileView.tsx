@@ -25,6 +25,7 @@ import GradientBorder from '@/components/GradientBorder';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import CachedImage from '@/components/ui/CachedImage';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 
 interface ViewedUser {
   id: string;
@@ -914,8 +915,10 @@ export default function ProfileViewScreen() {
                     shine={tierShine}
                   >
                     <View style={styles.profileAvatarCircleWithGradient}>
-                      {viewedUser?.avatar && viewedUser.avatar.startsWith('http') ? (
-                        <CachedImage uri={viewedUser.avatar} style={styles.profileAvatarImage} />
+                      {isRemoteAvatar(viewedUser?.avatar) ? (
+                        <CachedImage uri={viewedUser.avatar!} style={styles.profileAvatarImage} />
+                      ) : getDefaultAvatarSource(viewedUser?.avatar) ? (
+                        <Image source={getDefaultAvatarSource(viewedUser?.avatar)!} style={styles.profileAvatarImage} />
                       ) : (
                         <ThemedText style={styles.profileAvatarInitial}>
                           {viewedUser?.username?.[0]?.toUpperCase() || 'U'}
@@ -925,8 +928,10 @@ export default function ProfileViewScreen() {
                   </GradientBorder>
                 ) : (
                   <View style={styles.profileAvatarCircle}>
-                    {viewedUser?.avatar && viewedUser.avatar.startsWith('http') ? (
-                      <CachedImage uri={viewedUser.avatar} style={styles.profileAvatarImage} />
+                    {isRemoteAvatar(viewedUser?.avatar) ? (
+                      <CachedImage uri={viewedUser.avatar!} style={styles.profileAvatarImage} />
+                    ) : getDefaultAvatarSource(viewedUser?.avatar) ? (
+                      <Image source={getDefaultAvatarSource(viewedUser?.avatar)!} style={styles.profileAvatarImage} />
                     ) : (
                       <ThemedText style={styles.profileAvatarInitial}>
                         {viewedUser?.username?.[0]?.toUpperCase() || 'U'}

@@ -135,46 +135,56 @@ export default function LiveSearchIdle({
       {/* Summary Card */}
       <Animated.View style={[styles.summaryCard, contentStyle]}>
         <LinearGradient
-          colors={['rgba(74, 222, 128, 0.08)', 'rgba(139, 127, 232, 0.06)', 'transparent']}
+          colors={['rgba(30, 30, 60, 0.95)', 'rgba(20, 20, 45, 0.98)']}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          end={{ x: 0, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
-        <View style={styles.summaryHeader}>
-          <Animated.View style={[styles.summaryDot, dotPulseStyle]} />
-          <ThemedText style={styles.summaryLiveText}>LIVE SEARCH</ThemedText>
+        <View style={styles.summaryContent}>
+          <View style={styles.summaryHeader}>
+            <Animated.View style={[styles.summaryDot, dotPulseStyle]} />
+            <ThemedText style={styles.summaryLiveText}>LIVE SEARCH</ThemedText>
+          </View>
+          <ThemedText style={styles.summaryTitle}>Find Teammates</ThemedText>
+          {activeInGameName ? (
+            <View style={styles.summaryUserRow}>
+              {activeInGameIcon ? (
+                <Image source={{ uri: activeInGameIcon }} style={styles.summaryUserIcon} />
+              ) : null}
+              <ThemedText style={styles.summaryUsername}>{activeInGameName}</ThemedText>
+            </View>
+          ) : null}
+          {activeCard && searchGamePick ? (
+            <View style={styles.summaryDetails}>
+              <Image
+                source={getRankIcon(activeCard.currentRank, searchGamePick)}
+                style={styles.summaryRankIcon}
+                resizeMode="contain"
+              />
+              <ThemedText style={styles.summaryDetailText}>
+                {activeCard.currentRank || 'Unranked'}
+              </ThemedText>
+              {activeCard.mainRole ? (
+                <>
+                  <ThemedText style={styles.summaryDotSeparator}>•</ThemedText>
+                  <ThemedText style={styles.summaryDetailText}>{activeCard.mainRole}</ThemedText>
+                </>
+              ) : null}
+              <ThemedText style={styles.summaryDotSeparator}>•</ThemedText>
+              <ThemedText style={styles.summaryDetailText}>{activeCard.region || 'NA'}</ThemedText>
+            </View>
+          ) : (
+            <ThemedText style={styles.summarySubtitle}>Select a game and mode to start</ThemedText>
+          )}
         </View>
-        <ThemedText style={styles.summaryTitle}>Find Teammates</ThemedText>
-        {activeInGameName ? (
-          <View style={styles.summaryUserRow}>
-            {activeInGameIcon ? (
-              <Image source={{ uri: activeInGameIcon }} style={styles.summaryUserIcon} />
-            ) : null}
-            <ThemedText style={styles.summaryUsername}>{activeInGameName}</ThemedText>
-          </View>
-        ) : null}
-        {activeCard && searchGamePick ? (
-          <View style={styles.summaryDetails}>
-            <Image
-              source={getRankIcon(activeCard.currentRank, searchGamePick)}
-              style={styles.summaryRankIcon}
-              resizeMode="contain"
-            />
-            <ThemedText style={styles.summaryDetailText}>
-              {activeCard.currentRank || 'Unranked'}
-            </ThemedText>
-            {activeCard.mainRole ? (
-              <>
-                <ThemedText style={styles.summaryDotSeparator}>•</ThemedText>
-                <ThemedText style={styles.summaryDetailText}>{activeCard.mainRole}</ThemedText>
-              </>
-            ) : null}
-            <ThemedText style={styles.summaryDotSeparator}>•</ThemedText>
-            <ThemedText style={styles.summaryDetailText}>{activeCard.region || 'NA'}</ThemedText>
-          </View>
-        ) : (
-          <ThemedText style={styles.summarySubtitle}>Select a game and mode to start</ThemedText>
-        )}
+
+        {/* Bottom glow */}
+        <LinearGradient
+          colors={['transparent', 'rgba(100, 120, 255, 0.5)', 'transparent']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.summaryGlow}
+        />
       </Animated.View>
 
       <Animated.View style={[styles.content, contentStyle]}>
@@ -331,15 +341,17 @@ const styles = StyleSheet.create({
 
   // Summary Card
   summaryCard: {
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(74, 222, 128, 0.2)',
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    padding: 18,
-    marginTop: 32,
+    borderColor: 'rgba(100, 120, 255, 0.2)',
+    backgroundColor: 'rgba(20, 20, 45, 0.95)',
+    marginTop: 16,
     marginBottom: 36,
-    gap: 8,
     overflow: 'hidden',
+  },
+  summaryContent: {
+    padding: 18,
+    gap: 8,
   },
   summaryHeader: {
     flexDirection: 'row',
@@ -402,6 +414,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666',
     marginTop: 2,
+  },
+  summaryGlow: {
+    width: '100%',
+    height: 3,
   },
 
   content: {

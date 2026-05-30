@@ -2,13 +2,14 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useState, useEffect, useRef } from 'react';
-import { Dimensions, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/hooks/useRouter';
 import { collection, query, where, getDocs, orderBy, limit, doc, setDoc, deleteDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { calculateTierBorderColor } from '@/utils/tierBorderUtils';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, interpolate } from 'react-native-reanimated';
 
@@ -385,6 +386,9 @@ export default function SearchScreen() {
     }
   };
 
+  const lastNavTime = useRef(0);
+  const searchInputRef = useRef<TextInput>(null);
+
   // Reset search state when user changes (e.g. sign out → sign in with different account)
   const prevUserIdRef = useRef<string | undefined>(currentUser?.id);
   useEffect(() => {
@@ -489,6 +493,8 @@ export default function SearchScreen() {
 
 
   const handleUserClick = (user: SearchUser) => {
+    if (Date.now() - lastNavTime.current < 500) return;
+    lastNavTime.current = Date.now();
     // Navigate to profile immediately
     if (user.id === currentUser?.id) {
       router.push('/(tabs)/profile');
@@ -540,9 +546,10 @@ export default function SearchScreen() {
       </View>
 
       <View style={styles.header} />
-      <View style={styles.searchContainer}>
+      <Pressable style={styles.searchContainer} onPress={() => searchInputRef.current?.focus()}>
         <IconSymbol size={18} name="magnifyingglass" color="#666" />
         <TextInput
+          ref={searchInputRef}
           style={styles.searchInput}
           placeholder="Search users..."
           placeholderTextColor="#555"
@@ -557,7 +564,7 @@ export default function SearchScreen() {
             <IconSymbol size={18} name="xmark.circle.fill" color="#555" />
           </TouchableOpacity>
         )}
-      </View>
+      </Pressable>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* History skeleton - only when initially loading */}
@@ -587,8 +594,10 @@ export default function SearchScreen() {
                   styles.historyAvatar,
                   tierBorderColor ? { borderWidth: 2, borderColor: tierBorderColor } : {}
                 ]}>
-                  {user.avatar && user.avatar.startsWith('http') ? (
-                    <CachedAvatar uri={user.avatar} style={styles.historyAvatarImage} />
+                  {isRemoteAvatar(user.avatar) ? (
+                    <CachedAvatar uri={user.avatar!} style={styles.historyAvatarImage} />
+                  ) : getDefaultAvatarSource(user.avatar) ? (
+                    <Image source={getDefaultAvatarSource(user.avatar)!} style={styles.historyAvatarImage} />
                   ) : (
                     <ThemedText style={styles.historyAvatarInitial}>
                       {user.username[0].toUpperCase()}
@@ -639,8 +648,10 @@ export default function SearchScreen() {
                   styles.historyAvatar,
                   tierBorderColor ? { borderWidth: 2, borderColor: tierBorderColor } : {}
                 ]}>
-                  {user.avatar && user.avatar.startsWith('http') ? (
-                    <CachedAvatar uri={user.avatar} style={styles.historyAvatarImage} />
+                  {isRemoteAvatar(user.avatar) ? (
+                    <CachedAvatar uri={user.avatar!} style={styles.historyAvatarImage} />
+                  ) : getDefaultAvatarSource(user.avatar) ? (
+                    <Image source={getDefaultAvatarSource(user.avatar)!} style={styles.historyAvatarImage} />
                   ) : (
                     <ThemedText style={styles.historyAvatarInitial}>
                       {user.username[0].toUpperCase()}

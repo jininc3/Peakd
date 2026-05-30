@@ -151,6 +151,7 @@ export default function HomeScreen() {
   const postRefs = useRef<{ [key: string]: View | null }>({});
   const videoPlayers = useRef<{ [key: string]: any }>({});
   const scrollViewRef = useRef<ScrollView>(null);
+  const lastNavTime = useRef(0);
   const [selectedGameFilter, setSelectedGameFilter] = useState<string | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
@@ -1306,7 +1307,7 @@ export default function HomeScreen() {
       <View style={[styles.header, { paddingTop: insets.top - 10 }]}>
         <ScalePress
           style={styles.headerIconButton}
-          onPress={() => router.push('/chatPages/chatList')}
+          onPress={() => { if (Date.now() - lastNavTime.current < 500) return; lastNavTime.current = Date.now(); router.push('/chatPages/chatList'); }}
         >
           <IconSymbol size={27} name="tray" color="#fff" />
           {unreadMessageCount > 0 && (
@@ -1331,13 +1332,13 @@ export default function HomeScreen() {
           <IconSymbol
             size={14}
             name={showTabDropdown ? 'chevron.up' : 'chevron.down'}
-            color="#8B7FE8"
+            color="#B4A7F5"
           />
         </TouchableOpacity>
 
         <ScalePress
           style={styles.headerIconButton}
-          onPress={() => router.push('/notifications')}
+          onPress={() => { if (Date.now() - lastNavTime.current < 500) return; lastNavTime.current = Date.now(); router.push('/notifications'); }}
         >
           <IconSymbol size={22} name="bell" color="#fff" />
           {unreadNotificationCount > 0 && (

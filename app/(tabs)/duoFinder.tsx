@@ -22,7 +22,7 @@ import { DuoCardSkeleton, DuoFeedCardSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { Alert, Dimensions, ScrollView, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity, View, RefreshControl, Image, Modal, Animated, Easing } from 'react-native';
+import { Alert, Dimensions, ScrollView, FlatList, ActivityIndicator, Pressable, StyleSheet, TouchableOpacity, View, RefreshControl, Image, Modal, Animated, Easing } from 'react-native';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 import { doc, getDoc, setDoc, deleteDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
@@ -222,6 +222,7 @@ export default function DuoFinderScreen() {
   const [leagueGamesPlayed, setLeagueGamesPlayed] = useState<number | undefined>(undefined);
   const [hasActiveValorantPost, setHasActiveValorantPost] = useState(false);
   const [hasActiveLeaguePost, setHasActiveLeaguePost] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   // Function to sync duo cards with rank stats
   const syncDuoCardsWithStats = async (isManualRefresh: boolean = false, onlyGame?: 'valorant' | 'league') => {
@@ -1005,6 +1006,13 @@ export default function DuoFinderScreen() {
       {/* Header */}
       <View style={styles.header}>
         <ThemedText style={styles.headerTitle}>LFG</ThemedText>
+        <TouchableOpacity
+          style={styles.infoButton}
+          onPress={() => setShowInfoModal(true)}
+          activeOpacity={0.7}
+        >
+          <IconSymbol size={20} name="info.circle" color="#666" />
+        </TouchableOpacity>
       </View>
 
       {/* Posts feed */}
@@ -1038,42 +1046,56 @@ export default function DuoFinderScreen() {
                     onPress={() => router.push('/partyPages/liveSearch')}
                   >
                     <LinearGradient
-                      colors={['rgba(139, 127, 232, 0.12)', 'rgba(74, 222, 128, 0.04)', 'rgba(139, 127, 232, 0.08)']}
+                      colors={['rgba(30, 30, 60, 0.95)', 'rgba(20, 20, 45, 0.98)']}
                       start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
+                      end={{ x: 0, y: 1 }}
                       style={StyleSheet.absoluteFill}
                     />
+
                     <View style={styles.liveSearchBannerContent}>
+                      {/* Top row: Logo + Game Icons */}
                       <View style={styles.liveSearchBannerTopRow}>
-                        <View style={styles.liveSearchBannerLiveBadge}>
-                          <Animated.View style={[styles.liveSearchBannerDot, { opacity: pulseAnim }]} />
-                          <ThemedText style={styles.liveSearchBannerLiveText}>LIVE</ThemedText>
-                        </View>
-                        <View style={styles.liveSearchBannerWaveform}>
-                          {[12, 18, 8, 22, 14, 10, 16].map((h, i) => (
-                            <Animated.View
-                              key={i}
-                              style={[
-                                styles.liveSearchBannerBar,
-                                { height: h, opacity: pulseAnim.interpolate({
-                                  inputRange: [0.4, 1],
-                                  outputRange: [0.3 + (i % 3) * 0.2, 0.6 + (i % 3) * 0.15],
-                                }) },
-                              ]}
-                            />
-                          ))}
+                        <Image
+                          source={require('@/assets/images/peakdlogo2.png')}
+                          style={styles.liveSearchBannerLogo}
+                          resizeMode="contain"
+                        />
+                        <View style={styles.liveSearchBannerIconsRow}>
+                          <View style={styles.liveSearchBannerGameIcon}>
+                            <Image source={require('@/assets/images/valorant-red.png')} style={styles.liveSearchBannerValorantImg} resizeMode="contain" />
+                          </View>
+                          <View style={styles.liveSearchBannerLeagueIcon}>
+                            <Image source={require('@/assets/images/lol-icon.png')} style={styles.liveSearchBannerLeagueImg} resizeMode="contain" />
+                          </View>
                         </View>
                       </View>
+
+                      {/* Bottom row: Title/Subtitle + Join Button */}
                       <View style={styles.liveSearchBannerBottomRow}>
                         <View style={styles.liveSearchBannerTextCol}>
-                          <ThemedText style={styles.liveSearchBannerTitle}>Find Gamers Playing Now</ThemedText>
-                          <ThemedText style={styles.liveSearchBannerDesc}>Match with players in real-time</ThemedText>
+                          <ThemedText style={styles.liveSearchBannerTagline}>FIND YOUR TEAMMATE</ThemedText>
+                          <ThemedText style={styles.liveSearchBannerSubtext}>
+                            Live Search, Duo Finder & more
+                          </ThemedText>
                         </View>
-                        <View style={styles.liveSearchBannerArrow}>
-                          <IconSymbol size={18} name="arrow.right" color="#8B7FE8" />
-                        </View>
+                        <TouchableOpacity
+                          style={styles.liveSearchBannerJoinBtn}
+                          activeOpacity={0.8}
+                          onPress={() => router.push('/partyPages/liveSearch')}
+                        >
+                          <ThemedText style={styles.liveSearchBannerJoinText}>Join Queue</ThemedText>
+                          <IconSymbol size={14} name="arrow.right" color="#fff" />
+                        </TouchableOpacity>
                       </View>
                     </View>
+
+                    {/* Bottom glow */}
+                    <LinearGradient
+                      colors={['transparent', 'rgba(100, 120, 255, 0.5)', 'transparent']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.liveSearchBannerGlow}
+                    />
                   </TouchableOpacity>
                 </View>
 
@@ -1512,6 +1534,39 @@ export default function DuoFinderScreen() {
         leagueInGameName={leagueInGameName}
         leagueWinRate={leagueWinRate}
       />
+
+      {/* Info Modal */}
+      <Modal
+        visible={showInfoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInfoModal(false)}
+      >
+        <Pressable style={styles.infoModalOverlay} onPress={() => setShowInfoModal(false)}>
+          <Pressable style={styles.infoModalBubble} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.infoModalPointer} />
+            <View style={styles.infoModalHeader}>
+              <IconSymbol size={18} name="info.circle.fill" color="#8B7FE8" />
+              <ThemedText style={styles.infoModalTitle}>How LFG Works</ThemedText>
+            </View>
+            <View style={styles.infoModalBody}>
+              <ThemedText style={styles.infoModalText}>
+                {'\u2022'} Live Search matches you with a player in real time.
+              </ThemedText>
+              <ThemedText style={styles.infoModalText}>
+                {'\u2022'} Post Feed lets you browse and post duo cards to find teammates.
+              </ThemedText>
+            </View>
+            <TouchableOpacity
+              style={styles.infoModalClose}
+              onPress={() => setShowInfoModal(false)}
+              activeOpacity={0.7}
+            >
+              <ThemedText style={styles.infoModalCloseText}>Got it</ThemedText>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -1543,9 +1598,75 @@ const styles = StyleSheet.create({
   },
   // Header
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 56,
     paddingBottom: 0,
+  },
+  infoButton: {
+    padding: 4,
+  },
+  infoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 100,
+    paddingRight: 16,
+  },
+  infoModalBubble: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 18,
+    width: 290,
+    gap: 14,
+  },
+  infoModalPointer: {
+    position: 'absolute',
+    top: -8,
+    right: 18,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#1e1e1e',
+  },
+  infoModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  infoModalTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  infoModalBody: {
+    gap: 10,
+  },
+  infoModalText: {
+    fontSize: 13,
+    color: '#aaa',
+    lineHeight: 18,
+  },
+  infoModalClose: {
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  infoModalCloseText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8B7FE8',
   },
   headerTitle: {
     fontSize: 28,
@@ -1618,59 +1739,26 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   liveSearchBannerCard: {
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.3)',
-    borderTopColor: 'rgba(139, 127, 232, 0.45)',
-    shadowColor: '#8B7FE8',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    borderColor: 'rgba(100, 120, 255, 0.2)',
+    backgroundColor: 'rgba(20, 20, 45, 0.95)',
+    shadowColor: '#6478FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
     elevation: 6,
   },
   liveSearchBannerContent: {
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    gap: 12,
+    gap: 10,
   },
   liveSearchBannerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  liveSearchBannerLiveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(74, 222, 128, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(74, 222, 128, 0.2)',
-  },
-  liveSearchBannerDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#4ADE80',
-  },
-  liveSearchBannerLiveText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#4ADE80',
-    letterSpacing: 1,
-  },
-  liveSearchBannerWaveform: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2.5,
-  },
-  liveSearchBannerBar: {
-    width: 2.5,
-    backgroundColor: '#4ADE80',
-    borderRadius: 1.5,
   },
   liveSearchBannerBottomRow: {
     flexDirection: 'row',
@@ -1679,28 +1767,75 @@ const styles = StyleSheet.create({
   },
   liveSearchBannerTextCol: {
     flex: 1,
-    gap: 2,
   },
-  liveSearchBannerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#fff',
-    letterSpacing: -0.3,
+  liveSearchBannerIconsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  liveSearchBannerDesc: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#888',
-  },
-  liveSearchBannerArrow: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(139, 127, 232, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.25)',
+  liveSearchBannerGameIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(140, 150, 200, 0.3)',
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  liveSearchBannerValorantImg: {
+    width: 18,
+    height: 18,
+  },
+  liveSearchBannerLeagueIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(140, 150, 200, 0.3)',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liveSearchBannerLeagueImg: {
+    width: 34,
+    height: 34,
+  },
+  liveSearchBannerLogo: {
+    width: 156,
+    height: 58,
+    marginLeft: -18,
+  },
+  liveSearchBannerTagline: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 1,
+  },
+  liveSearchBannerSubtext: {
+    fontSize: 12,
+    color: 'rgba(180, 180, 210, 0.65)',
+    marginTop: 2,
+  },
+  liveSearchBannerJoinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: 'rgba(160, 140, 220, 0.5)',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 22,
+  },
+  liveSearchBannerJoinText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  liveSearchBannerGlow: {
+    width: '100%',
+    height: 3,
   },
   // Tabs
   tabsWrapper: {

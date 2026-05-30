@@ -8,6 +8,7 @@ import { Alert, Animated, Dimensions, FlatList, Image, StyleSheet, TouchableOpac
 import { getComments, CommentData } from '@/services/commentService';
 import { TaggedUser } from '@/app/components/tagUsersModal';
 import { calculateTierBorderColor } from '@/utils/tierBorderUtils';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 import { formatRankDisplay } from '@/utils/formatRankDisplay';
 import SharePostModal from '@/app/components/sharePostModal';
 
@@ -402,6 +403,9 @@ export default function PostContent({
   const mediaFlatListRef = useRef<FlatList>(null);
   const [recentComments, setRecentComments] = useState<CommentData[]>([]);
 
+  // Double tap navigation guard
+  const lastNavTime = useRef(0);
+
   // Like button animation
   const likeScale = useRef(new Animated.Value(1)).current;
   const likeGlow = useRef(new Animated.Value(0)).current;
@@ -545,7 +549,7 @@ export default function PostContent({
       <View style={styles.postHeader}>
         <TouchableOpacity
           style={styles.userInfo}
-          onPress={() => onUserPress?.(post.userId, post.username, post.avatar)}
+          onPress={() => { if (Date.now() - lastNavTime.current < 500) return; lastNavTime.current = Date.now(); onUserPress?.(post.userId, post.username, post.avatar); }}
           activeOpacity={0.7}
           disabled={!onUserPress}
         >
@@ -553,8 +557,10 @@ export default function PostContent({
             styles.avatar,
             tierBorderColor && { borderColor: tierBorderColor, borderWidth: 2 }
           ]}>
-            {(post.avatar || userAvatar) && (post.avatar || userAvatar)!.startsWith('http') ? (
-              <Image source={{ uri: post.avatar || userAvatar }} style={styles.avatarImage} />
+            {isRemoteAvatar(post.avatar || userAvatar) ? (
+              <Image source={{ uri: (post.avatar || userAvatar)! }} style={styles.avatarImage} />
+            ) : getDefaultAvatarSource(post.avatar || userAvatar) ? (
+              <Image source={getDefaultAvatarSource(post.avatar || userAvatar)!} style={styles.avatarImage} />
             ) : (
               <ThemedText style={styles.avatarInitial}>
                 {post.username?.[0]?.toUpperCase() || 'U'}
@@ -1014,13 +1020,15 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   gameTag: {
-    paddingHorizontal: 0,
-    paddingVertical: 0,
+    backgroundColor: '#B4A7F5',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   gameTagText: {
     fontSize: 12,
-    fontWeight: '500',
-    color: '#888',
+    fontWeight: '600',
+    color: '#fff',
   },
   gameTagImage: {
     height: 20,
@@ -1271,7 +1279,7 @@ const styles = StyleSheet.create({
   },
   viewAllCommentsText: {
     fontSize: 12,
-    color: '#8B7FE8',
+    color: '#B4A7F5',
     marginTop: 0,
   },
 });

@@ -28,6 +28,7 @@ import { calculateTierBorderColor, calculateTierBorderGradient, calculateTier } 
 import { formatCount } from '@/utils/formatCount';
 import { ProfilePageSkeleton } from '@/components/ui/Skeleton';
 import GradientBorder from '@/components/GradientBorder';
+import { isRemoteAvatar, getDefaultAvatarSource, hasAvatar } from '@/utils/resolveAvatar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 
@@ -216,7 +217,7 @@ export default function ProfileScreen() {
   // Set avatar as loaded if it's not an image (emoji or letter)
   // Also increment avatarKey to force image reload when avatar changes
   useEffect(() => {
-    if (!user?.avatar || !user.avatar.startsWith('http')) {
+    if (!hasAvatar(user?.avatar)) {
       setAvatarLoaded(true);
     } else {
       setAvatarLoaded(false);
@@ -1249,7 +1250,7 @@ export default function ProfileScreen() {
                     shine={tierShine}
                   >
                     <View style={styles.profileAvatarCircleWithGradient}>
-                      {user?.avatar && user.avatar.startsWith('http') && !avatarError ? (
+                      {isRemoteAvatar(user?.avatar) && !avatarError ? (
                         <Image
                           key={`avatar-${avatarKey}`}
                           source={{ uri: `${user.avatar}&t=${avatarKey}` }}
@@ -1260,6 +1261,12 @@ export default function ProfileScreen() {
                             setAvatarError(true);
                           }}
                         />
+                      ) : getDefaultAvatarSource(user?.avatar) ? (
+                        <Image
+                          source={getDefaultAvatarSource(user?.avatar)!}
+                          style={styles.profileAvatarImage}
+                          onLoad={() => setAvatarLoaded(true)}
+                        />
                       ) : (
                         <ThemedText style={styles.profileAvatarInitial}>
                           {user?.username?.[0]?.toUpperCase() || 'U'}
@@ -1269,7 +1276,7 @@ export default function ProfileScreen() {
                   </GradientBorder>
                 ) : (
                   <View style={styles.profileAvatarCircle}>
-                    {user?.avatar && user.avatar.startsWith('http') && !avatarError ? (
+                    {isRemoteAvatar(user?.avatar) && !avatarError ? (
                       <Image
                         key={`avatar-${avatarKey}`}
                         source={{ uri: `${user.avatar}&t=${avatarKey}` }}
@@ -1279,6 +1286,12 @@ export default function ProfileScreen() {
                           setAvatarLoaded(true);
                           setAvatarError(true);
                         }}
+                      />
+                    ) : getDefaultAvatarSource(user?.avatar) ? (
+                      <Image
+                        source={getDefaultAvatarSource(user?.avatar)!}
+                        style={styles.profileAvatarImage}
+                        onLoad={() => setAvatarLoaded(true)}
                       />
                     ) : (
                       <ThemedText style={styles.profileAvatarInitial}>
@@ -1775,9 +1788,15 @@ export default function ProfileScreen() {
                 shine={tierShine}
               >
                 <View style={styles.avatarModalCircleWithGradient}>
-                  {user?.avatar && user.avatar.startsWith('http') && !avatarError ? (
+                  {isRemoteAvatar(user?.avatar) && !avatarError ? (
                     <Image
                       source={{ uri: `${user.avatar}&t=${avatarKey}` }}
+                      style={styles.avatarModalImage}
+                      resizeMode="cover"
+                    />
+                  ) : getDefaultAvatarSource(user?.avatar) ? (
+                    <Image
+                      source={getDefaultAvatarSource(user?.avatar)!}
                       style={styles.avatarModalImage}
                       resizeMode="cover"
                     />
@@ -1790,9 +1809,15 @@ export default function ProfileScreen() {
               </GradientBorder>
             ) : (
               <View style={styles.avatarModalCircle}>
-                {user?.avatar && user.avatar.startsWith('http') && !avatarError ? (
+                {isRemoteAvatar(user?.avatar) && !avatarError ? (
                   <Image
                     source={{ uri: `${user.avatar}&t=${avatarKey}` }}
+                    style={styles.avatarModalImage}
+                    resizeMode="cover"
+                  />
+                ) : getDefaultAvatarSource(user?.avatar) ? (
+                  <Image
+                    source={getDefaultAvatarSource(user?.avatar)!}
                     style={styles.avatarModalImage}
                     resizeMode="cover"
                   />

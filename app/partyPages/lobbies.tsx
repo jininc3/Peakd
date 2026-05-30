@@ -613,15 +613,17 @@ const styles = StyleSheet.create({
   },
   lobbyTypeBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    backgroundColor: 'transparent',
     borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#B4A7F5',
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   lobbyTypeBadgeText: {
     fontSize: 8,
     fontWeight: '700',
-    color: '#8B7FE8',
+    color: '#B4A7F5',
     letterSpacing: 0.5,
   },
   lobbyMeta: {

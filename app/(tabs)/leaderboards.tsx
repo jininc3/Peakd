@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from '@/hooks/useRouter';
 import { collection, doc, getDoc, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { ActivityIndicator, Animated, Dimensions, Image, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { formatRankDisplay } from '@/utils/formatRankDisplay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -300,6 +300,7 @@ export default function LeaderboardScreen() {
   const [rankChanges, setRankChanges] = useState<Record<string, 'up' | 'down' | null>>({});
   const [userGameStats, setUserGameStats] = useState<{ rr: number; lp: number; rrToday: number; lpToday: number } | null>(null);
   const [leaderboardExpanded, setLeaderboardExpanded] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   // Lobbies state
   const [lobbies, setLobbies] = useState<any[]>(cachedLobbies || []);
@@ -982,6 +983,13 @@ export default function LeaderboardScreen() {
 
       <View style={styles.header}>
         <ThemedText style={styles.headerTitle}>Leaderboards</ThemedText>
+        <TouchableOpacity
+          style={styles.infoButton}
+          onPress={() => setShowInfoModal(true)}
+          activeOpacity={0.7}
+        >
+          <IconSymbol size={20} name="info.circle" color="#666" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -1139,6 +1147,40 @@ export default function LeaderboardScreen() {
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
+      {/* Info Modal */}
+      <Modal
+        visible={showInfoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInfoModal(false)}
+      >
+        <Pressable style={styles.infoModalOverlay} onPress={() => setShowInfoModal(false)}>
+          <Pressable style={styles.infoModalBubble} onPress={(e) => e.stopPropagation()}>
+            {/* Speech bubble pointer */}
+            <View style={styles.infoModalPointer} />
+            <View style={styles.infoModalHeader}>
+              <IconSymbol size={18} name="info.circle.fill" color="#8B7FE8" />
+              <ThemedText style={styles.infoModalTitle}>How Leaderboards Work</ThemedText>
+            </View>
+            <View style={styles.infoModalBody}>
+              <ThemedText style={styles.infoModalText}>
+                {'\u2022'} Ranks your mutual friends by their competitive rank and LP/RR.
+              </ThemedText>
+              <ThemedText style={styles.infoModalText}>
+                {'\u2022'} Create lobbies to compete with friends on custom leaderboards.
+              </ThemedText>
+            </View>
+            <TouchableOpacity
+              style={styles.infoModalClose}
+              onPress={() => setShowInfoModal(false)}
+              activeOpacity={0.7}
+            >
+              <ThemedText style={styles.infoModalCloseText}>Got it</ThemedText>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Game Switcher Dropdown Overlay */}
       {showGameDropdown && (
         <Pressable style={styles.gameDropdownOverlay} onPress={() => setShowGameDropdown(false)}>
@@ -1203,9 +1245,75 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-15deg' }],
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 61,
     paddingBottom: 4,
+  },
+  infoButton: {
+    padding: 4,
+  },
+  infoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 100,
+    paddingRight: 16,
+  },
+  infoModalBubble: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 18,
+    width: 290,
+    gap: 14,
+  },
+  infoModalPointer: {
+    position: 'absolute',
+    top: -8,
+    right: 18,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#1e1e1e',
+  },
+  infoModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  infoModalTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  infoModalBody: {
+    gap: 10,
+  },
+  infoModalText: {
+    fontSize: 13,
+    color: '#aaa',
+    lineHeight: 18,
+  },
+  infoModalClose: {
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  infoModalCloseText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8B7FE8',
   },
   headerTitle: {
     fontSize: 28,
@@ -1644,7 +1752,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
     zIndex: 200,
-    paddingTop: 220,
+    paddingTop: 170,
     paddingHorizontal: 6,
   },
   gameDropdownSheet: {
@@ -2033,15 +2141,17 @@ const styles = StyleSheet.create({
   },
   lobbyTypeBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    backgroundColor: 'transparent',
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#B4A7F5',
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   lobbyTypeBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#8B7FE8',
+    color: '#B4A7F5',
     letterSpacing: 0.5,
   },
   lobbyAvatars: {
