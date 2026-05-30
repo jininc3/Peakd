@@ -1666,7 +1666,7 @@ const styles = StyleSheet.create({
   infoModalCloseText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   headerTitle: {
     fontSize: 28,
@@ -1715,7 +1715,7 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   headerTabTextActive: {
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   myCardsButton: {
     flexDirection: 'row',
@@ -1930,7 +1930,7 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   advancedFiltersTextActive: {
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   // Pager
   pagerContainer: {

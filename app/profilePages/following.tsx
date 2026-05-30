@@ -3,7 +3,8 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from '@/hooks/useRouter';
 import { useState, useEffect } from 'react';
-import { ScrollView, StyleSheet, TextInput, TouchableOpacity, View, Alert } from 'react-native';
+import { Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, Alert } from 'react-native';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 import CachedImage from '@/components/ui/CachedImage';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFollowing, unfollowUser, followUser, FollowingData } from '@/services/followService';
@@ -144,8 +145,10 @@ export default function FollowingScreen() {
                   activeOpacity={0.7}
                 >
                   <View style={styles.avatar}>
-                    {user.avatar && user.avatar.startsWith('http') ? (
+                    {isRemoteAvatar(user.avatar) ? (
                       <CachedImage uri={user.avatar} style={styles.avatarImage} />
+                    ) : getDefaultAvatarSource(user.avatar) ? (
+                      <Image source={getDefaultAvatarSource(user.avatar)!} style={styles.avatarImage} />
                     ) : (
                       <ThemedText style={styles.avatarInitial}>
                         {user.username[0].toUpperCase()}

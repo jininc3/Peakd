@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   resetText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   scrollView: {
     flexGrow: 1,
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   chipTextSelected: {
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   chipIcon: {
     width: 16,
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   rankChipTextSelected: {
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   rankDivider: {
     width: 0.5,

@@ -1332,7 +1332,7 @@ export default function HomeScreen() {
           <IconSymbol
             size={14}
             name={showTabDropdown ? 'chevron.up' : 'chevron.down'}
-            color="#B4A7F5"
+            color="#F0D6A2"
           />
         </TouchableOpacity>
 

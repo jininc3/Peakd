@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   categoryPillTextActive: {
-    color: '#8b7fe8',
+    color: '#F0D6A2',
   },
   addCategoryPill: {
     width: 36,

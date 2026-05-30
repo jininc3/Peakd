@@ -3000,7 +3000,7 @@ const styles = StyleSheet.create({
   youBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
     letterSpacing: 1,
   },
   yourProgressAvatarRing: {
@@ -3037,7 +3037,7 @@ const styles = StyleSheet.create({
   yourProgressRankBig: {
     fontSize: 36,
     fontWeight: '900',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
     lineHeight: 40,
     marginTop: 2,
   },

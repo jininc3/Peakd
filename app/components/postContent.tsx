@@ -655,7 +655,7 @@ export default function PostContent({
             <View style={styles.postMetaRow}>
               {post.taggedGame && (
                 <>
-                  <ThemedText style={styles.postGameTag}>{getGameName(post.taggedGame).toUpperCase()}</ThemedText>
+                  <ThemedText style={[styles.postGameTag, { color: post.taggedGame === 'valorant' ? '#F28B82' : post.taggedGame === 'league' ? '#90CAF9' : '#F0D6A2' }]}>{getGameName(post.taggedGame).toUpperCase()}</ThemedText>
                   <ThemedText style={styles.postMetaDot}>·</ThemedText>
                 </>
               )}
@@ -1008,7 +1008,7 @@ const styles = StyleSheet.create({
   postGameTag: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   postMetaDot: {
     fontSize: 12,
@@ -1279,7 +1279,7 @@ const styles = StyleSheet.create({
   },
   viewAllCommentsText: {
     fontSize: 12,
-    color: '#B4A7F5',
+    color: '#F0D6A2',
     marginTop: 0,
   },
 });

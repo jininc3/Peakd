@@ -5,7 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FollowerData, followUser, getFollowers, isFollowing, unfollowUser } from '@/services/followService';
 import { useRouter } from '@/hooks/useRouter';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 import { LinearGradient } from 'expo-linear-gradient';
 import CachedImage from '@/components/ui/CachedImage';
 import { FollowListSkeleton } from '@/components/ui/Skeleton';
@@ -151,8 +152,10 @@ export default function FollowersScreen() {
                   activeOpacity={0.7}
                 >
                   <View style={styles.avatar}>
-                    {follower.avatar && follower.avatar.startsWith('http') ? (
+                    {isRemoteAvatar(follower.avatar) ? (
                       <CachedImage uri={follower.avatar} style={styles.avatarImage} />
+                    ) : getDefaultAvatarSource(follower.avatar) ? (
+                      <Image source={getDefaultAvatarSource(follower.avatar)!} style={styles.avatarImage} />
                     ) : (
                       <ThemedText style={styles.avatarInitial}>
                         {follower.username[0].toUpperCase()}

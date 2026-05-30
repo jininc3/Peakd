@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   progress: { flex: 1, height: 2, marginLeft: 12, marginRight: 12, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 1 },
   progressFill: { height: '100%', backgroundColor: '#fff', borderRadius: 1 },
   content: { flex: 1, paddingHorizontal: 28, paddingTop: 16 },
-  step: { fontSize: 13, color: '#8b7fe8', marginBottom: 8 },
+  step: { fontSize: 13, color: '#F0D6A2', marginBottom: 8 },
   title: { fontSize: 28, fontWeight: '800', color: '#fff', lineHeight: 36, marginBottom: 32 },
   gameList: { gap: 12 },
   gameCard: {

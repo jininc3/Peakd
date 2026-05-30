@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
   rankCardsViewAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   rankCardsScrollContent: {
     paddingHorizontal: 16,
@@ -1283,7 +1283,7 @@ const styles = StyleSheet.create({
   clipsViewAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   clipsGrid: {
     flexDirection: 'row',
@@ -1410,7 +1410,7 @@ const styles = StyleSheet.create({
   achievementsViewAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   achievementsBadgeRow: {
     flexDirection: 'row',

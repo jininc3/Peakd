@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   summaryUsername: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   summaryDetails: {
     flexDirection: 'row',
@@ -571,7 +571,7 @@ const styles = StyleSheet.create({
   },
   settingChangeText: {
     fontSize: 12,
-    color: '#8b7fe8',
+    color: '#F0D6A2',
     fontWeight: '500',
   },
   settingDivider: {

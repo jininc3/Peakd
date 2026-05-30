@@ -1311,7 +1311,7 @@ const styles = StyleSheet.create({
   infoModalCloseText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   headerTitle: {
     fontSize: 28,
@@ -1360,7 +1360,7 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   headerTabTextActive: {
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   createButton: {
     width: 36,
@@ -1656,7 +1656,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#252525',
   },
   currentUserName: {
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   rankContainer: {
     width: 40,
@@ -1828,7 +1828,7 @@ const styles = StyleSheet.create({
   youBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
     letterSpacing: 1,
   },
   yourProgressAvatarRing: {
@@ -1960,7 +1960,7 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   lobbiesSubTabTextActive: {
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   lobbiesSubTabBadge: {
     backgroundColor: '#8B7FE8',
@@ -1991,7 +1991,7 @@ const styles = StyleSheet.create({
   lobbiesCreateButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   lobbiesEmptyState: {
     alignItems: 'center',
@@ -2083,7 +2083,7 @@ const styles = StyleSheet.create({
   viewFullButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   // Active Lobbies Section
   activeLobbiesSection: {
@@ -2110,7 +2110,7 @@ const styles = StyleSheet.create({
   activeLobbiesViewAll: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   activeLobbiesScroll: {
     paddingHorizontal: 16,
@@ -2134,7 +2134,7 @@ const styles = StyleSheet.create({
   lobbyCardCreateText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
     marginTop: 8,
   },
   lobbyTypeBadge: {
@@ -2179,7 +2179,7 @@ const styles = StyleSheet.create({
   lobbyAvatarFallbackText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   lobbyAvatarExtra: {
     backgroundColor: 'rgba(255,255,255,0.08)',

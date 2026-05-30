@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
   gameUsernameCopyText: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   sharedPostCard: {
     maxWidth: '75%',

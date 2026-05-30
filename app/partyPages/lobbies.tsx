@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
   createButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   tabBar: {
     flexDirection: 'row',
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   tabTextActive: {
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   tabBadge: {
     backgroundColor: '#8B7FE8',
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
   lobbyIconInitial: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   lobbyAvatars: {
     flexDirection: 'row',
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
   lobbyAvatarFallbackText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   lobbyAvatarExtra: {
     backgroundColor: 'rgba(255,255,255,0.08)',

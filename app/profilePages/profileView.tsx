@@ -1059,7 +1059,7 @@ export default function ProfileViewScreen() {
                 style={styles.rankCardsViewAll}
               >
                 <ThemedText style={styles.rankCardsViewAllText}>View all</ThemedText>
-                <IconSymbol size={14} name="arrow.right" color="#8B7FE8" />
+                <IconSymbol size={14} name="arrow.right" color="#F0D6A2" />
               </TouchableOpacity>
             </View>
             <ThemedText style={styles.rankCardsPreviewSubtitle}>
@@ -1139,7 +1139,7 @@ export default function ProfileViewScreen() {
                   style={styles.clipsViewAll}
                 >
                   <ThemedText style={styles.clipsViewAllText}>View all</ThemedText>
-                  <IconSymbol size={14} name="arrow.right" color="#8B7FE8" />
+                  <IconSymbol size={14} name="arrow.right" color="#F0D6A2" />
                 </TouchableOpacity>
               )}
             </View>
@@ -1228,7 +1228,7 @@ export default function ProfileViewScreen() {
                 style={styles.achievementsViewAll}
               >
                 <ThemedText style={styles.achievementsViewAllText}>View all</ThemedText>
-                <IconSymbol size={14} name="arrow.right" color="#8B7FE8" />
+                <IconSymbol size={14} name="arrow.right" color="#F0D6A2" />
               </TouchableOpacity>
             </View>
 
@@ -1918,7 +1918,7 @@ const styles = StyleSheet.create({
   viewAllButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
   },
   walletViewButton: {
     width: 36,
@@ -1970,7 +1970,7 @@ const styles = StyleSheet.create({
   rankCardsViewAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#fff',
   },
   rankCardsScrollContent: {
     paddingHorizontal: 16,
@@ -2000,7 +2000,7 @@ const styles = StyleSheet.create({
   rankCardsDotActive: {
     width: 18,
     borderRadius: 3,
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#F0D6A2',
   },
   // Clips Section
   clipsSection: {
@@ -2031,7 +2031,7 @@ const styles = StyleSheet.create({
   clipsViewAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#fff',
   },
   clipsGrid: {
     flexDirection: 'row',
@@ -2158,7 +2158,7 @@ const styles = StyleSheet.create({
   achievementsViewAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#fff',
   },
   achievementsBadgeRow: {
     flexDirection: 'row',

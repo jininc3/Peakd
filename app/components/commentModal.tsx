@@ -3,6 +3,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { addComment, deleteComment, getComments, CommentData } from '@/services/commentService';
 import { useRouter } from '@/hooks/useRouter';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -310,8 +311,10 @@ export default function CommentModal({
                             }, 0);
                           }}
                         >
-                          {comment.userAvatar && comment.userAvatar.startsWith('http') ? (
+                          {isRemoteAvatar(comment.userAvatar) ? (
                             <Image source={{ uri: comment.userAvatar }} style={styles.avatarImage} />
+                          ) : getDefaultAvatarSource(comment.userAvatar) ? (
+                            <Image source={getDefaultAvatarSource(comment.userAvatar)!} style={styles.avatarImage} />
                           ) : (
                             <ThemedText style={styles.avatarInitial}>
                               {comment.username[0].toUpperCase()}
@@ -364,8 +367,10 @@ export default function CommentModal({
             {/* Comment Input */}
             <View style={styles.inputContainer}>
               <View style={styles.inputAvatar}>
-                {currentUser?.avatar && currentUser.avatar.startsWith('http') ? (
+                {isRemoteAvatar(currentUser?.avatar) ? (
                   <Image source={{ uri: currentUser.avatar }} style={styles.inputAvatarImage} />
+                ) : getDefaultAvatarSource(currentUser?.avatar) ? (
+                  <Image source={getDefaultAvatarSource(currentUser.avatar)!} style={styles.inputAvatarImage} />
                 ) : (
                   <ThemedText style={styles.inputAvatarInitial}>
                     {currentUser?.username?.[0]?.toUpperCase() || 'U'}
@@ -468,7 +473,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#8B7FE8',
+    color: '#F0D6A2',
     letterSpacing: 0.3,
   },
   headerSpacer: {
