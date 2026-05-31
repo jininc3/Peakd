@@ -149,8 +149,10 @@ export default function NotificationsScreen() {
               if (userDoc.exists()) {
                 const userData = userDoc.data();
                 const currentAvatar = userData.avatar;
-                userAvatarCache[notif.fromUserId] = currentAvatar;
-                notif.fromUserAvatar = currentAvatar;
+                if (currentAvatar) {
+                  notif.fromUserAvatar = currentAvatar;
+                }
+                userAvatarCache[notif.fromUserId] = notif.fromUserAvatar ?? null;
                 existingUserIds.add(notif.fromUserId);
               } else {
                 // User has been deleted — mark for filtering
@@ -753,8 +755,10 @@ export default function NotificationsScreen() {
               if (userDoc.exists()) {
                 const userData = userDoc.data();
                 const currentAvatar = userData.avatar;
-                userAvatarCache[notif.fromUserId] = currentAvatar;
-                notif.fromUserAvatar = currentAvatar;
+                if (currentAvatar) {
+                  notif.fromUserAvatar = currentAvatar;
+                }
+                userAvatarCache[notif.fromUserId] = notif.fromUserAvatar ?? null;
               } else {
                 deletedUserIds.add(notif.fromUserId);
               }

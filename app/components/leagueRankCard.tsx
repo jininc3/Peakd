@@ -54,6 +54,8 @@ interface LeagueRankCardProps {
   onRefresh?: () => void;
   initialFlipped?: boolean;
   flipOnly?: boolean;
+  onFlip?: () => void;
+  autoReveal?: boolean; // If true, auto-animate flip to back on mount
 }
 
 // League of Legends rank icon mapping
@@ -71,7 +73,7 @@ const LEAGUE_RANK_ICONS: { [key: string]: any } = {
   unranked: require('@/assets/images/leagueranks/unranked.png'),
 };
 
-export default function LeagueRankCard({ game, username, viewOnly = false, userId, isFocused = false, isBackOfStack = false, onRefresh, initialFlipped = false, flipOnly = false }: LeagueRankCardProps) {
+export default function LeagueRankCard({ game, username, viewOnly = false, userId, isFocused = false, isBackOfStack = false, onRefresh, initialFlipped = false, flipOnly = false, onFlip, autoReveal = false }: LeagueRankCardProps) {
   const [isFlipped, setIsFlipped] = useState(initialFlipped);
   const [showBack, setShowBack] = useState(initialFlipped);
   const [modalVisible, setModalVisible] = useState(false);
@@ -178,6 +180,21 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
     stackShowBackRef.current = initialFlipped;
     stackFlipAnim.setValue(initialFlipped ? 1 : 0);
   }, [initialFlipped]);
+
+  // Auto-reveal: animate flip to back on mount
+  useEffect(() => {
+    if (autoReveal && !initialFlipped) {
+      const timeout = setTimeout(() => {
+        Animated.timing(stackFlipAnim, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }).start();
+      }, 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [autoReveal]);
 
   // Listen to animation value to swap content at midpoint (registered once)
   useEffect(() => {
@@ -670,6 +687,10 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }).start();
+      // Notify parent when flipping to back (reveal)
+      if (toValue === 1 && onFlip) {
+        onFlip();
+      }
     } else {
       // Open modal directly (rankCards page)
       handlePress();

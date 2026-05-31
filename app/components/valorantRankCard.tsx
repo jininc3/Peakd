@@ -57,6 +57,8 @@ interface ValorantRankCardProps {
   onRefresh?: () => void; // Callback when stats are refreshed
   initialFlipped?: boolean; // If true, show the back of the card initially
   flipOnly?: boolean; // If true, tapping only flips the card (no modal)
+  onFlip?: () => void; // Callback when card is flipped to back for the first time
+  autoReveal?: boolean; // If true, auto-animate flip to back on mount
 }
 
 // Valorant rank glow colors (matches rank icon dominant color)
@@ -202,7 +204,7 @@ const VALORANT_AGENT_ICONS: { [key: string]: any } = {
   yoru: require('@/assets/images/valorantagents/yoru.png'),
 };
 
-export default function ValorantRankCard({ game, username, viewOnly = false, userId, isFocused = false, isBackOfStack = false, onRefresh, initialFlipped = false, flipOnly = false }: ValorantRankCardProps) {
+export default function ValorantRankCard({ game, username, viewOnly = false, userId, isFocused = false, isBackOfStack = false, onRefresh, initialFlipped = false, flipOnly = false, onFlip, autoReveal = false }: ValorantRankCardProps) {
   const [isFlipped, setIsFlipped] = useState(initialFlipped);
   const [showBack, setShowBack] = useState(initialFlipped);
   const [modalVisible, setModalVisible] = useState(false);
@@ -330,6 +332,21 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
     stackShowBackRef.current = initialFlipped;
     stackFlipAnim.setValue(initialFlipped ? 1 : 0);
   }, [initialFlipped]);
+
+  // Auto-reveal: animate flip to back on mount
+  useEffect(() => {
+    if (autoReveal && !initialFlipped) {
+      const timeout = setTimeout(() => {
+        Animated.timing(stackFlipAnim, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }).start();
+      }, 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [autoReveal]);
 
   // Listen to animation value to swap content at midpoint (registered once)
   useEffect(() => {
@@ -916,6 +933,10 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }).start();
+      // Notify parent when flipping to back (reveal)
+      if (toValue === 1 && onFlip) {
+        onFlip();
+      }
     } else {
       // Open modal directly (rankCards page)
       handlePress();

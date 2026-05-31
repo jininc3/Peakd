@@ -181,7 +181,6 @@ export default function DuoFinderScreen() {
     role: null,
     minRank: null,
     maxRank: null,
-    language: null,
   });
 
   // Game filter state (both selected by default to show all)
@@ -204,7 +203,6 @@ export default function DuoFinderScreen() {
     filters.role,
     filters.minRank,
     filters.maxRank,
-    filters.language,
   ].filter(Boolean).length;
 
   const [showEditModal, setShowEditModal] = useState(false);

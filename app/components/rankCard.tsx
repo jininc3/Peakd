@@ -36,17 +36,19 @@ interface RankCardProps {
   onRefresh?: () => void; // Callback when stats are refreshed
   initialFlipped?: boolean; // If true, show the back of the card initially
   flipOnly?: boolean; // If true, tapping only flips the card (no modal). Used on profile pages.
+  onFlip?: () => void; // Callback when card is flipped to back for the first time
+  autoReveal?: boolean; // If true, auto-animate flip to back on mount
 }
 
-export default function rankCard({ game, username, viewOnly = false, userId, isFocused = false, isBackOfStack = false, onRefresh, initialFlipped = false, flipOnly = false }: RankCardProps) {
+export default function rankCard({ game, username, viewOnly = false, userId, isFocused = false, isBackOfStack = false, onRefresh, initialFlipped = false, flipOnly = false, onFlip, autoReveal = false }: RankCardProps) {
   // Route to the appropriate rank card based on game
   switch (game.name) {
     case 'Valorant':
-      return <ValorantRankCard game={game} username={username} viewOnly={viewOnly} userId={userId} isFocused={isFocused} isBackOfStack={isBackOfStack} onRefresh={onRefresh} initialFlipped={initialFlipped} flipOnly={flipOnly} />;
+      return <ValorantRankCard game={game} username={username} viewOnly={viewOnly} userId={userId} isFocused={isFocused} isBackOfStack={isBackOfStack} onRefresh={onRefresh} initialFlipped={initialFlipped} flipOnly={flipOnly} onFlip={onFlip} autoReveal={autoReveal} />;
     case 'TFT':
       return <TftRankCard game={game} username={username} viewOnly={viewOnly} userId={userId} />;
     case 'League of Legends':
     default:
-      return <LeagueRankCard game={game} username={username} viewOnly={viewOnly} userId={userId} isFocused={isFocused} isBackOfStack={isBackOfStack} onRefresh={onRefresh} initialFlipped={initialFlipped} flipOnly={flipOnly} />;
+      return <LeagueRankCard game={game} username={username} viewOnly={viewOnly} userId={userId} isFocused={isFocused} isBackOfStack={isBackOfStack} onRefresh={onRefresh} initialFlipped={initialFlipped} flipOnly={flipOnly} onFlip={onFlip} autoReveal={autoReveal} />;
   }
 }

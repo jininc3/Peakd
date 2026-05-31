@@ -1,14 +1,15 @@
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useState, useEffect } from 'react';
-import { Image, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Image, Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
 
 export interface DuoFilterOptions {
   game: 'valorant' | 'league' | null;
   role: string | null;
   minRank: string | null;
   maxRank: string | null;
-  language: string | null;
 }
 
 interface DuoFilterModalProps {
@@ -28,8 +29,6 @@ const LEAGUE_RANK_TIERS = [
 
 const VALORANT_ROLES = ['Duelist', 'Initiator', 'Controller', 'Sentinel'];
 const LEAGUE_ROLES = ['Top', 'Jungle', 'Mid', 'ADC', 'Support'];
-
-const LANGUAGES = ['English', 'Korean', 'Japanese', 'Chinese', 'Spanish', 'Portuguese', 'German', 'French'];
 
 const LEAGUE_LANE_ICONS: { [key: string]: any } = {
   'Top': require('@/assets/images/leaguelanes/top.png'),
@@ -53,12 +52,59 @@ export default function DuoFilterModal({
   onApplyFilters,
 }: DuoFilterModalProps) {
   const [localFilters, setLocalFilters] = useState<DuoFilterOptions>({ ...filters });
+  const translateY = useSharedValue(0);
+  const scrollOffset = useSharedValue(0);
+  const startY = useSharedValue(0);
+  const panGestureRef = useRef(null);
 
   useEffect(() => {
     if (visible) {
       setLocalFilters({ ...filters });
+      translateY.value = 0;
+      scrollOffset.value = 0;
     }
   }, [visible, filters]);
+
+  const handleClose = useCallback(() => {
+    onClose();
+  }, [onClose]);
+
+  const panGesture = Gesture.Pan()
+    .withRef(panGestureRef)
+    .manualActivation(true)
+    .onTouchesDown((e) => {
+      'worklet';
+      startY.value = e.allTouches[0].absoluteY;
+    })
+    .onTouchesMove((e, stateManager) => {
+      'worklet';
+      const dy = e.allTouches[0].absoluteY - startY.value;
+      if (scrollOffset.value <= 1 && dy > 8) {
+        stateManager.activate();
+      } else if (dy < -8 || scrollOffset.value > 1) {
+        stateManager.fail();
+      }
+    })
+    .onUpdate((e) => {
+      'worklet';
+      if (e.translationY > 0) {
+        translateY.value = e.translationY;
+      }
+    })
+    .onEnd((e) => {
+      'worklet';
+      if (e.translationY > 100 || e.velocityY > 500) {
+        translateY.value = withTiming(600, { duration: 200 }, () => {
+          runOnJS(handleClose)();
+        });
+      } else {
+        translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
+      }
+    });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
 
   const handleApply = () => {
     onApplyFilters(localFilters);
@@ -66,7 +112,7 @@ export default function DuoFilterModal({
   };
 
   const handleReset = () => {
-    setLocalFilters({ game: null, role: null, minRank: null, maxRank: null, language: null });
+    setLocalFilters({ game: null, role: null, minRank: null, maxRank: null });
   };
 
   const getRankTiers = () => {
@@ -79,38 +125,45 @@ export default function DuoFilterModal({
     return localFilters.game !== null ||
            localFilters.role !== null ||
            localFilters.minRank !== null ||
-           localFilters.maxRank !== null ||
-           localFilters.language !== null;
+           localFilters.maxRank !== null;
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity style={styles.sheet} activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.handle} />
+        <Animated.View style={[styles.sheet, animatedStyle]}>
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={{ flex: 1 }}>
+          <GestureDetector gesture={panGesture}>
+            <Animated.View style={{ flex: 1 }}>
+              <View style={styles.handle} />
 
-          {/* Header */}
-          <View style={styles.header}>
-            <ThemedText style={styles.headerTitle}>Filters</ThemedText>
-            <View style={styles.headerRight}>
-              {hasActiveFilters() && (
-                <TouchableOpacity onPress={handleReset}>
-                  <ThemedText style={styles.resetText}>Reset</ThemedText>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={onClose}>
-                <IconSymbol size={22} name="xmark" color="#555" />
-              </TouchableOpacity>
-            </View>
-          </View>
+              {/* Header */}
+              <View style={styles.header}>
+                <ThemedText style={styles.headerTitle}>Filters</ThemedText>
+                <View style={styles.headerRight}>
+                  {hasActiveFilters() && (
+                    <TouchableOpacity onPress={handleReset}>
+                      <ThemedText style={styles.resetText}>Reset</ThemedText>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={onClose}>
+                    <IconSymbol size={22} name="xmark" color="#555" />
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            bounces
-            nestedScrollEnabled
-          >
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                bounces
+                waitFor={panGestureRef}
+                onScroll={(e) => {
+                  scrollOffset.value = e.nativeEvent.contentOffset.y;
+                }}
+                scrollEventThrottle={16}
+              >
             {/* Game */}
             <View style={styles.section}>
               <ThemedText style={styles.sectionTitle}>Game</ThemedText>
@@ -161,7 +214,6 @@ export default function DuoFilterModal({
                         onPress={() => setLocalFilters({ ...localFilters, role })}
                       >
                         <Image source={VALORANT_ROLE_ICONS[role]} style={styles.roleIcon} resizeMode="contain" />
-                        <ThemedText style={[styles.chipText, localFilters.role === role && styles.chipTextSelected]}>{role}</ThemedText>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -179,7 +231,6 @@ export default function DuoFilterModal({
                         onPress={() => setLocalFilters({ ...localFilters, role })}
                       >
                         <Image source={LEAGUE_LANE_ICONS[role]} style={styles.roleIcon} resizeMode="contain" />
-                        <ThemedText style={[styles.chipText, localFilters.role === role && styles.chipTextSelected]}>{role}</ThemedText>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -237,37 +288,20 @@ export default function DuoFilterModal({
               </View>
             )}
 
-            {/* Language */}
-            <View style={styles.section}>
-              <ThemedText style={styles.sectionTitle}>Language</ThemedText>
-              <View style={styles.chipRow}>
-                <TouchableOpacity
-                  style={[styles.chip, localFilters.language === null && styles.chipSelected]}
-                  onPress={() => setLocalFilters({ ...localFilters, language: null })}
-                >
-                  <ThemedText style={[styles.chipText, localFilters.language === null && styles.chipTextSelected]}>Any</ThemedText>
-                </TouchableOpacity>
-                {LANGUAGES.map((lang) => (
-                  <TouchableOpacity
-                    key={lang}
-                    style={[styles.chip, localFilters.language === lang && styles.chipSelected]}
-                    onPress={() => setLocalFilters({ ...localFilters, language: lang })}
-                  >
-                    <ThemedText style={[styles.chipText, localFilters.language === lang && styles.chipTextSelected]}>{lang}</ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </ScrollView>
+              </ScrollView>
 
-          {/* Apply */}
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.applyBtn} onPress={handleApply} activeOpacity={0.8}>
-              <ThemedText style={styles.applyBtnText}>Apply Filters</ThemedText>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
+              {/* Apply */}
+              <View style={styles.footer}>
+                <TouchableOpacity style={styles.applyBtn} onPress={handleApply} activeOpacity={0.8}>
+                  <ThemedText style={styles.applyBtnText}>Apply Filters</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </GestureDetector>
+          </TouchableOpacity>
+        </Animated.View>
       </TouchableOpacity>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -282,8 +316,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f0f0f',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '85%',
-    minHeight: 400,
+    height: '60%',
     borderTopWidth: 1,
     borderColor: 'rgba(139, 127, 232, 0.15)',
   },
@@ -424,14 +457,15 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   applyBtn: {
-    backgroundColor: '#8B7FE8',
-    paddingVertical: 16,
-    borderRadius: 28,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   applyBtnText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: '600',
+    color: '#0f0f0f',
   },
 });

@@ -31,6 +31,7 @@ import GradientBorder from '@/components/GradientBorder';
 import { isRemoteAvatar, getDefaultAvatarSource, hasAvatar } from '@/utils/resolveAvatar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -159,7 +160,7 @@ export default function ProfileScreen() {
   const [enabledRankCards, setEnabledRankCards] = useState<string[]>([]);
   const [loadingRankCards, setLoadingRankCards] = useState(true);
   const [activeRankCardIndex, setActiveRankCardIndex] = useState(0);
-  const [showRankCardBack, setShowRankCardBack] = useState(false);
+  const [revealedCards, setRevealedCards] = useState<Set<string>>(new Set());
   const [joinedAt, setJoinedAt] = useState<Date | null>(null);
   const [hasConsumedPreloadPosts, setHasConsumedPreloadPosts] = useState(false);
   const [hasConsumedPreloadRiot, setHasConsumedPreloadRiot] = useState(false);
@@ -236,6 +237,33 @@ export default function ProfileScreen() {
       setCoverPhotoKey(prev => prev + 1); // Force image component to remount
     }
   }, [user?.coverPhoto]);
+
+  // Check which of own rank cards have been revealed before
+  useEffect(() => {
+    if (!user?.id) return;
+    AsyncStorage.getItem('revealedRankCards').then(data => {
+      const revealed: string[] = data ? JSON.parse(data) : [];
+      const userCards = revealed.filter(key => key.startsWith(user.id + ':'));
+      if (userCards.length > 0) {
+        setRevealedCards(new Set(userCards));
+      }
+    });
+  }, [user?.id]);
+
+  const handleRankCardFlip = useCallback(async (gameName: string) => {
+    if (!user?.id) return;
+    const key = `${user.id}:${gameName}`;
+    if (revealedCards.has(key)) return;
+    setRevealedCards(prev => new Set(prev).add(key));
+    try {
+      const data = await AsyncStorage.getItem('revealedRankCards');
+      const revealed: string[] = data ? JSON.parse(data) : [];
+      if (!revealed.includes(key)) {
+        revealed.push(key);
+        await AsyncStorage.setItem('revealedRankCards', JSON.stringify(revealed));
+      }
+    } catch {}
+  }, [user?.id, revealedCards]);
 
   // Coordinate all sections - reveal everything together once all data is fetched
   useEffect(() => {
@@ -422,8 +450,6 @@ export default function ProfileScreen() {
         if (data.createdAt) {
           setJoinedAt(data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt));
         }
-        setShowRankCardBack(data.showRankCardBack ?? false);
-
         if (data.riotAccount) {
           setRiotAccount(data.riotAccount);
 
@@ -612,16 +638,6 @@ export default function ProfileScreen() {
           fetchRiotData();
           fetchPosts();
         }
-        // Always re-fetch lightweight preferences on focus
-        const refreshPrefs = async () => {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', user.id));
-            if (userDoc.exists()) {
-              setShowRankCardBack(userDoc.data().showRankCardBack ?? false);
-            }
-          } catch {}
-        };
-        refreshPrefs();
       }
     }, [user?.id])
   );
@@ -1431,8 +1447,9 @@ export default function ProfileScreen() {
                           game={game}
                           username={displayUsername}
                           isFocused={true}
-                          initialFlipped={showRankCardBack}
                           flipOnly={true}
+                          autoReveal={revealedCards.has(`${user?.id}:${game.name}`)}
+                          onFlip={() => handleRankCardFlip(game.name)}
                         />
                       </View>
                     </View>

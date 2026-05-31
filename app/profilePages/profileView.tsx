@@ -26,6 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import CachedImage from '@/components/ui/CachedImage';
 import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ViewedUser {
   id: string;
@@ -165,6 +166,7 @@ export default function ProfileViewScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [activeRankCardIndex, setActiveRankCardIndex] = useState(0);
+  const [revealedCards, setRevealedCards] = useState<Set<string>>(new Set());
 
   const tabs: ('clips' | 'achievements')[] = ['clips', 'achievements'];
   const tabScrollRef = useRef<ScrollView>(null);
@@ -259,6 +261,32 @@ export default function ProfileViewScreen() {
   const preloadedUsername = params.username as string | undefined;
   const preloadedAvatar = params.avatar as string | undefined;
   const preloadedFollowing = params.preloadedFollowing as string | undefined;
+
+  // Check which of this user's rank cards have been revealed before
+  useEffect(() => {
+    if (!userId) return;
+    AsyncStorage.getItem('revealedRankCards').then(data => {
+      const revealed: string[] = data ? JSON.parse(data) : [];
+      const userCards = revealed.filter(key => key.startsWith(userId + ':'));
+      if (userCards.length > 0) {
+        setRevealedCards(new Set(userCards));
+      }
+    });
+  }, [userId]);
+
+  const handleRankCardFlip = useCallback(async (gameName: string) => {
+    const key = `${userId}:${gameName}`;
+    if (revealedCards.has(key)) return;
+    setRevealedCards(prev => new Set(prev).add(key));
+    try {
+      const data = await AsyncStorage.getItem('revealedRankCards');
+      const revealed: string[] = data ? JSON.parse(data) : [];
+      if (!revealed.includes(key)) {
+        revealed.push(key);
+        await AsyncStorage.setItem('revealedRankCards', JSON.stringify(revealed));
+      }
+    } catch {}
+  }, [userId, revealedCards]);
 
   // Initialize card animations when userGames changes
   useEffect(() => {
@@ -1099,6 +1127,8 @@ export default function ProfileViewScreen() {
                         userId={isOtherUser ? userId : undefined}
                         isFocused={true}
                         flipOnly={true}
+                        autoReveal={revealedCards.has(`${userId}:${game.name}`)}
+                        onFlip={() => handleRankCardFlip(game.name)}
                       />
                     </View>
                   </View>
