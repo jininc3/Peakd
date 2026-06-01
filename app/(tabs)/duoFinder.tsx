@@ -1515,6 +1515,8 @@ export default function DuoFinderScreen() {
         leagueInGameIcon={leagueInGameIcon}
         leagueInGameName={leagueInGameName}
         leagueWinRate={leagueWinRate}
+        valorantGamesPlayed={valorantGamesPlayed}
+        leagueGamesPlayed={leagueGamesPlayed}
       />
 
       {/* Info Modal */}

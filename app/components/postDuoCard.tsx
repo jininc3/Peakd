@@ -219,6 +219,35 @@ export default function PostDuoCard({
       const now = new Date();
       const expiresAt = new Date(now.getTime() + 72 * 60 * 60 * 1000);
 
+      // Compute fresh winRate/gamesPlayed from the user doc we just fetched
+      let freshWinRate = getWinRate();
+      let freshGamesPlayed = getGamesPlayed();
+      if (userData) {
+        if (selectedGame === 'valorant') {
+          const vs = userData.valorantStats;
+          if (vs?.winRate !== undefined) freshWinRate = vs.winRate;
+          if (vs?.gamesPlayed !== undefined) freshGamesPlayed = vs.gamesPlayed;
+          // Fallback: compute from wins/losses
+          if (!freshGamesPlayed && (vs?.wins || vs?.losses)) {
+            freshGamesPlayed = (vs.wins || 0) + (vs.losses || 0);
+          }
+          if (!freshWinRate && freshGamesPlayed > 0 && vs?.wins) {
+            freshWinRate = parseFloat(((vs.wins / freshGamesPlayed) * 100).toFixed(2));
+          }
+        } else {
+          const rs = userData.riotStats?.rankedSolo;
+          if (rs) {
+            const w = rs.wins || 0;
+            const l = rs.losses || 0;
+            const total = w + l;
+            if (total > 0) {
+              freshGamesPlayed = total;
+              freshWinRate = parseFloat(((w / total) * 100).toFixed(2));
+            }
+          }
+        }
+      }
+
       const postData = {
         userId: user.id,
         username: userData?.username || user.username || '',
@@ -240,8 +269,8 @@ export default function PostDuoCard({
               return gn ? `${gn}${tag ? '#' + tag : ''}` : '';
             })()
           : (userData?.riotAccount?.gameName ? `${userData.riotAccount.gameName}${userData?.riotAccount?.tagLine ? '#' + userData.riotAccount.tagLine : ''}` : ''),
-        winRate: getWinRate(),
-        gamesPlayed: getGamesPlayed(),
+        winRate: freshWinRate,
+        gamesPlayed: freshGamesPlayed,
         message: message.trim(),
         createdAt: Timestamp.fromDate(now),
         expiresAt: Timestamp.fromDate(expiresAt),
