@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { uploadPartyIcon, uploadPartyCoverPhoto } from '@/services/storageService';
 import { useAuth } from '@/contexts/AuthContext';
 import CachedImage from '@/components/ui/CachedImage';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -918,15 +919,22 @@ export default function LeaderboardDetail() {
 
           const memberPromises = partyDoc.memberDetails.map(async (member: any, index: number) => {
             let stats: any = null;
+            let liveAvatar = member.avatar;
 
             try {
-              const userStatsDoc = await getDoc(doc(db, 'users', member.userId, 'gameStats', gameStatsPath));
+              const [userStatsDoc, userDoc] = await Promise.all([
+                getDoc(doc(db, 'users', member.userId, 'gameStats', gameStatsPath)),
+                getDoc(doc(db, 'users', member.userId)),
+              ]);
+
+              const userData = userDoc.data();
+              if (userData?.avatar !== undefined) {
+                liveAvatar = userData.avatar;
+              }
+
               stats = userStatsDoc.data();
 
               if (!stats || !stats.currentRank) {
-                const userDoc = await getDoc(doc(db, 'users', member.userId));
-                const userData = userDoc.data();
-
                 if (isLeague && userData?.riotStats?.rankedSolo) {
                   stats = {
                     currentRank: `${userData.riotStats.rankedSolo.tier} ${userData.riotStats.rankedSolo.rank}`,
@@ -950,7 +958,7 @@ export default function LeaderboardDetail() {
               rank: index + 1,
               userId: member.userId,
               username: member.username,
-              avatar: member.avatar,
+              avatar: liveAvatar,
               currentRank: stats?.currentRank || 'Unranked',
               lp: isLeague ? (stats?.lp || 0) : undefined,
               rr: !isLeague ? (stats?.rr || 0) : undefined,
@@ -1277,11 +1285,13 @@ export default function LeaderboardDetail() {
                     activeOpacity={0.7}
                   >
                     <View style={styles.playerAvatar}>
-                      {player.avatar && player.avatar.startsWith('http') ? (
+                      {isRemoteAvatar(player.avatar) ? (
                         <CachedImage uri={player.avatar} style={styles.playerAvatarImage} />
+                      ) : getDefaultAvatarSource(player.avatar) ? (
+                        <Image source={getDefaultAvatarSource(player.avatar)!} style={styles.playerAvatarImage} />
                       ) : (
                         <ThemedText style={styles.avatarText}>
-                          {player.avatar || player.username[0].toUpperCase()}
+                          {player.username[0].toUpperCase()}
                         </ThemedText>
                       )}
                     </View>
@@ -1472,8 +1482,10 @@ export default function LeaderboardDetail() {
                       activeOpacity={0.7}
                     >
                       <View style={styles.challengeMemberInfo}>
-                        {member.avatar && member.avatar.startsWith('http') ? (
+                        {isRemoteAvatar(member.avatar) ? (
                           <CachedImage uri={member.avatar} style={styles.challengeMemberAvatar} />
+                        ) : getDefaultAvatarSource(member.avatar) ? (
+                          <Image source={getDefaultAvatarSource(member.avatar)!} style={styles.challengeMemberAvatar} />
                         ) : (
                           <View style={styles.challengeMemberAvatarPlaceholder}>
                             <ThemedText style={styles.challengeMemberAvatarText}>
@@ -1721,8 +1733,10 @@ export default function LeaderboardDetail() {
                           activeOpacity={0.6}
                         >
                           <View style={styles.inviteUserAvatar}>
-                            {userItem.avatar && userItem.avatar.startsWith('http') ? (
+                            {isRemoteAvatar(userItem.avatar) ? (
                               <CachedImage uri={userItem.avatar} style={styles.inviteUserAvatarImage} />
+                            ) : getDefaultAvatarSource(userItem.avatar) ? (
+                              <Image source={getDefaultAvatarSource(userItem.avatar)!} style={styles.inviteUserAvatarImage} />
                             ) : (
                               <ThemedText style={styles.inviteUserAvatarText}>
                                 {userItem.username[0].toUpperCase()}
@@ -1763,8 +1777,10 @@ export default function LeaderboardDetail() {
                     displayUsers.map((userItem) => (
                       <View key={userItem.id} style={styles.inviteUserItem}>
                         <View style={styles.inviteUserAvatar}>
-                          {userItem.avatar && userItem.avatar.startsWith('http') ? (
+                          {isRemoteAvatar(userItem.avatar) ? (
                             <CachedImage uri={userItem.avatar} style={styles.inviteUserAvatarImage} />
+                          ) : getDefaultAvatarSource(userItem.avatar) ? (
+                            <Image source={getDefaultAvatarSource(userItem.avatar)!} style={styles.inviteUserAvatarImage} />
                           ) : (
                             <ThemedText style={styles.inviteUserAvatarText}>
                               {userItem.username[0].toUpperCase()}
@@ -1834,8 +1850,10 @@ export default function LeaderboardDetail() {
                 .map((player) => (
                   <View key={player.userId} style={styles.manageMemberItem}>
                     <View style={styles.manageMemberAvatar}>
-                      {player.avatar && player.avatar.startsWith('http') ? (
+                      {isRemoteAvatar(player.avatar) ? (
                         <CachedImage uri={player.avatar} style={styles.manageMemberAvatarImage} />
+                      ) : getDefaultAvatarSource(player.avatar) ? (
+                        <Image source={getDefaultAvatarSource(player.avatar)!} style={styles.manageMemberAvatarImage} />
                       ) : (
                         <ThemedText style={styles.manageMemberAvatarText}>
                           {player.username[0].toUpperCase()}

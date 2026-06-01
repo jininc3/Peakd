@@ -3,6 +3,8 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { formatRankDisplay } from '@/utils/formatRankDisplay';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
+import CachedImage from '@/components/ui/CachedImage';
 
 const GAME_LOGOS: { [key: string]: any } = {
   'Valorant': require('@/assets/images/valorant-red.png'),
@@ -155,6 +157,7 @@ interface DuoCardProps {
   onMessage?: () => void;
   onViewProfile?: () => void;
   onDisable?: () => void;
+  onRemovePost?: () => void;
   noShadow?: boolean;
 }
 
@@ -212,7 +215,7 @@ const getTierColor = (rank: string, game: string): string => {
   }
 };
 
-function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, noShadow }: DuoCardProps) {
+function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePost, noShadow }: DuoCardProps) {
   const game = duo.game || 'Valorant';
   const isLeague = game === 'League' || game === 'League of Legends';
   const gameLogo = GAME_LOGOS[game];
@@ -236,8 +239,8 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, noShadow }
   const characterIcon = agentIcon || championIconSrc;
 
   return (
-    <View style={duo.disabled ? styles.disabledWrapper : undefined}>
-    <TouchableOpacity style={[styles.card, duo.isOwnPost && styles.ownCard, duo.disabled && styles.disabledCard, { borderColor: tierColor }]} onPress={onPress} activeOpacity={0.8}>
+    <View>
+    <TouchableOpacity style={[styles.card, duo.isOwnPost && styles.ownCard, { borderColor: tierColor }]} onPress={onPress} activeOpacity={0.8}>
       {/* Tier accent bar */}
       <View style={[styles.tierAccent, { backgroundColor: tierColor }]} />
       {/* Top section */}
@@ -250,13 +253,13 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, noShadow }
             activeOpacity={0.7}
             disabled={!onViewProfile}
           >
-            {duo.inGameIcon ? (
-              <Image source={{ uri: duo.inGameIcon }} style={styles.avatarImg} />
-            ) : duo.avatar && duo.avatar.startsWith('http') ? (
-              <Image source={{ uri: duo.avatar }} style={styles.avatarImg} />
+            {isRemoteAvatar(duo.avatar) ? (
+              <CachedImage uri={duo.avatar} style={styles.avatarImg} />
+            ) : getDefaultAvatarSource(duo.avatar) ? (
+              <Image source={getDefaultAvatarSource(duo.avatar)!} style={styles.avatarImg} />
             ) : (
               <ThemedText style={styles.avatarLetter}>
-                {(duo.inGameName || duo.username)[0].toUpperCase()}
+                {duo.username[0].toUpperCase()}
               </ThemedText>
             )}
           </TouchableOpacity>
@@ -266,7 +269,7 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, noShadow }
             activeOpacity={0.7}
             disabled={!onViewProfile}
           >
-            <ThemedText style={styles.name} numberOfLines={1}>{duo.inGameName || duo.username}</ThemedText>
+            <ThemedText style={styles.name} numberOfLines={1}>{duo.username}</ThemedText>
             {duo.createdAt && (
               <ThemedText style={styles.time}>{formatTimeAgo(duo.createdAt)}</ThemedText>
             )}
@@ -349,13 +352,11 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, noShadow }
         )}
       </View>
 
-      {/* Bottom section — only for own posts */}
-      {duo.isOwnPost && onDisable && (
+      {/* Bottom section — remove from feed */}
+      {duo.isOwnPost && onRemovePost && (
         <View style={styles.bottomSection}>
-          <TouchableOpacity style={styles.disableBtn} onPress={onDisable} activeOpacity={0.7}>
-            <ThemedText style={duo.disabled ? styles.enableActionText : styles.disableActionText}>
-              {duo.disabled ? 'Enable Duo Card' : 'Disable Duo Card'}
-            </ThemedText>
+          <TouchableOpacity style={styles.disableBtn} onPress={onRemovePost} activeOpacity={0.7}>
+            <ThemedText style={styles.removePostText}>Remove from Feed</ThemedText>
           </TouchableOpacity>
         </View>
       )}
@@ -561,20 +562,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
-  disabledWrapper: {
-    opacity: 0.5,
-  },
-  disabledCard: {
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  disableActionText: {
+  removePostText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#ff9500',
-  },
-  enableActionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4ade80',
+    color: '#ef4444',
   },
 });

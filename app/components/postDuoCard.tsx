@@ -221,7 +221,7 @@ export default function PostDuoCard({
 
       const postData = {
         userId: user.id,
-        username: selectedCard.username,
+        username: userData?.username || user.username || '',
         game: selectedGame,
         currentRank: selectedCard.currentRank,
         peakRank: selectedCard.peakRank,

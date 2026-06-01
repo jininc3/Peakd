@@ -1,11 +1,14 @@
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { getRecentMatches } from '@/services/riotService';
 import { formatRankDisplay } from '@/utils/formatRankDisplay';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
+import CachedImage from '@/components/ui/CachedImage';
 
 const GAME_LOGOS: { [key: string]: any } = {
   'Valorant': require('@/assets/images/valorant-red.png'),
@@ -107,6 +110,21 @@ const LEAGUE_LANE_ICONS: { [key: string]: any } = {
   bot: require('@/assets/images/leaguelanes/bottom.png'),
   adc: require('@/assets/images/leaguelanes/bottom.png'),
   support: require('@/assets/images/leaguelanes/support.png'),
+};
+
+const VALORANT_MAP_IMAGES: { [key: string]: any } = {
+  abyss: require('@/assets/images/valorantmaps/Abyss.png'),
+  ascent: require('@/assets/images/valorantmaps/Ascent.png'),
+  bind: require('@/assets/images/valorantmaps/Bind.png'),
+  breeze: require('@/assets/images/valorantmaps/Breeze.png'),
+  corrode: require('@/assets/images/valorantmaps/Corrode.png'),
+  fracture: require('@/assets/images/valorantmaps/Fracture.png'),
+  haven: require('@/assets/images/valorantmaps/Haven.png'),
+  icebox: require('@/assets/images/valorantmaps/Icebox.png'),
+  lotus: require('@/assets/images/valorantmaps/Lotus.png'),
+  pearl: require('@/assets/images/valorantmaps/Pearl.png'),
+  split: require('@/assets/images/valorantmaps/Split.png'),
+  sunset: require('@/assets/images/valorantmaps/Sunset.png'),
 };
 
 interface MatchEntry {
@@ -296,7 +314,20 @@ export default function DuoCardDetailModal({ visible, onClose, expiresAt, card }
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <ThemedText style={styles.headerTitle}>DUO PROFILE</ThemedText>
+          <View style={styles.headerUser}>
+            <View style={styles.headerAvatar}>
+              {isRemoteAvatar(card.avatar) ? (
+                <CachedImage uri={card.avatar} style={styles.headerAvatarImg} />
+              ) : getDefaultAvatarSource(card.avatar) ? (
+                <Image source={getDefaultAvatarSource(card.avatar)!} style={styles.headerAvatarImg} />
+              ) : (
+                <ThemedText style={styles.headerAvatarLetter}>
+                  {card.username[0].toUpperCase()}
+                </ThemedText>
+              )}
+            </View>
+            <ThemedText style={styles.headerUsername} numberOfLines={1}>{card.username}</ThemedText>
+          </View>
           <TouchableOpacity onPress={onClose} style={styles.closeButton} activeOpacity={0.7}>
             <IconSymbol size={22} name="xmark" color="#fff" />
           </TouchableOpacity>
@@ -432,55 +463,93 @@ export default function DuoCardDetailModal({ visible, onClose, expiresAt, card }
                   <ThemedText style={styles.noMatchesText}>No recent matches</ThemedText>
                 </View>
               ) : (
-                <>
-                  <View style={styles.matchTableHeader}>
-                    <View style={styles.matchIndicatorSpacer} />
-                    <ThemedText style={[styles.matchHeaderText, styles.matchColAgent]}>
-                      {isLeague ? 'Champ' : 'Agent'}
-                    </ThemedText>
-                    <ThemedText style={[styles.matchHeaderText, styles.matchColKDA]}>KDA</ThemedText>
-                    <ThemedText style={[styles.matchHeaderText, styles.matchColResult]}>Result</ThemedText>
-                    <ThemedText style={[styles.matchHeaderText, styles.matchColScore]}>Score</ThemedText>
-                    <ThemedText style={[styles.matchHeaderText, styles.matchColDate]}>Date</ThemedText>
-                  </View>
+                <View style={styles.matchCardList}>
                   {recentValidMatches.map((match, index) => {
                     const rawTs = match.gameStart || match.playedAt || 0;
                     const timestamp = rawTs < 10000000000 ? rawTs * 1000 : rawTs;
                     const agentName = match.agent || match.champion || '';
                     const matchAgentIcon = !isLeague ? getAgentIcon(agentName) : null;
+                    const championIconSrc = isLeague && agentName
+                      ? { uri: `https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/${agentName.replace(/[\s'.]/g, '')}.png` }
+                      : null;
+                    const mapImage = !isLeague && match.map ? VALORANT_MAP_IMAGES[match.map.toLowerCase()] : null;
 
                     return (
-                      <View key={index} style={styles.matchItem}>
-                        <View style={[styles.matchIndicator, match.won ? styles.matchWin : styles.matchLoss]} />
-                        <View style={styles.matchColAgent}>
-                          {matchAgentIcon ? (
-                            <Image source={matchAgentIcon} style={styles.matchAgentIcon} resizeMode="contain" />
-                          ) : (
-                            <ThemedText style={styles.matchCellText} numberOfLines={1}>
-                              {agentName || '-'}
+                      <View key={index} style={[styles.matchCard, { borderLeftColor: match.won ? '#4ade80' : '#ef4444' }]}>
+                        {mapImage && (
+                          <>
+                            <Image source={mapImage} style={styles.matchCardMapBg} resizeMode="cover" />
+                            <LinearGradient
+                              colors={['#222', 'rgba(34,34,34,0)']}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 0.5, y: 0 }}
+                              style={styles.matchCardMapGradient}
+                              pointerEvents="none"
+                            />
+                            <LinearGradient
+                              colors={['rgba(34,34,34,0)', '#222']}
+                              start={{ x: 0.7, y: 0 }}
+                              end={{ x: 1, y: 0 }}
+                              style={styles.matchCardMapGradient}
+                              pointerEvents="none"
+                            />
+                            <LinearGradient
+                              colors={['rgba(34,34,34,0)', 'rgba(34,34,34,0.3)', 'rgba(34,34,34,0.8)', '#222']}
+                              locations={[0.3, 0.5, 0.75, 1]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 0, y: 1 }}
+                              style={styles.matchCardMapGradient}
+                              pointerEvents="none"
+                            />
+                          </>
+                        )}
+                        <View style={styles.matchCardContent}>
+                          <View style={styles.matchCardHeader}>
+                            <ThemedText style={styles.matchCardDate}>
+                              {timestamp ? formatTimeAgo(timestamp) : '-'}
                             </ThemedText>
-                          )}
+                            <View style={[styles.matchResultBadge, match.won ? styles.matchResultBadgeWin : styles.matchResultBadgeLoss]}>
+                              <ThemedText style={[styles.matchResultBadgeText, match.won ? { color: '#4ade80' } : { color: '#ef4444' }]}>
+                                {match.won ? 'Victory' : 'Defeat'}
+                              </ThemedText>
+                            </View>
+                          </View>
+
+                          <View style={styles.matchCardAgentRow}>
+                            <View style={styles.matchCardAgentIcon}>
+                              {matchAgentIcon ? (
+                                <Image source={matchAgentIcon} style={styles.matchCardAgentImg} resizeMode="cover" />
+                              ) : championIconSrc ? (
+                                <Image source={championIconSrc} style={styles.matchCardAgentImg} resizeMode="cover" />
+                              ) : (
+                                <ThemedText style={{ fontSize: 14, color: '#888', fontWeight: '700' }}>{agentName?.charAt(0)}</ThemedText>
+                              )}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <ThemedText style={styles.matchCardAgentName}>{agentName || '-'}</ThemedText>
+                              {match.map && <ThemedText style={styles.matchCardMapName}>{match.map}</ThemedText>}
+                            </View>
+                          </View>
+
+                          <View style={styles.matchCardStatsRow}>
+                            <View style={styles.matchCardStat}>
+                              <ThemedText style={styles.matchCardStatValue}>
+                                {match.kills ?? 0}/{match.deaths ?? 0}/{match.assists ?? 0}
+                              </ThemedText>
+                              <ThemedText style={styles.matchCardStatLabel}>KDA</ThemedText>
+                            </View>
+                            {match.score && (
+                              <View style={styles.matchCardStat}>
+                                <ThemedText style={styles.matchCardStatValue}>{match.score}</ThemedText>
+                                <ThemedText style={styles.matchCardStatLabel}>Score</ThemedText>
+                              </View>
+                            )}
+                          </View>
                         </View>
-                        <ThemedText style={[styles.matchCellText, styles.matchColKDA]}>
-                          {match.kills ?? 0}/{match.deaths ?? 0}/{match.assists ?? 0}
-                        </ThemedText>
-                        <ThemedText style={[
-                          styles.matchCellText,
-                          styles.matchColResult,
-                          match.won ? styles.matchResultWin : styles.matchResultLoss
-                        ]}>
-                          {match.won ? 'Victory' : 'Defeat'}
-                        </ThemedText>
-                        <ThemedText style={[styles.matchCellText, styles.matchColScore]}>
-                          {match.score || '-'}
-                        </ThemedText>
-                        <ThemedText style={[styles.matchCellText, styles.matchColDate, styles.matchDateText]}>
-                          {timestamp ? formatTimeAgo(timestamp) : '-'}
-                        </ThemedText>
                       </View>
                     );
                   })}
-                </>
+                </View>
               )}
             </View>
           </View>
@@ -540,11 +609,37 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1a1a1a',
   },
-  headerTitle: {
-    fontSize: 18,
+  headerUser: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginRight: 12,
+  },
+  headerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  headerAvatarImg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  headerAvatarLetter: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#888',
+  },
+  headerUsername: {
+    fontSize: 16,
     fontWeight: '700',
     color: '#fff',
-    letterSpacing: 0.5,
+    flexShrink: 1,
   },
   closeButton: {
     width: 36,
@@ -746,84 +841,119 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#555',
   },
-  matchTableHeader: {
+  matchCardList: {
+    marginTop: 8,
+    gap: 8,
+  },
+  matchCard: {
+    backgroundColor: '#222',
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4ade80',
+    overflow: 'hidden',
+    padding: 10,
+    position: 'relative',
+  },
+  matchCardMapBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.3,
+  },
+  matchCardMapGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  matchCardContent: {
+    zIndex: 2,
+  },
+  matchCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 10,
-    paddingLeft: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
-  matchHeaderText: {
-    fontSize: 9,
-    fontWeight: '800',
+  matchCardDate: {
+    fontSize: 12,
+    fontWeight: '500',
     color: 'rgba(255,255,255,0.4)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
   },
-  matchIndicatorSpacer: {
-    width: 16,
+  matchResultBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 14,
   },
-  matchItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.04)',
+  matchResultBadgeWin: {
+    backgroundColor: 'rgba(74, 222, 128, 0.15)',
   },
-  matchIndicator: {
-    width: 4,
-    height: 32,
-    borderRadius: 2,
-    marginRight: 12,
+  matchResultBadgeLoss: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
   },
-  matchWin: {
-    backgroundColor: '#4CAF50',
-  },
-  matchLoss: {
-    backgroundColor: '#DC3D4B',
-  },
-  matchColAgent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  matchAgentIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-  },
-  matchColKDA: {
-    flex: 1.2,
-    textAlign: 'center',
-  },
-  matchColResult: {
-    flex: 1.2,
-    textAlign: 'center',
-  },
-  matchColScore: {
-    flex: 1,
-    textAlign: 'center',
-  },
-  matchColDate: {
-    flex: 1.3,
-    textAlign: 'right',
-  },
-  matchCellText: {
+  matchResultBadgeText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#fff',
   },
-  matchResultWin: {
-    color: '#4CAF50',
+  matchCardAgentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
   },
-  matchResultLoss: {
-    color: '#DC3D4B',
+  matchCardAgentIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    overflow: 'hidden',
+    backgroundColor: '#333',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  matchDateText: {
-    color: 'rgba(255,255,255,0.4)',
+  matchCardAgentImg: {
+    width: '100%',
+    height: '100%',
+    transform: [{ scale: 1.15 }],
+  },
+  matchCardAgentName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  matchCardMapName: {
     fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.4)',
+  },
+  matchCardStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  matchCardStat: {
+    alignItems: 'center',
+  },
+  matchCardStatValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  matchCardStatLabel: {
+    fontSize: 9,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.35)',
+    marginTop: 1,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
 });

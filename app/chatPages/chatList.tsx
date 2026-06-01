@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
+  Image,
 } from 'react-native';
 import { useRouter } from '@/hooks/useRouter';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,6 +20,7 @@ import { subscribeToUserChats, Chat } from '@/services/chatService';
 import { getFollowing, FollowingData } from '@/services/followService';
 import { Timestamp } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
+import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -248,8 +250,10 @@ export default function ChatListScreen() {
       disabled={creatingChat}
     >
       <View style={styles.suggestedAvatarWrapper}>
-        {item.followingAvatar && item.followingAvatar.startsWith('http') ? (
+        {isRemoteAvatar(item.followingAvatar) ? (
           <CachedImage uri={item.followingAvatar} style={styles.suggestedAvatar} />
+        ) : getDefaultAvatarSource(item.followingAvatar) ? (
+          <Image source={getDefaultAvatarSource(item.followingAvatar)!} style={styles.suggestedAvatar} />
         ) : (
           <View style={styles.suggestedAvatarPlaceholder}>
             <ThemedText style={styles.suggestedAvatarInitial}>

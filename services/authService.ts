@@ -18,7 +18,7 @@ import {
   reauthenticateWithCredential,
 } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, setDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
 
 export interface UserProfile {
@@ -480,10 +480,65 @@ export async function updateUserProfile(
       updateData.usernameLower = updateData.username.toLowerCase();
     }
     await updateDoc(userRef, { ...updateData, updatedAt: new Date() });
+
+    // Propagate avatar change to denormalized copies
+    if (data.avatar !== undefined) {
+      propagateAvatarToParties(userId, data.avatar).catch((err) =>
+        console.error('Error propagating avatar to parties:', err)
+      );
+      propagateAvatarToDuoPosts(userId, data.avatar).catch((err) =>
+        console.error('Error propagating avatar to duo posts:', err)
+      );
+    }
   } catch (error: any) {
     console.error('Update user profile error:', error);
     throw new Error('Failed to update profile');
   }
+}
+
+/**
+ * Update avatar in all party memberDetails arrays the user belongs to.
+ */
+async function propagateAvatarToParties(userId: string, newAvatar: string): Promise<void> {
+  const partiesQuery = query(
+    collection(db, 'parties'),
+    where('members', 'array-contains', userId)
+  );
+  const snapshot = await getDocs(partiesQuery);
+
+  const updates = snapshot.docs.map(async (partyDoc) => {
+    const partyData = partyDoc.data();
+    if (!Array.isArray(partyData.memberDetails)) return;
+
+    const memberIndex = partyData.memberDetails.findIndex(
+      (m: any) => m.userId === userId
+    );
+    if (memberIndex === -1) return;
+
+    const updatedMembers = [...partyData.memberDetails];
+    updatedMembers[memberIndex] = {
+      ...updatedMembers[memberIndex],
+      avatar: newAvatar,
+    };
+    await updateDoc(partyDoc.ref, { memberDetails: updatedMembers });
+  });
+
+  await Promise.all(updates);
+}
+
+/**
+ * Update avatar in the user's active duo posts.
+ */
+async function propagateAvatarToDuoPosts(userId: string, newAvatar: string): Promise<void> {
+  const postIds = [`${userId}_valorant`, `${userId}_league`];
+  const updates = postIds.map(async (postId) => {
+    const postRef = doc(db, 'duoPosts', postId);
+    const postDoc = await getDoc(postRef);
+    if (postDoc.exists()) {
+      await updateDoc(postRef, { avatar: newAvatar });
+    }
+  });
+  await Promise.all(updates);
 }
 
 export function getCurrentUser(): FirebaseUser | null {

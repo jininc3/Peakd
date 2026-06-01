@@ -302,7 +302,7 @@ export default function DuoFinderScreen() {
 
               setValorantCard({
                 game: 'valorant',
-                username: updatedCardData.username,
+                username: user.username || '',
                 currentRank: updatedCardData.currentRank,
                 region: updatedCardData.region,
                 mainRole: updatedCardData.mainRole,
@@ -315,7 +315,7 @@ export default function DuoFinderScreen() {
               // Use existing card data
               setValorantCard({
                 game: 'valorant',
-                username: cardData.username,
+                username: user.username || '',
                 currentRank: cardData.currentRank,
                 region: cardData.region,
                 mainRole: cardData.mainRole,
@@ -329,7 +329,7 @@ export default function DuoFinderScreen() {
             // No stats available, just use card data
             setValorantCard({
               game: 'valorant',
-              username: cardData.username,
+              username: user.username || '',
               currentRank: cardData.currentRank,
               region: cardData.region,
               mainRole: cardData.mainRole,
@@ -343,7 +343,7 @@ export default function DuoFinderScreen() {
           // Auto-create Valorant duo card from RankCard stats
           const stats = userData.valorantStats;
           const peakRank = stats.peakRank?.tier || stats.currentRank || 'Unranked';
-          const username = stats.gameName || userData.valorantAccount?.gameName || user.username || '';
+          const username = user.username || userData.username || '';
           const region = userData.valorantAccount?.region || 'NA';
           const newCard = {
             userId: user.id,
@@ -400,7 +400,7 @@ export default function DuoFinderScreen() {
 
               setLeagueCard({
                 game: 'league',
-                username: updatedCardData.username,
+                username: user.username || '',
                 currentRank: updatedCardData.currentRank,
                 region: updatedCardData.region,
                 mainRole: updatedCardData.mainRole,
@@ -413,7 +413,7 @@ export default function DuoFinderScreen() {
               // Use existing card data
               setLeagueCard({
                 game: 'league',
-                username: cardData.username,
+                username: user.username || '',
                 currentRank: cardData.currentRank,
                 region: cardData.region,
                 mainRole: cardData.mainRole,
@@ -427,7 +427,7 @@ export default function DuoFinderScreen() {
             // No stats available, just use card data
             setLeagueCard({
               game: 'league',
-              username: cardData.username,
+              username: user.username || '',
               currentRank: cardData.currentRank,
               region: cardData.region,
               mainRole: cardData.mainRole,
@@ -445,7 +445,7 @@ export default function DuoFinderScreen() {
             const rank = userData.riotStats.rankedSolo.rank || '';
             currentRank = tier === 'UNRANKED' ? 'Unranked' : `${tier.charAt(0) + tier.slice(1).toLowerCase()} ${rank}`;
           }
-          const username = userData.riotAccount?.gameName || user.username || '';
+          const username = user.username || userData.username || '';
           const region = userData.riotAccount?.region || 'NA';
           const newCard = {
             userId: user.id,
@@ -658,7 +658,7 @@ export default function DuoFinderScreen() {
                 id: docSnapshot.id,
                 userId: cardData.userId,
                 game: cardData.game,
-                username: cardData.username,
+                username: rankUpUsername || cardData.username,
                 currentRank: cardData.currentRank,
                 region: cardData.region,
                 mainRole: cardData.mainRole,
@@ -1168,7 +1168,7 @@ export default function DuoFinderScreen() {
                   <DuoCard
                     duo={{
                       id: 0,
-                      username: post.username,
+                      username: isOwn ? (user?.username || post.username) : post.username,
                       status: 'active',
                       matchPercentage: 0,
                       currentRank: post.currentRank,
@@ -1178,7 +1178,7 @@ export default function DuoFinderScreen() {
                       winRate: post.winRate || 0,
                       gamesPlayed: post.gamesPlayed || 0,
                       game: post.game === 'valorant' ? 'Valorant' : 'League of Legends',
-                      avatar: post.avatar,
+                      avatar: isOwn ? (user?.avatar || post.avatar) : post.avatar,
                       inGameIcon: post.inGameIcon,
                       inGameName: post.inGameName,
                       message: post.message || undefined,
@@ -1285,40 +1285,34 @@ export default function DuoFinderScreen() {
                         inGameIcon: valorantInGameIcon,
                         inGameName: valorantInGameName,
                         isOwnPost: true,
-                        disabled: valorantCard.disabled || false,
                       }}
                       onPress={() => {
                         setShowMyCards(false);
                         handleCardPress('valorant');
                       }}
-                      onDisable={() => {
-                        const isDisabled = valorantCard?.disabled || false;
+                      onRemovePost={hasActiveValorantPost ? () => {
                         Alert.alert(
-                          isDisabled ? 'Enable Card' : 'Disable Card',
-                          isDisabled ? 'Enable your Valorant duo card?' : 'Disable your Valorant duo card? This will also remove any active post.',
+                          'Remove Post',
+                          'Remove your Valorant duo card from the feed?',
                           [
                             { text: 'Cancel', style: 'cancel' },
                             {
-                              text: isDisabled ? 'Enable' : 'Disable',
+                              text: 'Remove',
+                              style: 'destructive',
                               onPress: async () => {
                                 try {
-                                  const newDisabled = !isDisabled;
-                                  await updateDoc(doc(db, 'duoCards', `${user?.id}_valorant`), { disabled: newDisabled });
-                                  if (newDisabled && hasActiveValorantPost) {
-                                    await deleteDoc(doc(db, 'duoPosts', `${user?.id}_valorant`));
-                                    setDuoPosts(prev => prev.filter(p => p.id !== `${user?.id}_valorant`));
-                                    setDisplayedPosts(prev => prev.filter(p => p.id !== `${user?.id}_valorant`));
-                                    setHasActiveValorantPost(false);
-                                  }
-                                  setValorantCard(prev => prev ? { ...prev, disabled: newDisabled } : null);
+                                  await deleteDoc(doc(db, 'duoPosts', `${user?.id}_valorant`));
+                                  setDuoPosts(prev => prev.filter(p => p.id !== `${user?.id}_valorant`));
+                                  setDisplayedPosts(prev => prev.filter(p => p.id !== `${user?.id}_valorant`));
+                                  setHasActiveValorantPost(false);
                                 } catch (error) {
-                                  console.error('Error updating duo card:', error);
+                                  console.error('Error removing duo post:', error);
                                 }
                               },
                             },
                           ]
                         );
-                      }}
+                      } : undefined}
                     />
                   )}
                   {leagueCard && (
@@ -1339,40 +1333,34 @@ export default function DuoFinderScreen() {
                         inGameIcon: leagueInGameIcon,
                         inGameName: leagueInGameName,
                         isOwnPost: true,
-                        disabled: leagueCard.disabled || false,
                       }}
                       onPress={() => {
                         setShowMyCards(false);
                         handleCardPress('league');
                       }}
-                      onDisable={() => {
-                        const isDisabled = leagueCard?.disabled || false;
+                      onRemovePost={hasActiveLeaguePost ? () => {
                         Alert.alert(
-                          isDisabled ? 'Enable Card' : 'Disable Card',
-                          isDisabled ? 'Enable your League duo card?' : 'Disable your League duo card? This will also remove any active post.',
+                          'Remove Post',
+                          'Remove your League duo card from the feed?',
                           [
                             { text: 'Cancel', style: 'cancel' },
                             {
-                              text: isDisabled ? 'Enable' : 'Disable',
+                              text: 'Remove',
+                              style: 'destructive',
                               onPress: async () => {
                                 try {
-                                  const newDisabled = !isDisabled;
-                                  await updateDoc(doc(db, 'duoCards', `${user?.id}_league`), { disabled: newDisabled });
-                                  if (newDisabled && hasActiveLeaguePost) {
-                                    await deleteDoc(doc(db, 'duoPosts', `${user?.id}_league`));
-                                    setDuoPosts(prev => prev.filter(p => p.id !== `${user?.id}_league`));
-                                    setDisplayedPosts(prev => prev.filter(p => p.id !== `${user?.id}_league`));
-                                    setHasActiveLeaguePost(false);
-                                  }
-                                  setLeagueCard(prev => prev ? { ...prev, disabled: newDisabled } : null);
+                                  await deleteDoc(doc(db, 'duoPosts', `${user?.id}_league`));
+                                  setDuoPosts(prev => prev.filter(p => p.id !== `${user?.id}_league`));
+                                  setDisplayedPosts(prev => prev.filter(p => p.id !== `${user?.id}_league`));
+                                  setHasActiveLeaguePost(false);
                                 } catch (error) {
-                                  console.error('Error updating duo card:', error);
+                                  console.error('Error removing duo post:', error);
                                 }
                               },
                             },
                           ]
                         );
-                      }}
+                      } : undefined}
                     />
                   )}
                 </View>
