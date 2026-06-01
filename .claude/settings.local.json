@@ -16,7 +16,8 @@
       "Bash(find /c/Users/jinha/Desktop/Peakd/assets/images -type f -name *cover*)",
       "Bash(wc:*)",
       "Bash(npx firebase:*)",
-      "Bash(eas:*)"
+      "Bash(eas:*)",
+      "Bash(find \"C:/Users/jinha/Desktop/peakd-web/app/\\(app\\)\" -name \"page.tsx\")"
     ],
     "deny": [],
     "ask": []

@@ -1271,7 +1271,7 @@ export default function DuoFinderScreen() {
                     <DuoCard
                       duo={{
                         id: 0,
-                        username: valorantCard.username,
+                        username: user?.username || valorantCard.username,
                         status: 'active',
                         matchPercentage: 0,
                         currentRank: valorantCard.currentRank,
@@ -1282,8 +1282,6 @@ export default function DuoFinderScreen() {
                         gamesPlayed: valorantGamesPlayed || 0,
                         game: 'Valorant',
                         avatar: user?.avatar,
-                        inGameIcon: valorantInGameIcon,
-                        inGameName: valorantInGameName,
                         isOwnPost: true,
                       }}
                       onPress={() => {
@@ -1319,7 +1317,7 @@ export default function DuoFinderScreen() {
                     <DuoCard
                       duo={{
                         id: 0,
-                        username: leagueCard.username,
+                        username: user?.username || leagueCard.username,
                         status: 'active',
                         matchPercentage: 0,
                         currentRank: leagueCard.currentRank,
@@ -1330,8 +1328,6 @@ export default function DuoFinderScreen() {
                         gamesPlayed: leagueGamesPlayed || 0,
                         game: 'League of Legends',
                         avatar: user?.avatar,
-                        inGameIcon: leagueInGameIcon,
-                        inGameName: leagueInGameName,
                         isOwnPost: true,
                       }}
                       onPress={() => {
