@@ -1007,10 +1007,7 @@ export default function LeaderboardDetail() {
   }, [id, game, isLeague, user?.id]);
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    await handleUpdateStats();
   };
 
   const handleUpdateStats = async () => {
@@ -1148,7 +1145,7 @@ export default function LeaderboardDetail() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+          <RefreshControl refreshing={updatingStats} onRefresh={onRefresh} tintColor="#fff" colors={['#fff']} />
         }
       >
         {/* Cover Photo Section */}
@@ -1224,36 +1221,103 @@ export default function LeaderboardDetail() {
                 <ThemedText style={styles.inviteButtonText}>Invite</ThemedText>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={[styles.updateButtonSecondary, updatingStats && { opacity: 0.5 }]}
-              onPress={handleUpdateStats}
-              disabled={updatingStats}
-              activeOpacity={0.7}
-            >
-              {updatingStats ? (
-                <ActivityIndicator size={12} color="#666" />
-              ) : (
-                <IconSymbol size={14} name="arrow.clockwise" color="#666" />
-              )}
-              <ThemedText style={styles.updateButtonSecondaryText}>
-                {updatingStats ? 'Refreshing...' : 'Refresh'}
-              </ThemedText>
-            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Column Headers */}
-        <View style={styles.columnHeaders}>
-          <ThemedText style={[styles.columnHeaderText, { width: 40 }]}>RANK</ThemedText>
-          <ThemedText style={[styles.columnHeaderText, { flex: 1, paddingLeft: 40 }]}>PLAYER</ThemedText>
-          <ThemedText style={[styles.columnHeaderText, { width: 145, marginLeft: 'auto', textAlign: 'center' }]}>
-            CURRENT RANK
-          </ThemedText>
-        </View>
+        {/* Top 3 Podium */}
+        {players.length >= 2 && (() => {
+          const top3 = players.slice(0, Math.min(3, players.length));
+          const first = top3[0];
+          const second = top3[1];
+          const third = top3[2];
 
-        {/* Player Rows */}
+          const renderPodiumPlayer = (player: Player, position: 1 | 2 | 3) => {
+            const rankIcon = isLeague
+              ? getLeagueRankIcon(player.currentRank)
+              : getValorantRankIcon(player.currentRank);
+            const borderColor = getBorderColor(position);
+            const avatarSize = position === 1 ? 72 : 58;
+            const points = isLeague ? (player.lp || 0) : (player.rr || 0);
+            const pointsLabel = isLeague ? 'LP' : 'RR';
+            const dailyGain = player.dailyGain || 0;
+            const gainColor = dailyGain > 0 ? '#FFD700' : dailyGain < 0 ? '#CD7F32' : '#999';
+
+            return (
+              <TouchableOpacity
+                key={player.userId}
+                style={styles.podiumPlayerColumn}
+                onPress={() => handlePlayerPress(player)}
+                activeOpacity={0.7}
+              >
+                <ThemedText style={[styles.podiumRankNumber, { color: borderColor }]}>{position}</ThemedText>
+                <View style={[styles.podiumAvatarRing, { width: avatarSize + 6, height: avatarSize + 6, borderRadius: (avatarSize + 6) / 2, borderColor }]}>
+                  <View style={[styles.podiumAvatar, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}>
+                    {isRemoteAvatar(player.avatar) ? (
+                      <CachedImage uri={player.avatar} style={[styles.podiumAvatarImage, { borderRadius: avatarSize / 2 }]} />
+                    ) : getDefaultAvatarSource(player.avatar) ? (
+                      <Image source={getDefaultAvatarSource(player.avatar)!} style={[styles.podiumAvatarImage, { borderRadius: avatarSize / 2 }]} />
+                    ) : (
+                      <ThemedText style={[styles.podiumAvatarInitial, position === 1 && { fontSize: 24 }]}>
+                        {player.username[0].toUpperCase()}
+                      </ThemedText>
+                    )}
+                  </View>
+                </View>
+                <ThemedText style={styles.podiumUsername} numberOfLines={1}>{player.username}</ThemedText>
+                <View style={styles.podiumRankRow}>
+                  <Image source={rankIcon} style={styles.podiumRankIcon} resizeMode="contain" />
+                  <ThemedText style={styles.podiumRankText}>{formatRankDisplay(player.currentRank).toUpperCase()}</ThemedText>
+                </View>
+                <ThemedText style={[styles.podiumPoints, { color: gainColor }]}>
+                  {dailyGain > 0 ? '+' : ''}{dailyGain} {pointsLabel}
+                </ThemedText>
+              </TouchableOpacity>
+            );
+          };
+
+          return (
+            <View style={styles.podiumSection}>
+              {/* TOP 3 header */}
+              <View style={styles.podiumHeader}>
+                <View style={styles.podiumHeaderLine} />
+                <ThemedText style={styles.podiumHeaderText}>TOP 3</ThemedText>
+                <View style={styles.podiumHeaderLine} />
+              </View>
+
+              {/* Podium players */}
+              <View style={styles.podiumPlayersRow}>
+                {/* 2nd place */}
+                <View style={styles.podiumSideColumn}>
+                  {second && renderPodiumPlayer(second, 2)}
+                </View>
+                {/* 1st place */}
+                <View style={styles.podiumCenterColumn}>
+                  {first && renderPodiumPlayer(first, 1)}
+                </View>
+                {/* 3rd place */}
+                <View style={styles.podiumSideColumn}>
+                  {third ? renderPodiumPlayer(third, 3) : <View />}
+                </View>
+              </View>
+
+            </View>
+          );
+        })()}
+
+        {/* Column Headers */}
+        {players.length > 3 && (
+          <View style={styles.columnHeaders}>
+            <ThemedText style={[styles.columnHeaderText, { width: 40 }]}>RANK</ThemedText>
+            <ThemedText style={[styles.columnHeaderText, { flex: 1, paddingLeft: 40 }]}>PLAYER</ThemedText>
+            <ThemedText style={[styles.columnHeaderText, { width: 145, marginLeft: 'auto', textAlign: 'center' }]}>
+              CURRENT RANK
+            </ThemedText>
+          </View>
+        )}
+
+        {/* Player Rows (4th place and below) */}
         <View style={styles.playerList}>
-          {players.map((player, index) => {
+          {players.filter(p => p.rank > 3).map((player, index) => {
             const rankIcon = isLeague
               ? getLeagueRankIcon(player.currentRank)
               : getValorantRankIcon(player.currentRank);
@@ -1265,22 +1329,18 @@ export default function LeaderboardDetail() {
                   styles.playerRow,
                   index % 2 === 0 ? styles.evenRow : styles.oddRow,
                   { borderLeftWidth: 4, borderLeftColor: getBorderColor(player.rank) },
-                  player.rank === 1 && styles.firstPlaceRow,
                   player.isCurrentUser && styles.currentUserRow,
                 ]}
               >
                 {/* Rank Number */}
                 <View style={styles.rankContainer}>
-                  <ThemedText style={[styles.rankText, player.rank <= 3 && { color: getBorderColor(player.rank) }]}>{player.rank}</ThemedText>
+                  <ThemedText style={styles.rankText}>{player.rank}</ThemedText>
                 </View>
 
                 {/* Player Info */}
                 <View style={styles.playerInfo}>
                   <TouchableOpacity
-                    style={[
-                      styles.playerAvatarRing,
-                      player.rank <= 3 && { borderColor: getBorderColor(player.rank), borderWidth: 2 },
-                    ]}
+                    style={styles.playerAvatarRing}
                     onPress={() => handlePlayerPress(player)}
                     activeOpacity={0.7}
                   >
@@ -1301,9 +1361,6 @@ export default function LeaderboardDetail() {
                       <ThemedText style={[styles.playerName, player.isCurrentUser && styles.currentUserName]} numberOfLines={1}>
                         {player.username}
                       </ThemedText>
-                      {player.rank === 1 && (
-                        <IconSymbol size={10} name="crown.fill" color="#FFD700" />
-                      )}
                       {player.userId === partyData?.createdBy && (
                         <View style={styles.leaderBadge}>
                           <ThemedText style={styles.creatorBadgeText}>Leader</ThemedText>
@@ -2833,6 +2890,147 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
     letterSpacing: 1.5,
+  },
+  // ── Top 3 Podium ──
+  podiumSection: {
+    marginHorizontal: 6,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingBottom: 0,
+    overflow: 'hidden',
+    borderRadius: 14,
+    backgroundColor: 'transparent',
+  },
+  podiumHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingTop: 6,
+    paddingBottom: 8,
+  },
+  podiumHeaderLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#333',
+    maxWidth: 80,
+  },
+  podiumHeaderText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#888',
+    letterSpacing: 2,
+  },
+  podiumPlayersRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  podiumSideColumn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingBottom: 8,
+  },
+  podiumCenterColumn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingBottom: 8,
+  },
+  podiumPlayerColumn: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  podiumRankNumber: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  podiumAvatarRing: {
+    borderWidth: 2.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  podiumAvatar: {
+    backgroundColor: '#252525',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  podiumAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  podiumAvatarInitial: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#888',
+  },
+  podiumUsername: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+    maxWidth: 90,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  podiumRankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  podiumRankIcon: {
+    width: 14,
+    height: 14,
+  },
+  podiumRankText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#999',
+    letterSpacing: 0.3,
+  },
+  podiumPoints: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  podiumBlocksRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginTop: 6,
+  },
+  podiumBlockSide: {
+    flex: 1,
+  },
+  podiumBlockCenter: {
+    flex: 1,
+  },
+  podiumBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  podiumBlockFirst: {
+    height: 48,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+  },
+  podiumBlockSecond: {
+    height: 36,
+    borderTopLeftRadius: 10,
+  },
+  podiumBlockThird: {
+    height: 36,
+    borderTopRightRadius: 10,
+  },
+  podiumBlockNumber2: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: 'rgba(192, 192, 192, 0.35)',
+  },
+  podiumBlockNumber3: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: 'rgba(205, 127, 50, 0.35)',
   },
   columnHeaders: {
     flexDirection: 'row',

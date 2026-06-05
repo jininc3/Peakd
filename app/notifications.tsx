@@ -14,6 +14,8 @@ import PostViewerModal from '@/app/components/postViewerModal';
 import ReportPostModal from '@/app/components/reportPostModal';
 import { LinearGradient } from 'expo-linear-gradient';
 import { acceptFollowRequest, declineFollowRequest } from '@/services/followService';
+import { isRemoteAvatar, getDefaultAvatarSource, hasAvatar } from '@/utils/resolveAvatar';
+import CachedImage from '@/components/ui/CachedImage';
 
 const GAME_LOGOS: { [key: string]: any } = {
   'Valorant': require('@/assets/images/valorant-red.png'),
@@ -63,6 +65,10 @@ interface Post {
 
 // Module-level cache so notifications persist across navigations
 let cachedNotifications: Notification[] | null = null;
+// Module-level avatar cache so we don't re-fetch on every navigation
+const globalAvatarCache: { [userId: string]: string | null } = {};
+// Track deleted users globally to avoid re-fetching
+const globalDeletedUsers = new Set<string>();
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -98,7 +104,6 @@ export default function NotificationsScreen() {
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const notifs: Notification[] = [];
-      const userAvatarCache: { [userId: string]: string | undefined } = {};
 
       // Track last document for pagination
       const lastVisible = snapshot.docs[snapshot.docs.length - 1];
@@ -127,49 +132,38 @@ export default function NotificationsScreen() {
       });
 
       // Second pass: fetch current avatars and filter out notifications from deleted users
-      const deletedUserIds = new Set<string>();
-      const existingUserIds = new Set<string>();
-
       for (const notif of notifs) {
-        // Skip avatar fetching for notifications without a fromUserId (system notifications)
         if (!notif.fromUserId) continue;
+        if (globalDeletedUsers.has(notif.fromUserId)) continue;
 
-        // Skip if we already know this user is deleted
-        if (deletedUserIds.has(notif.fromUserId)) continue;
+        // Check global cache first — skip fetch entirely if we already have this user
+        if (notif.fromUserId in globalAvatarCache) {
+          const cached = globalAvatarCache[notif.fromUserId];
+          if (cached) notif.fromUserAvatar = cached;
+          continue;
+        }
 
-        if (!notif.fromUserAvatar || !notif.fromUserAvatar.startsWith('http') || !existingUserIds.has(notif.fromUserId)) {
-          // Check cache first
-          if (userAvatarCache[notif.fromUserId] !== undefined) {
-            notif.fromUserAvatar = userAvatarCache[notif.fromUserId];
-            existingUserIds.add(notif.fromUserId);
-          } else {
-            // Fetch current avatar from user document
-            try {
-              const userDoc = await getDoc(doc(db, 'users', notif.fromUserId));
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                const currentAvatar = userData.avatar;
-                if (currentAvatar) {
-                  notif.fromUserAvatar = currentAvatar;
-                }
-                userAvatarCache[notif.fromUserId] = notif.fromUserAvatar ?? null;
-                existingUserIds.add(notif.fromUserId);
-              } else {
-                // User has been deleted — mark for filtering
-                deletedUserIds.add(notif.fromUserId);
-              }
-            } catch (error) {
-              console.error('Error fetching user avatar:', error);
+        // Fetch current avatar from user document
+        try {
+          const userDoc = await getDoc(doc(db, 'users', notif.fromUserId));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const currentAvatar = userData.avatar;
+            if (currentAvatar) {
+              notif.fromUserAvatar = currentAvatar;
             }
+            globalAvatarCache[notif.fromUserId] = notif.fromUserAvatar ?? null;
+          } else {
+            globalDeletedUsers.add(notif.fromUserId);
           }
-        } else {
-          existingUserIds.add(notif.fromUserId);
+        } catch (error) {
+          console.error('Error fetching user avatar:', error);
         }
       }
 
       // Filter out notifications from deleted or blocked users
       const filteredNotifs = notifs.filter(
-        (notif) => !notif.fromUserId || (!deletedUserIds.has(notif.fromUserId) && !isUserBlocked(notif.fromUserId))
+        (notif) => !notif.fromUserId || (!globalDeletedUsers.has(notif.fromUserId) && !isUserBlocked(notif.fromUserId))
       );
 
       cachedNotifications = filteredNotifs;
@@ -716,7 +710,6 @@ export default function NotificationsScreen() {
       const querySnapshot = await getDocs(q);
 
       const newNotifs: Notification[] = [];
-      const userAvatarCache: { [userId: string]: string | undefined } = {};
 
       // Collect new notifications
       querySnapshot.forEach((doc) => {
@@ -740,38 +733,37 @@ export default function NotificationsScreen() {
       });
 
       // Fetch current avatars and filter out notifications from deleted users
-      const deletedUserIds = new Set<string>();
-
       for (const notif of newNotifs) {
         if (!notif.fromUserId) continue;
-        if (deletedUserIds.has(notif.fromUserId)) continue;
+        if (globalDeletedUsers.has(notif.fromUserId)) continue;
 
-        if (!notif.fromUserAvatar || !notif.fromUserAvatar.startsWith('http')) {
-          if (userAvatarCache[notif.fromUserId] !== undefined) {
-            notif.fromUserAvatar = userAvatarCache[notif.fromUserId];
-          } else {
-            try {
-              const userDoc = await getDoc(doc(db, 'users', notif.fromUserId));
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                const currentAvatar = userData.avatar;
-                if (currentAvatar) {
-                  notif.fromUserAvatar = currentAvatar;
-                }
-                userAvatarCache[notif.fromUserId] = notif.fromUserAvatar ?? null;
-              } else {
-                deletedUserIds.add(notif.fromUserId);
-              }
-            } catch (error) {
-              console.error('Error fetching user avatar:', error);
+        // Check global cache first
+        if (notif.fromUserId in globalAvatarCache) {
+          const cached = globalAvatarCache[notif.fromUserId];
+          if (cached) notif.fromUserAvatar = cached;
+          continue;
+        }
+
+        try {
+          const userDoc = await getDoc(doc(db, 'users', notif.fromUserId));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const currentAvatar = userData.avatar;
+            if (currentAvatar) {
+              notif.fromUserAvatar = currentAvatar;
             }
+            globalAvatarCache[notif.fromUserId] = notif.fromUserAvatar ?? null;
+          } else {
+            globalDeletedUsers.add(notif.fromUserId);
           }
+        } catch (error) {
+          console.error('Error fetching user avatar:', error);
         }
       }
 
       // Filter out notifications from deleted users
       const filteredNewNotifs = newNotifs.filter(
-        (notif) => !notif.fromUserId || !deletedUserIds.has(notif.fromUserId)
+        (notif) => !notif.fromUserId || !globalDeletedUsers.has(notif.fromUserId)
       );
 
       // Append new notifications and filter out duplicates
@@ -919,8 +911,10 @@ export default function NotificationsScreen() {
                         onPress={(e) => handleUserPress(notification.fromUserId, e, notification.fromUsername, notification.fromUserAvatar)}
                         activeOpacity={0.7}
                       >
-                        {notification.fromUserAvatar && notification.fromUserAvatar.startsWith('http') ? (
-                          <Image source={{ uri: notification.fromUserAvatar }} style={styles.avatarImage} />
+                        {isRemoteAvatar(notification.fromUserAvatar) ? (
+                          <CachedImage uri={notification.fromUserAvatar!} style={styles.avatarImage} />
+                        ) : getDefaultAvatarSource(notification.fromUserAvatar) ? (
+                          <Image source={getDefaultAvatarSource(notification.fromUserAvatar)!} style={styles.avatarImage} />
                         ) : (
                           <ThemedText style={styles.avatarInitial}>
                             {notification.fromUsername?.[0]?.toUpperCase() || '?'}
@@ -929,8 +923,8 @@ export default function NotificationsScreen() {
                       </TouchableOpacity>
                     ) : notification.partyId && partyIcons[notification.partyId] ? (
                       <View style={styles.avatar}>
-                        <Image
-                          source={{ uri: partyIcons[notification.partyId] as string }}
+                        <CachedImage
+                          uri={partyIcons[notification.partyId] as string}
                           style={styles.avatarImage}
                         />
                       </View>
@@ -1054,7 +1048,7 @@ export default function NotificationsScreen() {
                             {/* Leaderboard preview card */}
                             <View style={styles.invitePreviewCard}>
                               {notification.partyId && partyIcons[notification.partyId] ? (
-                                <Image source={{ uri: partyIcons[notification.partyId] as string }} style={styles.invitePreviewIconImage} />
+                                <CachedImage uri={partyIcons[notification.partyId] as string} style={styles.invitePreviewIconImage} />
                               ) : GAME_LOGOS[notification.game || ''] ? (
                                 <Image source={GAME_LOGOS[notification.game || '']} style={styles.invitePreviewIconImage} resizeMode="contain" />
                               ) : (
@@ -1116,7 +1110,7 @@ export default function NotificationsScreen() {
 
                     {/* Post thumbnail for like/comment/tag notifications */}
                     {(notification.type === 'like' || notification.type === 'comment' || notification.type === 'tag') && notification.postThumbnail && (
-                      <Image source={{ uri: notification.postThumbnail }} style={styles.postThumbnail} />
+                      <CachedImage uri={notification.postThumbnail!} style={styles.postThumbnail} />
                     )}
                   </View>
 

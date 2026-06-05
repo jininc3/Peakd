@@ -499,53 +499,50 @@ export const MutualLeaderboardSkeleton: React.FC<{ rowCount?: number; showDropdo
     [rowCount]
   );
 
-  const cardWidth = ((screenWidth - 32) / 3) * 1.32;
   const extraRows = Math.max(0, rowCount - 3);
+
+  const renderPodiumPlayerSkeleton = (avatarSize: number) => (
+    <View style={{ alignItems: 'center', gap: 4 }}>
+      <Skeleton width={18} height={18} borderRadius={4} />
+      <Skeleton width={avatarSize + 6} height={avatarSize + 6} borderRadius={(avatarSize + 6) / 2} />
+      <Skeleton width={55} height={12} borderRadius={4} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+        <Skeleton width={14} height={14} borderRadius={7} />
+        <Skeleton width={50} height={10} borderRadius={3} />
+      </View>
+      <Skeleton width={45} height={16} borderRadius={4} />
+    </View>
+  );
 
   return (
     <View style={mutualSkeletonStyles.section}>
       {/* Game header */}
       <View style={mutualSkeletonStyles.sectionHeader}>
-        <Skeleton width={210} height={40} borderRadius={20} />
+        <Skeleton width={160} height={40} borderRadius={20} />
         <View style={{ flex: 1 }} />
         <Skeleton width={90} height={36} borderRadius={10} />
       </View>
 
       {/* Top 3 Podium */}
-      <View style={{ alignItems: 'center', marginBottom: 16, gap: 8 }}>
-        {/* 1st place */}
-        <View style={{ width: cardWidth, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', padding: 12, gap: 12 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Skeleton width={20} height={20} borderRadius={4} />
-            <Skeleton width={34} height={34} borderRadius={8} />
-            <Skeleton width={60} height={13} borderRadius={4} />
-          </View>
-          <View style={{ alignItems: 'center', gap: 4 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Skeleton width={26} height={26} borderRadius={13} />
-              <Skeleton width={60} height={20} borderRadius={4} />
-            </View>
-            <Skeleton width={70} height={11} borderRadius={4} />
-          </View>
+      <View style={{ borderRadius: 14, paddingVertical: 16, marginBottom: 16 }}>
+        {/* TOP 3 header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: '#333', maxWidth: 80 }} />
+          <Skeleton width={50} height={13} borderRadius={4} />
+          <View style={{ flex: 1, height: 1, backgroundColor: '#333', maxWidth: 80 }} />
         </View>
-        {/* 2nd and 3rd */}
-        <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
-          {[0, 1].map((i) => (
-            <View key={i} style={{ width: cardWidth, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', padding: 12, gap: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Skeleton width={20} height={20} borderRadius={4} />
-                <Skeleton width={34} height={34} borderRadius={8} />
-                <Skeleton width={50} height={13} borderRadius={4} />
-              </View>
-              <View style={{ alignItems: 'center', gap: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Skeleton width={26} height={26} borderRadius={13} />
-                  <Skeleton width={50} height={20} borderRadius={4} />
-                </View>
-                <Skeleton width={65} height={11} borderRadius={4} />
-              </View>
-            </View>
-          ))}
+
+        {/* Podium players: 2nd, 1st, 3rd */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', paddingHorizontal: 8 }}>
+          <View style={{ flex: 1, alignItems: 'center', paddingBottom: 8 }}>
+            {renderPodiumPlayerSkeleton(58)}
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', paddingBottom: 8 }}>
+            {renderPodiumPlayerSkeleton(72)}
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', paddingBottom: 8 }}>
+            {renderPodiumPlayerSkeleton(58)}
+          </View>
         </View>
       </View>
 

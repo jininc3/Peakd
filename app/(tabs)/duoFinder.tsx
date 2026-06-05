@@ -102,30 +102,6 @@ interface DuoPostWithId {
 }
 
 
-// ── Dummy duo posts for visual testing (delete this block when done) ──
-const DUMMY_AVATARS = [
-  Image.resolveAssetSource(require('@/assets/images/avatar1.png')).uri,
-  Image.resolveAssetSource(require('@/assets/images/avatar2.png')).uri,
-  Image.resolveAssetSource(require('@/assets/images/avatar3.png')).uri,
-  Image.resolveAssetSource(require('@/assets/images/avatar4.png')).uri,
-  Image.resolveAssetSource(require('@/assets/images/avatar5.png')).uri,
-];
-const dummyAvatar = (i: number) => DUMMY_AVATARS[i % DUMMY_AVATARS.length];
-
-const DUMMY_DUO_POSTS: DuoPostWithId[] = [
-  { id: 'dummy_1', userId: 'dummy_user_1', username: 'xShadowKing', game: 'valorant', currentRank: 'Diamond 2', peakRank: 'Immortal 1', mainRole: 'Duelist', mainAgent: 'Jett', region: 'NA', lookingFor: 'Any', winRate: 58, gamesPlayed: 312, message: 'Looking for a chill duo to grind ranked tonight, pref controller main', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 15) }, expiresAt: null, inGameName: 'ShadowKing#NA1', avatar: dummyAvatar(0) },
-  { id: 'dummy_2', userId: 'dummy_user_2', username: 'LunaFrost', game: 'valorant', currentRank: 'Platinum 3', peakRank: 'Diamond 1', mainRole: 'Controller', mainAgent: 'Omen', region: 'NA', lookingFor: 'Duelist', winRate: 52, gamesPlayed: 189, message: 'Smoke main LF aggro duelist, mic required', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 45) }, expiresAt: null, inGameName: 'LunaFrost#0000', avatar: dummyAvatar(1) },
-  { id: 'dummy_3', userId: 'dummy_user_3', username: 'T1Faker2', game: 'league', currentRank: 'Master I', peakRank: 'Grandmaster I', mainRole: 'Mid', mainAgent: 'Ahri', region: 'NA', lookingFor: 'Jungle', winRate: 61, gamesPlayed: 540, message: 'Mid main looking for jungle duo, good synergy preferred', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 2) }, expiresAt: null, inGameName: 'T1Faker2#NA1', avatar: dummyAvatar(2) },
-  { id: 'dummy_4', userId: 'dummy_user_4', username: 'VoidWalker', game: 'valorant', currentRank: 'Ascendant 1', peakRank: 'Ascendant 3', mainRole: 'Initiator', mainAgent: 'Sova', region: 'EU', lookingFor: 'Sentinel', winRate: 55, gamesPlayed: 421, message: '', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 3) }, expiresAt: null, inGameName: 'VoidWalker#EUW', avatar: dummyAvatar(3) },
-  { id: 'dummy_5', userId: 'dummy_user_5', username: 'RiftQueen', game: 'league', currentRank: 'Diamond IV', peakRank: 'Diamond II', mainRole: 'Support', mainAgent: 'Thresh', region: 'NA', lookingFor: 'Bot', winRate: 54, gamesPlayed: 278, message: 'Supp main, hook champs. Need an ADC who can follow up', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 5) }, expiresAt: null, inGameName: 'RiftQueen#NA1', avatar: dummyAvatar(4) },
-  { id: 'dummy_6', userId: 'dummy_user_6', username: 'NightOwl', game: 'valorant', currentRank: 'Gold 3', peakRank: 'Platinum 2', mainRole: 'Sentinel', mainAgent: 'Killjoy', region: 'NA', lookingFor: 'Any', winRate: 49, gamesPlayed: 156, message: 'Just trying to get back to plat, no toxicity pls', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 6) }, expiresAt: null, inGameName: 'NightOwl#5555', avatar: dummyAvatar(0) },
-  { id: 'dummy_7', userId: 'dummy_user_7', username: 'AceSniper', game: 'valorant', currentRank: 'Immortal 2', peakRank: 'Radiant', mainRole: 'Duelist', mainAgent: 'Chamber', region: 'NA', lookingFor: 'Controller', winRate: 63, gamesPlayed: 890, message: 'Radiant peak, need a good smoke player for 5 stack', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 8) }, expiresAt: null, inGameName: 'AceSniper#GOAT', avatar: dummyAvatar(1) },
-  { id: 'dummy_8', userId: 'dummy_user_8', username: 'JungleGap', game: 'league', currentRank: 'Emerald II', peakRank: 'Diamond IV', mainRole: 'Jungle', mainAgent: 'LeeSin', region: 'NA', lookingFor: 'Mid', winRate: 56, gamesPlayed: 345, message: 'Aggressive early game jungler looking for roaming mid', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 10) }, expiresAt: null, inGameName: 'JungleGap#0001', avatar: dummyAvatar(2) },
-  { id: 'dummy_9', userId: 'dummy_user_9', username: 'PhoenixRise', game: 'valorant', currentRank: 'Silver 3', peakRank: 'Gold 2', mainRole: 'Duelist', mainAgent: 'Phoenix', region: 'NA', lookingFor: 'Any', winRate: 47, gamesPlayed: 98, message: 'New to comp but improving fast, just want someone to queue with', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 12) }, expiresAt: null, inGameName: 'PhoenixRise#1234', avatar: dummyAvatar(3) },
-  { id: 'dummy_10', userId: 'dummy_user_10', username: 'BotDiff', game: 'league', currentRank: 'Platinum I', peakRank: 'Emerald III', mainRole: 'Bot', mainAgent: 'Jinx', region: 'NA', lookingFor: 'Support', winRate: 53, gamesPlayed: 410, message: 'ADC looking for enchanter or engage supp', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 14) }, expiresAt: null, inGameName: 'BotDiff#NA1', avatar: dummyAvatar(4) },
-  { id: 'dummy_11', userId: 'dummy_user_11', username: 'SageMain', game: 'valorant', currentRank: 'Diamond 1', peakRank: 'Diamond 3', mainRole: 'Sentinel', mainAgent: 'Sage', region: 'NA', lookingFor: 'Duelist', winRate: 51, gamesPlayed: 267, message: '', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 16) }, expiresAt: null, inGameName: 'SageMain#HEAL', avatar: dummyAvatar(0) },
-  { id: 'dummy_12', userId: 'dummy_user_12', username: 'TopGapper', game: 'league', currentRank: 'Gold II', peakRank: 'Platinum IV', mainRole: 'Top', mainAgent: 'Darius', region: 'NA', lookingFor: 'Jungle', winRate: 50, gamesPlayed: 220, message: 'Top laner who needs jungle pressure to carry', createdAt: { toDate: () => new Date(Date.now() - 1000 * 60 * 60 * 20) }, expiresAt: null, inGameName: 'TopGapper#9999', avatar: dummyAvatar(1) },
-];
 
 export default function DuoFinderScreen() {
   const { user, isUserBlocked } = useAuth();
@@ -777,10 +753,8 @@ export default function DuoFinderScreen() {
         }
       });
 
-      // Append dummy posts for visual testing (remove when done)
-      const withDummies = [...filtered, ...DUMMY_DUO_POSTS];
       // Filter out blocked users
-      const withoutBlocked = withDummies.filter(post => !isUserBlocked(post.userId));
+      const withoutBlocked = filtered.filter(post => !isUserBlocked(post.userId));
       setDuoPosts(withoutBlocked);
       setDisplayedPosts(withoutBlocked.slice(0, POSTS_PER_PAGE));
     } catch (error) {
@@ -1003,7 +977,7 @@ export default function DuoFinderScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <ThemedText style={styles.headerTitle}>LFG</ThemedText>
+        <ThemedText style={styles.headerTitle}>Duo/Team Finder</ThemedText>
         <TouchableOpacity
           style={styles.infoButton}
           onPress={() => setShowInfoModal(true)}
@@ -1044,9 +1018,9 @@ export default function DuoFinderScreen() {
                     onPress={() => router.push('/partyPages/liveSearch')}
                   >
                     <LinearGradient
-                      colors={['rgba(30, 30, 60, 0.95)', 'rgba(20, 20, 45, 0.98)']}
+                      colors={['#1e1e22', '#161618']}
                       start={{ x: 0, y: 0 }}
-                      end={{ x: 0, y: 1 }}
+                      end={{ x: 1, y: 1 }}
                       style={StyleSheet.absoluteFill}
                     />
 
@@ -1082,7 +1056,7 @@ export default function DuoFinderScreen() {
                           onPress={() => router.push('/partyPages/liveSearch')}
                         >
                           <ThemedText style={styles.liveSearchBannerJoinText}>Join Queue</ThemedText>
-                          <IconSymbol size={14} name="arrow.right" color="#fff" />
+                          <IconSymbol size={14} name="chevron.right" color="#fff" />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -1531,7 +1505,7 @@ export default function DuoFinderScreen() {
             <View style={styles.infoModalPointer} />
             <View style={styles.infoModalHeader}>
               <IconSymbol size={18} name="info.circle.fill" color="#8B7FE8" />
-              <ThemedText style={styles.infoModalTitle}>How LFG Works</ThemedText>
+              <ThemedText style={styles.infoModalTitle}>How Duo/Team Finder Works</ThemedText>
             </View>
             <View style={styles.infoModalBody}>
               <ThemedText style={styles.infoModalText}>
@@ -1723,21 +1697,21 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   liveSearchBannerCard: {
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(100, 120, 255, 0.2)',
-    backgroundColor: 'rgba(20, 20, 45, 0.95)',
-    shadowColor: '#6478FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#161618',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.7,
+    shadowRadius: 30,
     elevation: 6,
   },
   liveSearchBannerContent: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 14,
   },
   liveSearchBannerTopRow: {
     flexDirection: 'row',
@@ -1758,25 +1732,27 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   liveSearchBannerGameIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(140, 150, 200, 0.3)',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   liveSearchBannerValorantImg: {
-    width: 18,
-    height: 18,
+    width: 20,
+    height: 20,
   },
   liveSearchBannerLeagueIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(140, 150, 200, 0.3)',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1791,35 +1767,32 @@ const styles = StyleSheet.create({
     marginLeft: -18,
   },
   liveSearchBannerTagline: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.9)',
+    letterSpacing: 1.5,
+    marginBottom: 2,
   },
   liveSearchBannerSubtext: {
-    fontSize: 12,
-    color: 'rgba(180, 180, 210, 0.65)',
-    marginTop: 2,
+    fontSize: 13,
+    color: '#888',
   },
   liveSearchBannerJoinBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: 'rgba(160, 140, 220, 0.5)',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 22,
+    gap: 5,
   },
   liveSearchBannerJoinText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#fff',
   },
   liveSearchBannerGlow: {
-    width: '100%',
-    height: 3,
+    position: 'absolute',
+    bottom: 0,
+    left: '20%',
+    right: '20%',
+    height: 1,
   },
   // Tabs
   tabsWrapper: {
