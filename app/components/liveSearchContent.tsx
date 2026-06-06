@@ -20,6 +20,10 @@ interface LiveSearchContentProps {
   valorantInGameName?: string;
   leagueInGameIcon?: string;
   leagueInGameName?: string;
+  valorantWinRate?: number;
+  valorantGamesPlayed?: number;
+  leagueWinRate?: number;
+  leagueGamesPlayed?: number;
   onMatchStateChange?: (state: 'idle' | 'searching' | 'accepting' | 'matched') => void;
 }
 
@@ -30,6 +34,10 @@ export default function LiveSearchContent({
   valorantInGameName,
   leagueInGameIcon,
   leagueInGameName,
+  valorantWinRate,
+  valorantGamesPlayed,
+  leagueWinRate,
+  leagueGamesPlayed,
   onMatchStateChange,
 }: LiveSearchContentProps) {
   const { user } = useAuth();
@@ -495,6 +503,12 @@ export default function LiveSearchContent({
             leagueInGameName={leagueInGameName}
             valorantInGameIcon={valorantInGameIcon}
             leagueInGameIcon={leagueInGameIcon}
+            username={user?.username}
+            avatar={user?.avatar}
+            valorantWinRate={valorantWinRate}
+            valorantGamesPlayed={valorantGamesPlayed}
+            leagueWinRate={leagueWinRate}
+            leagueGamesPlayed={leagueGamesPlayed}
           />
         )}
       </ScrollView>

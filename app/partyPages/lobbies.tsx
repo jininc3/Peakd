@@ -76,7 +76,7 @@ export default function LobbiesScreen() {
   const { user } = useAuth();
   const [leaderboards, setLeaderboards] = useState<any[]>(cachedLeaderboards || []);
   const [loading, setLoading] = useState(!cachedLeaderboards);
-  const [activeTab, setActiveTab] = useState<'all' | 'active'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'challenges'>('all');
   const skeletonStartTime = useRef<number>(Date.now());
   const isFirstLoad = useRef(!cachedLeaderboards);
 
@@ -262,11 +262,11 @@ export default function LobbiesScreen() {
   }, [router]);
 
   const filteredLeaderboards = useMemo(() => {
-    if (activeTab === 'active') return leaderboards.filter(lb => lb.challengeStatus !== 'completed');
+    if (activeTab === 'challenges') return leaderboards.filter(lb => lb.challengeStatus === 'active');
     return leaderboards; // 'all' shows everything
   }, [leaderboards, activeTab]);
 
-  const activeCount = useMemo(() => leaderboards.filter(lb => lb.challengeStatus !== 'completed').length, [leaderboards]);
+  const challengeCount = useMemo(() => leaderboards.filter(lb => lb.challengeStatus === 'active').length, [leaderboards]);
 
   return (
     <ThemedView style={styles.container}>
@@ -276,9 +276,9 @@ export default function LobbiesScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -295,16 +295,25 @@ export default function LobbiesScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <ThemedText style={styles.headerTitle}>Lobbies</ThemedText>
-          <ThemedText style={styles.headerSubtitle}>Active competitions with friends</ThemedText>
         </View>
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => router.push('/partyPages/createLeaderboardName')}
-          activeOpacity={0.7}
-        >
-          <IconSymbol size={14} name="plus" color="#8B7FE8" />
-          <ThemedText style={styles.createButtonText}>Create</ThemedText>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            style={styles.joinButton}
+            onPress={() => router.push('/partyPages/joinParty')}
+            activeOpacity={0.7}
+          >
+            <IconSymbol size={14} name="ticket" color="#fff" />
+            <ThemedText style={styles.joinButtonText}>Join</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.createButton}
+            onPress={() => router.push('/partyPages/createLeaderboardName')}
+            activeOpacity={0.7}
+          >
+            <IconSymbol size={14} name="plus" color="#D4B878" />
+            <ThemedText style={styles.createButtonText}>Create</ThemedText>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Tabs */}
@@ -312,11 +321,11 @@ export default function LobbiesScreen() {
         <TouchableOpacity style={[styles.tab, activeTab === 'all' && styles.tabActive]} onPress={() => setActiveTab('all')}>
           <ThemedText style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>All</ThemedText>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, activeTab === 'active' && styles.tabActive]} onPress={() => setActiveTab('active')}>
-          <ThemedText style={[styles.tabText, activeTab === 'active' && styles.tabTextActive]}>Active</ThemedText>
-          {activeCount > 0 && (
+        <TouchableOpacity style={[styles.tab, activeTab === 'challenges' && styles.tabActive]} onPress={() => setActiveTab('challenges')}>
+          <ThemedText style={[styles.tabText, activeTab === 'challenges' && styles.tabTextActive]}>Challenges</ThemedText>
+          {challengeCount > 0 && (
             <View style={styles.tabBadge}>
-              <ThemedText style={styles.tabBadgeText}>{activeCount}</ThemedText>
+              <ThemedText style={styles.tabBadgeText}>{challengeCount}</ThemedText>
             </View>
           )}
         </TouchableOpacity>
@@ -327,7 +336,7 @@ export default function LobbiesScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {loading ? (
-          <ActivityIndicator size="small" color="#8B7FE8" style={{ paddingVertical: 40 }} />
+          <ActivityIndicator size="small" color="#D4B878" style={{ paddingVertical: 40 }} />
         ) : filteredLeaderboards.length > 0 ? (
           <View style={styles.lobbyList}>
             {filteredLeaderboards.map((lobby) => {
@@ -468,6 +477,21 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
+  joinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  joinButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
   createButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -476,12 +500,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#8B7FE8',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   createButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#F0D6A2',
+    color: '#fff',
   },
   tabBar: {
     flexDirection: 'row',
@@ -500,7 +524,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabActive: {
-    borderBottomColor: '#8B7FE8',
+    borderBottomColor: '#D4B878',
   },
   tabText: {
     fontSize: 14,
@@ -508,10 +532,10 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   tabTextActive: {
-    color: '#F0D6A2',
+    color: '#fff',
   },
   tabBadge: {
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -552,7 +576,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    backgroundColor: 'rgba(212, 184, 120, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -564,6 +588,7 @@ const styles = StyleSheet.create({
   lobbyAvatars: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: 98,
   },
   lobbyAvatarWrapper: {
     width: 32,
@@ -581,7 +606,7 @@ const styles = StyleSheet.create({
   lobbyAvatarFallback: {
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(139, 127, 232, 0.2)',
+    backgroundColor: 'rgba(212, 184, 120, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -616,14 +641,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 5,
     borderWidth: 1,
-    borderColor: '#B4A7F5',
+    borderColor: '#D4B878',
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   lobbyTypeBadgeText: {
     fontSize: 8,
     fontWeight: '700',
-    color: '#B4A7F5',
+    color: '#D4B878',
     letterSpacing: 0.5,
   },
   lobbyMeta: {

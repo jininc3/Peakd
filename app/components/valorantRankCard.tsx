@@ -366,13 +366,15 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
       setCardPosition({ x, y, width });
       startY.setValue(y); // Set immediately for animation
 
+      const alreadyBack = stackShowBackRef.current;
+
       // Open modal and reset all state from previous dismiss
       setModalVisible(true);
-      setShowBack(false);
-      setIsFlipped(false);
+      setShowBack(alreadyBack);
+      setIsFlipped(alreadyBack);
       modalCardOpacity.setValue(1);
       dragY.setValue(0);
-      flipAnimation.setValue(0);
+      flipAnimation.setValue(alreadyBack ? 1 : 0);
       slideAnimation.setValue(0);
       matchHistoryAnimation.setValue(0);
       matchHistoryExpandAnimation.setValue(0);
@@ -387,61 +389,88 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
         getRankHistory(targetUserId, 'valorant').then(setRankHistory).catch(() => {});
       }
 
-      // Animation: wait for modal to render, hide stack card, then slide up
-      Animated.sequence([
-        // Wait for modal to render first
-        Animated.delay(50),
-        // Hide stack card (modal card is now covering it)
-        Animated.timing(stackCardOpacity, {
-          toValue: 0,
-          duration: 1,
-          useNativeDriver: false,
-        }),
-        // Brief pause for anticipation
-        Animated.delay(100),
-        // Blur/overlay fades in, card slides up, cards container expands, and flip all together
-        Animated.parallel([
-          Animated.timing(overlayOpacity, {
-            toValue: 1,
-            duration: 400,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.timing(slideAnimation, {
-            toValue: 1,
-            duration: 500,
-            easing: Easing.out(Easing.back(1.1)), // Slight overshoot for smooth feel
+      if (alreadyBack) {
+        // Card is already showing back — just slide up, no flip
+        Animated.sequence([
+          Animated.delay(50),
+          Animated.timing(stackCardOpacity, {
+            toValue: 0,
+            duration: 1,
             useNativeDriver: false,
           }),
-          Animated.timing(matchHistoryAnimation, {
-            toValue: 1,
-            duration: 500,
-            easing: Easing.out(Easing.back(1.05)), // Match the card slide timing
-            useNativeDriver: false,
-          }),
-          // Flip during slide-up — split into two halves to swap content at midpoint
-          Animated.sequence([
-            Animated.delay(150),
-            Animated.timing(flipAnimation, {
-              toValue: 0.5,
-              duration: 300,
-              easing: Easing.in(Easing.ease),
+          Animated.delay(100),
+          Animated.parallel([
+            Animated.timing(overlayOpacity, {
+              toValue: 1,
+              duration: 400,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(slideAnimation, {
+              toValue: 1,
+              duration: 500,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: false,
+            }),
+            Animated.timing(matchHistoryAnimation, {
+              toValue: 1,
+              duration: 500,
+              easing: Easing.out(Easing.cubic),
               useNativeDriver: false,
             }),
           ]),
-        ]),
-      ]).start(() => {
-        // At midpoint (scaleY=0), swap to back content then complete the flip
-        setShowBack(true);
-        Animated.timing(flipAnimation, {
-          toValue: 1,
-          duration: 300,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: false,
-        }).start();
-      });
+        ]).start();
+      } else {
+        // Card is showing front — slide up + flip
+        Animated.sequence([
+          Animated.delay(50),
+          Animated.timing(stackCardOpacity, {
+            toValue: 0,
+            duration: 1,
+            useNativeDriver: false,
+          }),
+          Animated.delay(100),
+          Animated.parallel([
+            Animated.timing(overlayOpacity, {
+              toValue: 1,
+              duration: 400,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(slideAnimation, {
+              toValue: 1,
+              duration: 500,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: false,
+            }),
+            Animated.timing(matchHistoryAnimation, {
+              toValue: 1,
+              duration: 500,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: false,
+            }),
+            Animated.sequence([
+              Animated.delay(150),
+              Animated.timing(flipAnimation, {
+                toValue: 0.5,
+                duration: 300,
+                easing: Easing.in(Easing.ease),
+                useNativeDriver: false,
+              }),
+            ]),
+          ]),
+        ]).start(() => {
+          setShowBack(true);
+          Animated.timing(flipAnimation, {
+            toValue: 1,
+            duration: 300,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: false,
+          }).start();
+        });
 
-      setIsFlipped(true);
+        setIsFlipped(true);
+      }
     });
   };
 
@@ -856,10 +885,10 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
     return VALORANT_AGENT_SMALL_ICONS[agentKey] || null;
   };
 
-  // Scale-based flip animation (more reliable than 3D rotation)
-  const scaleY = flipAnimation.interpolate({
+  // 3D flip animation with rotateY
+  const rotateY = flipAnimation.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [1, 0, 1],
+    outputRange: ['0deg', '90deg', '0deg'],
   });
 
   // Slide animation - moves card from its exact position to top
@@ -917,25 +946,26 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
     outputRange: [0, 0, 1],
   });
 
-  // Stack card flip animation
-  const stackScaleY = stackFlipAnim.interpolate({
+  // Stack card 3D flip animation
+  const stackRotateY = stackFlipAnim.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [1, 0, 1],
+    outputRange: ['0deg', '90deg', '0deg'],
   });
 
   const handleStackTap = () => {
     if (flipOnly) {
-      // Toggle flip only (profile page)
-      const toValue = stackShowBackRef.current ? 0 : 1;
-      Animated.timing(stackFlipAnim, {
-        toValue,
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start();
-      // Notify parent when flipping to back (reveal)
-      if (toValue === 1 && onFlip) {
-        onFlip();
+      if (stackShowBackRef.current) {
+        // Already showing back — open modal directly
+        handlePress();
+      } else {
+        // Flip to back
+        Animated.timing(stackFlipAnim, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }).start();
+        if (onFlip) onFlip();
       }
     } else {
       // Open modal directly (rankCards page)
@@ -944,11 +974,11 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
   };
 
   const animatedStyle = {
-    transform: [{ scaleY }],
+    transform: [{ perspective: 1000 }, { rotateY }],
   };
 
   const modalCardStyle = {
-    transform: [{ translateY: Animated.add(translateY, dragY) }, { scaleY }],
+    transform: [{ perspective: 1000 }, { translateY: Animated.add(translateY, dragY) }, { rotateY }],
   };
 
   // Render card content (shared between static card and modal card)
@@ -989,52 +1019,63 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
       {displayBack ? (
         /* Back content */
         <View style={styles.cardBackContent}>
-          {/* Header: Logo + VALORANT | username */}
+          {/* Subtle V geometric watermarks */}
+          <View style={styles.backVPattern} pointerEvents="none">
+            <View style={[styles.backVChevron, { top: 20, right: 40, borderColor: `rgba(${rgb}, 0.06)` }]} />
+            <View style={[styles.backVChevron, { top: 35, right: 55, borderColor: `rgba(${rgb}, 0.04)` }]} />
+            <View style={[styles.backDiamondAccent, { top: 60, right: 20, borderColor: `rgba(${rgb}, 0.12)` }]} />
+          </View>
+
+          {/* Large rank icon - positioned absolutely on the right */}
+          <Image source={getRankIcon(game.rank)} style={styles.backMainRankIcon} resizeMode="contain" />
+
+          {/* Header: Val logo + VALORANT */}
           <View style={styles.backHeader}>
             <View style={styles.backHeaderLeft}>
-              <View style={styles.backLogoBox}>
-                <Image source={require('@/assets/images/valorant-red.png')} style={styles.backLogoIcon} resizeMode="contain" />
-              </View>
-              <ThemedText style={styles.backGameTitle}>VALORANT</ThemedText>
+              <Image source={require('@/assets/images/valorant-red.png')} style={styles.backLogoIcon} resizeMode="contain" />
+              <View style={styles.backHeaderDivider} />
+              <Image source={require('@/assets/images/valoranttextclean.png')} style={styles.backGameTitleImg} resizeMode="contain" />
             </View>
-            <ThemedText style={styles.backHeaderUsername}>{username}</ThemedText>
-          </View>
-
-          {/* Current Rank - centered */}
-          <View style={styles.backCurrentRank}>
-            <Image source={getRankIcon(game.rank)} style={styles.backCurrentRankIcon} resizeMode="contain" />
-            <View>
-              <ThemedText style={[styles.backCurrentRankLabel, { color: tierColor }]}>CURRENT RANK</ThemedText>
-              <ThemedText style={styles.backCurrentRankValue}>{formatRankDisplay(game.rank || 'Unranked')}</ThemedText>
+            <View style={styles.backDotsRow}>
+              <View style={[styles.backDot, { backgroundColor: `rgba(${rgb}, 0.5)` }]} />
+              <View style={[styles.backDotSmall, { backgroundColor: `rgba(${rgb}, 0.3)` }]} />
+              <View style={[styles.backDotSmall, { backgroundColor: `rgba(${rgb}, 0.2)` }]} />
             </View>
           </View>
 
-          {/* Peak Rank + Win Rate row */}
+          {/* Username with underline only spanning the text */}
+          <View style={styles.backUsernameWrapper}>
+            <ThemedText style={styles.backUsername}>{username}</ThemedText>
+            <View style={[styles.backGoldDivider, { backgroundColor: `rgba(${rgb}, 0.25)` }]} />
+          </View>
+
+          {/* Rank text - left side only */}
+          <View style={styles.backMainRank}>
+            <ThemedText style={styles.backRankTitle} numberOfLines={1} adjustsFontSizeToFit>
+              {formatRankDisplay(game.rank || 'Unranked').toUpperCase()}
+            </ThemedText>
+            <ThemedText style={styles.backCompetitiveLabel}>COMPETITIVE RANK</ThemedText>
+          </View>
+
+          {/* Bottom: stat boxes left, episode label right */}
           <View style={styles.backBottomRow}>
-            <View style={styles.backStatItem}>
-              <Image source={getRankIcon(game.peakRank?.tier || 'Unranked')} style={styles.backPeakIcon} resizeMode="contain" />
-              <View>
-                <ThemedText style={styles.backStatValue}>{formatRankDisplay(game.peakRank?.tier || 'N/A')}</ThemedText>
-                <ThemedText style={[styles.backStatLabel, { color: tierColor }]}>PEAK RANK</ThemedText>
+            <View style={styles.backStatBoxes}>
+              <View style={[styles.backStatBox, styles.backStatBoxPeak]}>
+                <Image source={getRankIcon(game.peakRank?.tier || 'Unranked')} style={styles.backStatBoxIcon} resizeMode="contain" />
+                <View style={styles.backStatBoxText}>
+                  <ThemedText style={styles.backStatBoxLabel}>PEAK RANK</ThemedText>
+                  <ThemedText style={styles.backStatBoxValue} numberOfLines={1}>{formatRankDisplay(game.peakRank?.tier || 'N/A').toUpperCase()}</ThemedText>
+                </View>
               </View>
-            </View>
-
-            <View style={styles.backStatDivider} />
-
-            <View style={styles.backStatItem}>
-              <View>
-                <ThemedText style={styles.backStatValue}>{game.winRate}%</ThemedText>
-                <ThemedText style={[styles.backStatLabel, { color: tierColor }]}>WIN RATE</ThemedText>
+              <View style={[styles.backStatBox, styles.backStatBoxWinRate]}>
+                <View style={styles.backStatBoxText}>
+                  <ThemedText style={styles.backStatBoxLabel}>WIN RATE</ThemedText>
+                  <ThemedText style={styles.backStatBoxValueLarge}>{game.winRate}%</ThemedText>
+                </View>
               </View>
             </View>
           </View>
 
-          {/* View More - only on stack card */}
-          {!isModal && (
-            <TouchableOpacity style={styles.viewMoreButton} onPress={handlePress} activeOpacity={0.7}>
-              <ThemedText style={styles.viewMoreText}>view stats  →</ThemedText>
-            </TouchableOpacity>
-          )}
         </View>
       ) : (
         /* Front content */
@@ -1127,7 +1168,7 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
   return (
     <>
       <Animated.View style={{ opacity: stackCardOpacity }}>
-        <Animated.View style={{ transform: [{ scaleY: stackScaleY }] }}>
+        <Animated.View style={{ transform: [{ perspective: 1000 }, { rotateY: stackRotateY }] }}>
           <TouchableOpacity
             ref={cardRef as any}
             style={styles.cardOuter}
@@ -1137,13 +1178,15 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
           >
             <LinearGradient
               colors={[
+                `rgba(${rgb}, 0.95)`,
+                'rgba(255, 255, 255, 0.45)',
+                `rgba(${rgb}, 0.25)`,
+                'rgba(255, 255, 255, 0.15)',
+                `rgba(${rgb}, 0.7)`,
+                'rgba(255, 255, 255, 0.35)',
                 `rgba(${rgb}, 0.9)`,
-                `rgba(${rgb}, 0.3)`,
-                `rgba(${rgb}, 0.6)`,
-                `rgba(${rgb}, 0.2)`,
-                `rgba(${rgb}, 0.8)`,
               ]}
-              locations={[0, 0.25, 0.5, 0.75, 1]}
+              locations={[0, 0.15, 0.35, 0.5, 0.7, 0.85, 1]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.rankCard}
@@ -1198,13 +1241,15 @@ export default function ValorantRankCard({ game, username, viewOnly = false, use
           >
             <LinearGradient
               colors={[
+                `rgba(${rgb}, 0.95)`,
+                'rgba(255, 255, 255, 0.45)',
+                `rgba(${rgb}, 0.25)`,
+                'rgba(255, 255, 255, 0.15)',
+                `rgba(${rgb}, 0.7)`,
+                'rgba(255, 255, 255, 0.35)',
                 `rgba(${rgb}, 0.9)`,
-                `rgba(${rgb}, 0.3)`,
-                `rgba(${rgb}, 0.6)`,
-                `rgba(${rgb}, 0.2)`,
-                `rgba(${rgb}, 0.8)`,
               ]}
-              locations={[0, 0.25, 0.5, 0.75, 1]}
+              locations={[0, 0.15, 0.35, 0.5, 0.7, 0.85, 1]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.rankCard}
@@ -1492,7 +1537,7 @@ const styles = StyleSheet.create({
   rankCard: {
     borderRadius: 16,
     height: 220,
-    padding: 1.5,
+    padding: 2,
     overflow: 'hidden',
   },
   rankCardInner: {
@@ -1685,107 +1730,174 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 84, 102, 0.7)',
   },
   // Back of card styles
-  cardBackContent: { flex: 1, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, overflow: 'hidden' },
-  backWatermark: {
+  cardBackContent: { flex: 1, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 14, overflow: 'hidden' },
+  backVPattern: {
     position: 'absolute',
-    width: 150,
-    height: 150,
-    left: '50%',
-    top: '50%',
-    marginLeft: -75,
-    marginTop: -75,
-    opacity: 0.07,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  backVChevron: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderTopWidth: 1.5,
+    borderRightWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.04)',
+    transform: [{ rotate: '45deg' }],
+  },
+  backDiamondAccent: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    transform: [{ rotate: '45deg' }],
   },
   backHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    marginBottom: 6,
+    zIndex: 1,
   },
   backHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  backLogoBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 7,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  backHeaderDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   backLogoIcon: {
-    width: 17,
-    height: 17,
+    width: 16,
+    height: 16,
   },
-  backGameTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 0.3,
+  backGameTitleImg: {
+    height: 18,
+    width: 100,
+    marginLeft: -4,
+    tintColor: '#fff',
   },
-  backHeaderUsername: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.45)',
-  },
-  backCurrentRank: {
+  backDotsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    gap: 10,
+    gap: 4,
   },
-  backCurrentRankIcon: {
-    width: 68,
-    height: 68,
+  backDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
-  backCurrentRankLabel: {
-    fontSize: 8,
+  backDotSmall: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+  },
+  backUsernameWrapper: {
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+    zIndex: 1,
+  },
+  backUsername: {
+    fontSize: 14,
     fontWeight: '700',
-    letterSpacing: 2,
-    marginBottom: 2,
+    color: '#fff',
   },
-  backCurrentRankValue: {
+  backGoldDivider: {
+    height: 1,
+    marginTop: 3,
+  },
+  backMainRank: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '55%',
+    zIndex: 1,
+  },
+  backRankTitle: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#fff',
     letterSpacing: -0.5,
+    color: '#fff',
+  },
+  backCompetitiveLabel: {
+    fontSize: 7,
+    fontWeight: '600',
+    color: '#C9B67E',
+    letterSpacing: 2.5,
+    marginTop: -1,
+  },
+  backMainRankIcon: {
+    position: 'absolute',
+    right: 42,
+    top: '50%',
+    marginTop: -52,
+    width: 105,
+    height: 105,
+    zIndex: 0,
   },
   backBottomRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 2,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: 'auto',
+    zIndex: 1,
   },
-  backStatItem: {
-    flex: 1,
+  backStatBoxes: {
+    flexDirection: 'row',
+    gap: 6,
+    width: '66%',
+  },
+  backStatBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 182, 126, 0.25)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 0,
+    height: 38,
+    overflow: 'hidden',
   },
-  backStatDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  backStatBoxPeak: {
+    flex: 1,
   },
-  backPeakIcon: {
-    width: 26,
-    height: 26,
+  backStatBoxWinRate: {
+    flex: 0,
+    paddingHorizontal: 8,
+    alignItems: 'center',
   },
-  backStatValue: {
+  backStatBoxText: {
+  },
+  backStatBoxIcon: {
+    width: 30,
+    height: 30,
+  },
+  backStatBoxLabel: {
+    fontSize: 7,
+    fontWeight: '600',
+    color: '#C9B67E',
+    letterSpacing: 1.2,
+    lineHeight: 9,
+  },
+  backStatBoxValue: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.3,
+    lineHeight: 14,
+  },
+  backStatBoxValueLarge: {
     fontSize: 14,
     fontWeight: '800',
     color: '#fff',
-  },
-  backStatLabel: {
-    fontSize: 7,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginTop: -1,
+    lineHeight: 17,
   },
   viewMoreButton: {
     alignSelf: 'flex-end',

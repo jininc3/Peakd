@@ -86,17 +86,14 @@ export default function JoinPartyScreen() {
           {
             text: 'OK',
             onPress: () => {
-              // Navigate to the party detail page
-              router.push({
+              // Replace joinParty screen so back goes to lobbies
+              router.replace({
                 pathname: '/partyPages/leaderboardDetail',
                 params: {
+                  id: partyDoc.id,
                   name: partyData.partyName,
-                  partyId: partyData.partyId,
                   game: partyData.game,
                   members: ((partyData.members?.length || 0) + 1).toString(),
-                  startDate: partyData.startDate,
-                  endDate: partyData.endDate,
-                  players: JSON.stringify([]),
                 },
               });
             },

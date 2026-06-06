@@ -429,7 +429,7 @@ export default function ChatScreen() {
             </View>
             <ThemedText style={styles.gameUsernameText}>{gu.inGameName}</ThemedText>
             <View style={styles.gameUsernameCopyRow}>
-              <IconSymbol size={12} name="doc.on.doc" color="#8B7FE8" />
+              <IconSymbol size={12} name="doc.on.doc" color="#D4B878" />
               <ThemedText style={styles.gameUsernameCopyText}>Tap to copy</ThemedText>
             </View>
           </TouchableOpacity>
@@ -705,13 +705,13 @@ const styles = StyleSheet.create({
   },
   gameUsernameCardSent: {
     alignSelf: 'flex-end',
-    backgroundColor: 'rgba(139, 127, 232, 0.1)',
-    borderColor: 'rgba(139, 127, 232, 0.25)',
+    backgroundColor: 'rgba(212, 184, 120, 0.1)',
+    borderColor: 'rgba(212, 184, 120, 0.25)',
   },
   gameUsernameCardReceived: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(139, 127, 232, 0.1)',
-    borderColor: 'rgba(139, 127, 232, 0.25)',
+    backgroundColor: 'rgba(212, 184, 120, 0.1)',
+    borderColor: 'rgba(212, 184, 120, 0.25)',
   },
   gameUsernameHeader: {
     flexDirection: 'row',

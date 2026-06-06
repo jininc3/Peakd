@@ -21,7 +21,7 @@ export default function CreateLeaderboardGame() {
     if (!selectedGame) return;
     const game = GAMES.find(g => g.id === selectedGame)!;
     router.push({
-      pathname: '/partyPages/createLeaderboardCover',
+      pathname: '/partyPages/createLeaderboardSettings',
       params: { ...params, gameId: game.id, gameName: game.name },
     });
   };
@@ -43,12 +43,12 @@ export default function CreateLeaderboardGame() {
           <IconSymbol size={22} name="chevron.left" color="#fff" />
         </TouchableOpacity>
         <View style={styles.progress}>
-          <View style={[styles.progressFill, { width: '40%' }]} />
+          <View style={[styles.progressFill, { width: '50%' }]} />
         </View>
       </View>
 
       <View style={styles.content}>
-        <ThemedText style={styles.step}>Step 2 of 5</ThemedText>
+        <ThemedText style={styles.step}>Step 2 of 4</ThemedText>
         <ThemedText style={styles.title}>Pick a game</ThemedText>
 
         <View style={styles.gameList}>

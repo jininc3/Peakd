@@ -4,7 +4,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from '@/hooks/useRouter';
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, View, TextInput, Image, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, TextInput, Image, KeyboardAvoidingView, Platform, ScrollView, Keyboard, Modal, Pressable } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 const DEFAULT_LOBBY_ICONS = [
@@ -24,6 +24,7 @@ export default function CreateLeaderboardName() {
     return DEFAULT_LOBBY_ICONS[idx].id;
   });
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [avatarModalVisible, setAvatarModalVisible] = useState(false);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
@@ -82,16 +83,16 @@ export default function CreateLeaderboardName() {
             <IconSymbol size={22} name="chevron.left" color="#fff" />
           </TouchableOpacity>
           <View style={styles.progress}>
-            <View style={[styles.progressFill, { width: '20%' }]} />
+            <View style={[styles.progressFill, { width: '25%' }]} />
           </View>
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <ThemedText style={styles.step}>Step 1 of 5</ThemedText>
+          <ThemedText style={styles.step}>Step 1 of 4</ThemedText>
           <ThemedText style={styles.title}>Name your{'\n'}leaderboard</ThemedText>
 
-          {/* Main icon display */}
-          <View style={styles.iconPicker}>
+          {/* Main icon display – tap to open avatar picker modal */}
+          <TouchableOpacity style={styles.iconPicker} onPress={() => setAvatarModalVisible(true)} activeOpacity={0.8}>
             {displaySource ? (
               <Image source={displaySource} style={styles.iconImage} />
             ) : (
@@ -99,41 +100,56 @@ export default function CreateLeaderboardName() {
                 <IconSymbol size={28} name="trophy.fill" color="#555" />
               </View>
             )}
-          </View>
+            <View style={styles.editBadge}>
+              <IconSymbol size={10} name="pencil" color="#fff" />
+            </View>
+          </TouchableOpacity>
 
-          {/* Default icon choices + custom upload */}
-          <View style={styles.iconSelectionRow}>
-            {DEFAULT_LOBBY_ICONS.map((icon) => (
-              <TouchableOpacity
-                key={icon.id}
-                style={[
-                  styles.iconOption,
-                  !customIconUri && selectedDefaultIcon === icon.id && styles.iconOptionSelected,
-                ]}
-                onPress={() => {
-                  setSelectedDefaultIcon(icon.id);
-                  setCustomIconUri(null);
-                }}
-                activeOpacity={0.7}
-              >
-                <Image source={icon.source} style={styles.iconOptionImage} />
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={[
-                styles.iconOption,
-                customIconUri && styles.iconOptionSelected,
-              ]}
-              onPress={pickIcon}
-              activeOpacity={0.7}
-            >
-              {customIconUri ? (
-                <Image source={{ uri: customIconUri }} style={styles.iconOptionImage} />
-              ) : (
-                <IconSymbol size={18} name="camera.fill" color="#555" />
-              )}
-            </TouchableOpacity>
-          </View>
+          {/* Avatar picker modal */}
+          <Modal
+            visible={avatarModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setAvatarModalVisible(false)}
+          >
+            <Pressable style={styles.modalOverlay} onPress={() => setAvatarModalVisible(false)}>
+              <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+                <ThemedText style={styles.modalTitle}>Choose an avatar</ThemedText>
+
+                <View style={styles.modalIconGrid}>
+                  {DEFAULT_LOBBY_ICONS.map((icon) => (
+                    <TouchableOpacity
+                      key={icon.id}
+                      style={[
+                        styles.modalIconOption,
+                        !customIconUri && selectedDefaultIcon === icon.id && styles.modalIconOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setSelectedDefaultIcon(icon.id);
+                        setCustomIconUri(null);
+                        setAvatarModalVisible(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Image source={icon.source} style={styles.modalIconImage} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.uploadButton}
+                  onPress={async () => {
+                    setAvatarModalVisible(false);
+                    await pickIcon();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <IconSymbol size={16} name="camera.fill" color="#fff" />
+                  <ThemedText style={styles.uploadButtonText}>Upload your own</ThemedText>
+                </TouchableOpacity>
+              </Pressable>
+            </Pressable>
+          </Modal>
 
           <View style={styles.inputContainer}>
             <TextInput
@@ -183,7 +199,7 @@ const styles = StyleSheet.create({
   contentInner: { paddingTop: 16, paddingBottom: 20 },
   step: { fontSize: 13, color: '#555', marginBottom: 8 },
   title: { fontSize: 28, fontWeight: '800', color: '#fff', lineHeight: 36, marginBottom: 24 },
-  iconPicker: { alignSelf: 'center', marginBottom: 12 },
+  iconPicker: { alignSelf: 'center', marginBottom: 24, position: 'relative' },
   iconImage: { width: 80, height: 80, borderRadius: 16 },
   iconPlaceholder: {
     width: 80, height: 80, borderRadius: 16,
@@ -191,30 +207,57 @@ const styles = StyleSheet.create({
     borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },
-  iconSelectionRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-    marginBottom: 24,
+  editBadge: {
+    position: 'absolute', bottom: -4, right: -4,
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: '#D4B878',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#0f0f0f',
   },
-  iconOption: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 20,
+    padding: 24,
+    width: '80%',
+    alignItems: 'center',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  modalTitle: {
+    fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 20,
+  },
+  modalIconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
+    gap: 12,
+    marginBottom: 20,
   },
-  iconOptionSelected: {
-    borderColor: '#8B7FE8',
+  modalIconOption: {
+    width: 56, height: 56, borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 2, borderColor: 'transparent',
   },
-  iconOptionImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 10,
+  modalIconOptionSelected: {
+    borderColor: '#D4B878',
+  },
+  modalIconImage: {
+    width: '100%', height: '100%', borderRadius: 12,
+  },
+  uploadButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20,
+    width: '100%', justifyContent: 'center',
+  },
+  uploadButtonText: {
+    fontSize: 14, fontWeight: '600', color: '#fff',
   },
   inputContainer: { marginTop: 8 },
   input: {

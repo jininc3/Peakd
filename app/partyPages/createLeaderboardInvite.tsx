@@ -7,7 +7,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/config/firebase';
 import { collection, getDocs, doc, getDoc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { uploadPartyIcon, uploadPartyCoverPhoto } from '@/services/storageService';
+import { uploadPartyIcon } from '@/services/storageService';
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, View, TextInput, Image, ScrollView, Alert, ActivityIndicator } from 'react-native';
 
@@ -131,15 +131,6 @@ export default function CreateLeaderboardInvite() {
         } catch (e) { console.error('Icon upload error:', e); }
       }
 
-      // Upload cover
-      const coverUri = params.coverUri as string;
-      if (coverUri) {
-        try {
-          const url = await uploadPartyCoverPhoto(partyId, coverUri);
-          await updateDoc(docRef, { coverPhoto: url });
-        } catch (e) { console.error('Cover upload error:', e); }
-      }
-
       // Send notifications
       for (const invite of pendingInvites) {
         try {
@@ -205,7 +196,7 @@ export default function CreateLeaderboardInvite() {
       </View>
 
       <View style={styles.header}>
-        <ThemedText style={styles.step}>Step 5 of 5</ThemedText>
+        <ThemedText style={styles.step}>Step 4 of 4</ThemedText>
         <ThemedText style={styles.title}>Invite members</ThemedText>
         <ThemedText style={styles.subtitle}>Select friends to invite to your leaderboard.</ThemedText>
 

@@ -831,9 +831,9 @@ export default function NotificationsScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}

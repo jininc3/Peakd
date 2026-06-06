@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
   },
   challengeText: {
     fontSize: 11,

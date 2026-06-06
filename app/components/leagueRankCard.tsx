@@ -214,13 +214,15 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
       setCardPosition({ x, y, width });
       startY.setValue(y);
 
+      const alreadyBack = stackShowBackRef.current;
+
       // Open modal and reset all state from previous dismiss
       setModalVisible(true);
-      setShowBack(false);
-      setIsFlipped(false);
+      setShowBack(alreadyBack);
+      setIsFlipped(alreadyBack);
       modalCardOpacity.setValue(1);
       dragY.setValue(0);
-      flipAnimation.setValue(0);
+      flipAnimation.setValue(alreadyBack ? 1 : 0);
       slideAnimation.setValue(0);
       matchHistoryAnimation.setValue(0);
       matchHistoryExpandAnimation.setValue(0);
@@ -235,61 +237,88 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
         getRankHistory(targetUserId, 'league').then(setRankHistory).catch(() => {});
       }
 
-      // Animation: wait for modal to render, hide stack card, then slide up
-      Animated.sequence([
-        // Wait for modal to render first
-        Animated.delay(50),
-        // Hide stack card (modal card is now covering it)
-        Animated.timing(stackCardOpacity, {
-          toValue: 0,
-          duration: 1,
-          useNativeDriver: false,
-        }),
-        // Brief pause for anticipation
-        Animated.delay(100),
-        // Blur/overlay fades in, card slides up, cards container expands, and flip all together
-        Animated.parallel([
-          Animated.timing(overlayOpacity, {
-            toValue: 1,
-            duration: 400,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.timing(slideAnimation, {
-            toValue: 1,
-            duration: 500,
-            easing: Easing.out(Easing.back(1.1)),
+      if (alreadyBack) {
+        // Card is already showing back — just slide up, no flip
+        Animated.sequence([
+          Animated.delay(50),
+          Animated.timing(stackCardOpacity, {
+            toValue: 0,
+            duration: 1,
             useNativeDriver: false,
           }),
-          Animated.timing(matchHistoryAnimation, {
-            toValue: 1,
-            duration: 500,
-            easing: Easing.out(Easing.back(1.05)),
-            useNativeDriver: false,
-          }),
-          // Flip during slide-up — split into two halves to swap content at midpoint
-          Animated.sequence([
-            Animated.delay(150),
-            Animated.timing(flipAnimation, {
-              toValue: 0.5,
-              duration: 300,
-              easing: Easing.in(Easing.ease),
+          Animated.delay(100),
+          Animated.parallel([
+            Animated.timing(overlayOpacity, {
+              toValue: 1,
+              duration: 400,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(slideAnimation, {
+              toValue: 1,
+              duration: 500,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: false,
+            }),
+            Animated.timing(matchHistoryAnimation, {
+              toValue: 1,
+              duration: 500,
+              easing: Easing.out(Easing.cubic),
               useNativeDriver: false,
             }),
           ]),
-        ]),
-      ]).start(() => {
-        // At midpoint (scaleY=0), swap to back content then complete the flip
-        setShowBack(true);
-        Animated.timing(flipAnimation, {
-          toValue: 1,
-          duration: 300,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: false,
-        }).start();
-      });
+        ]).start();
+      } else {
+        // Card is showing front — slide up + flip
+        Animated.sequence([
+          Animated.delay(50),
+          Animated.timing(stackCardOpacity, {
+            toValue: 0,
+            duration: 1,
+            useNativeDriver: false,
+          }),
+          Animated.delay(100),
+          Animated.parallel([
+            Animated.timing(overlayOpacity, {
+              toValue: 1,
+              duration: 400,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(slideAnimation, {
+              toValue: 1,
+              duration: 500,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: false,
+            }),
+            Animated.timing(matchHistoryAnimation, {
+              toValue: 1,
+              duration: 500,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: false,
+            }),
+            Animated.sequence([
+              Animated.delay(150),
+              Animated.timing(flipAnimation, {
+                toValue: 0.5,
+                duration: 300,
+                easing: Easing.in(Easing.ease),
+                useNativeDriver: false,
+              }),
+            ]),
+          ]),
+        ]).start(() => {
+          setShowBack(true);
+          Animated.timing(flipAnimation, {
+            toValue: 1,
+            duration: 300,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: false,
+          }).start();
+        });
 
-      setIsFlipped(true);
+        setIsFlipped(true);
+      }
     });
   };
 
@@ -654,10 +683,10 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
     return LEAGUE_RANK_ICONS[tier] || LEAGUE_RANK_ICONS.unranked;
   };
 
-  // Scale-based flip animation
-  const scaleY = flipAnimation.interpolate({
+  // 3D flip animation with rotateY
+  const rotateY = flipAnimation.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [1, 0, 1],
+    outputRange: ['0deg', '90deg', '0deg'],
   });
 
   // Slide animation
@@ -671,25 +700,26 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
     Animated.multiply(slideAnimation, 80)
   );
 
-  // Stack card flip animation
-  const stackScaleY = stackFlipAnim.interpolate({
+  // Stack card 3D flip animation
+  const stackRotateY = stackFlipAnim.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [1, 0, 1],
+    outputRange: ['0deg', '90deg', '0deg'],
   });
 
   const handleStackTap = () => {
     if (flipOnly) {
-      // Toggle flip only (profile page)
-      const toValue = stackShowBackRef.current ? 0 : 1;
-      Animated.timing(stackFlipAnim, {
-        toValue,
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start();
-      // Notify parent when flipping to back (reveal)
-      if (toValue === 1 && onFlip) {
-        onFlip();
+      if (stackShowBackRef.current) {
+        // Already showing back — open modal directly
+        handlePress();
+      } else {
+        // Flip to back
+        Animated.timing(stackFlipAnim, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }).start();
+        if (onFlip) onFlip();
       }
     } else {
       // Open modal directly (rankCards page)
@@ -698,11 +728,11 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
   };
 
   const animatedStyle = {
-    transform: [{ scaleY }],
+    transform: [{ perspective: 1000 }, { rotateY }],
   };
 
   const modalCardStyle = {
-    transform: [{ translateY: Animated.add(translateY, dragY) }, { scaleY }],
+    transform: [{ perspective: 1000 }, { translateY: Animated.add(translateY, dragY) }, { rotateY }],
   };
 
   // Statistics card animations
@@ -762,52 +792,62 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
 
       {displayBack ? (
         <View style={styles.cardBackContent}>
-          {/* Header: Logo + LEAGUE | username */}
+          {/* Subtle geometric watermarks */}
+          <View style={styles.backVPattern} pointerEvents="none">
+            <View style={[styles.backVChevron, { top: 20, right: 40, borderColor: `rgba(${rgb}, 0.06)` }]} />
+            <View style={[styles.backVChevron, { top: 35, right: 55, borderColor: `rgba(${rgb}, 0.04)` }]} />
+            <View style={[styles.backDiamondAccent, { top: 60, right: 20, borderColor: `rgba(${rgb}, 0.12)` }]} />
+          </View>
+
+          {/* Large rank icon - positioned absolutely on the right */}
+          <Image source={getRankIcon(game.rank)} style={styles.backMainRankIcon} resizeMode="contain" />
+
+          {/* Header: Logo + LEAGUE */}
           <View style={styles.backHeader}>
             <View style={styles.backHeaderLeft}>
-              <View style={styles.backLogoBox}>
-                <Image source={require('@/assets/images/lol.png')} style={styles.backLogoIcon} resizeMode="contain" />
-              </View>
+              <Image source={require('@/assets/images/lol.png')} style={styles.backLogoIcon} resizeMode="contain" />
+              <View style={styles.backHeaderDivider} />
               <ThemedText style={styles.backGameTitle}>LEAGUE</ThemedText>
             </View>
-            <ThemedText style={styles.backHeaderUsername}>{username}</ThemedText>
-          </View>
-
-          {/* Current Rank - centered */}
-          <View style={styles.backCurrentRank}>
-            <Image source={getRankIcon(game.rank)} style={styles.backCurrentRankIcon} resizeMode="contain" />
-            <View>
-              <ThemedText style={[styles.backCurrentRankLabel, { color: tierColor }]}>SOLO / DUO</ThemedText>
-              <ThemedText style={styles.backCurrentRankValue}>{formatRankDisplay(game.rank || 'Unranked')}</ThemedText>
+            <View style={styles.backDotsRow}>
+              <View style={[styles.backDot, { backgroundColor: `rgba(${rgb}, 0.5)` }]} />
+              <View style={[styles.backDotSmall, { backgroundColor: `rgba(${rgb}, 0.3)` }]} />
+              <View style={[styles.backDotSmall, { backgroundColor: `rgba(${rgb}, 0.2)` }]} />
             </View>
           </View>
 
-          {/* Peak Rank + Win Rate row */}
+          {/* Username with underline */}
+          <View style={styles.backUsernameWrapper}>
+            <ThemedText style={styles.backUsername}>{username}</ThemedText>
+            <View style={[styles.backGoldDivider, { backgroundColor: `rgba(${rgb}, 0.25)` }]} />
+          </View>
+
+          {/* Rank text - left side only */}
+          <View style={styles.backMainRank}>
+            <ThemedText style={styles.backRankTitle} numberOfLines={1} adjustsFontSizeToFit>
+              {formatRankDisplay(game.rank || 'Unranked').toUpperCase()}
+            </ThemedText>
+            <ThemedText style={styles.backCompetitiveLabel}>SOLO / DUO</ThemedText>
+          </View>
+
+          {/* Bottom: stat boxes */}
           <View style={styles.backBottomRow}>
-            <View style={styles.backStatItem}>
-              <Image source={getRankIcon(game.peakRank?.tier || 'Unranked')} style={styles.backPeakIcon} resizeMode="contain" />
-              <View>
-                <ThemedText style={styles.backStatValue}>{formatRankDisplay(game.peakRank?.tier || 'N/A')}</ThemedText>
-                <ThemedText style={[styles.backStatLabel, { color: tierColor }]}>PEAK RANK</ThemedText>
+            <View style={styles.backStatBoxes}>
+              <View style={[styles.backStatBox, styles.backStatBoxPeak]}>
+                <Image source={getRankIcon(game.peakRank?.tier || 'Unranked')} style={styles.backStatBoxIcon} resizeMode="contain" />
+                <View style={styles.backStatBoxText}>
+                  <ThemedText style={styles.backStatBoxLabel}>PEAK RANK</ThemedText>
+                  <ThemedText style={styles.backStatBoxValue} numberOfLines={1}>{formatRankDisplay(game.peakRank?.tier || 'N/A').toUpperCase()}</ThemedText>
+                </View>
               </View>
-            </View>
-
-            <View style={styles.backStatDivider} />
-
-            <View style={styles.backStatItem}>
-              <View>
-                <ThemedText style={styles.backStatValue}>{game.winRate}%</ThemedText>
-                <ThemedText style={[styles.backStatLabel, { color: tierColor }]}>WIN RATE</ThemedText>
+              <View style={[styles.backStatBox, styles.backStatBoxWinRate]}>
+                <View style={styles.backStatBoxText}>
+                  <ThemedText style={styles.backStatBoxLabel}>WIN RATE</ThemedText>
+                  <ThemedText style={styles.backStatBoxValueLarge}>{game.winRate}%</ThemedText>
+                </View>
               </View>
             </View>
           </View>
-
-          {/* View More - only on stack card */}
-          {!isModal && (
-            <TouchableOpacity style={styles.viewMoreButton} onPress={handlePress} activeOpacity={0.7}>
-              <ThemedText style={styles.viewMoreText}>view stats  →</ThemedText>
-            </TouchableOpacity>
-          )}
         </View>
       ) : (
         <View style={styles.cardFront}>
@@ -891,7 +931,7 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
   return (
     <>
       <Animated.View style={{ opacity: stackCardOpacity }}>
-        <Animated.View style={{ transform: [{ scaleY: stackScaleY }] }}>
+        <Animated.View style={{ transform: [{ perspective: 1000 }, { rotateY: stackRotateY }] }}>
           <TouchableOpacity
             ref={cardRef as any}
             style={styles.cardOuter}
@@ -901,13 +941,15 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
           >
             <LinearGradient
               colors={[
+                `rgba(${rgb}, 0.95)`,
+                'rgba(255, 255, 255, 0.45)',
+                `rgba(${rgb}, 0.25)`,
+                'rgba(255, 255, 255, 0.15)',
+                `rgba(${rgb}, 0.7)`,
+                'rgba(255, 255, 255, 0.35)',
                 `rgba(${rgb}, 0.9)`,
-                `rgba(${rgb}, 0.3)`,
-                `rgba(${rgb}, 0.6)`,
-                `rgba(${rgb}, 0.2)`,
-                `rgba(${rgb}, 0.8)`,
               ]}
-              locations={[0, 0.25, 0.5, 0.75, 1]}
+              locations={[0, 0.15, 0.35, 0.5, 0.7, 0.85, 1]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.rankCard}
@@ -940,13 +982,15 @@ export default function LeagueRankCard({ game, username, viewOnly = false, userI
           <TouchableOpacity onPress={handleCardFlip} activeOpacity={0.95}>
             <LinearGradient
               colors={[
+                `rgba(${rgb}, 0.95)`,
+                'rgba(255, 255, 255, 0.45)',
+                `rgba(${rgb}, 0.25)`,
+                'rgba(255, 255, 255, 0.15)',
+                `rgba(${rgb}, 0.7)`,
+                'rgba(255, 255, 255, 0.35)',
                 `rgba(${rgb}, 0.9)`,
-                `rgba(${rgb}, 0.3)`,
-                `rgba(${rgb}, 0.6)`,
-                `rgba(${rgb}, 0.2)`,
-                `rgba(${rgb}, 0.8)`,
               ]}
-              locations={[0, 0.25, 0.5, 0.75, 1]}
+              locations={[0, 0.15, 0.35, 0.5, 0.7, 0.85, 1]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.rankCard}
@@ -1069,7 +1113,7 @@ const styles = StyleSheet.create({
   shadow3: { position: 'absolute', top: 10, left: -10, right: 14, bottom: -10, backgroundColor: '#000', borderRadius: 18, opacity: 0.2 },
   shadow2: { position: 'absolute', top: 6, left: -6, right: 10, bottom: -6, backgroundColor: '#000', borderRadius: 17, opacity: 0.25 },
   shadow1: { position: 'absolute', top: 3, left: -3, right: 5, bottom: -3, backgroundColor: '#000', borderRadius: 16, opacity: 0.3 },
-  rankCard: { borderRadius: 16, height: 220, padding: 1.5, overflow: 'hidden' },
+  rankCard: { borderRadius: 16, height: 220, padding: 2, overflow: 'hidden' },
   rankCardInner: { flex: 1, borderRadius: 14.5, overflow: 'hidden' },
   cardBackground: { flex: 1, borderRadius: 12, overflow: 'hidden' },
   staticShimmer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 5 },
@@ -1089,119 +1133,174 @@ const styles = StyleSheet.create({
   crossLineGold: { position: 'absolute', width: 1, height: 300, backgroundColor: 'rgba(201, 168, 76, 0.04)', transform: [{ rotate: '45deg' }] },
   crossLineReverse: { position: 'absolute', width: 1, height: 300, backgroundColor: 'rgba(30, 100, 200, 0.06)', transform: [{ rotate: '-45deg' }] },
   crossLineReverseGold: { position: 'absolute', width: 1, height: 300, backgroundColor: 'rgba(201, 168, 76, 0.04)', transform: [{ rotate: '-45deg' }] },
-  cardBackContent: { flex: 1, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, overflow: 'hidden' },
-  backWatermark: {
+  cardBackContent: { flex: 1, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 14, overflow: 'hidden' },
+  backVPattern: {
     position: 'absolute',
-    width: 150,
-    height: 150,
-    left: '50%',
-    top: '50%',
-    marginLeft: -75,
-    marginTop: -75,
-    opacity: 0.07,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  backVChevron: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderTopWidth: 1.5,
+    borderRightWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.04)',
+    transform: [{ rotate: '45deg' }],
+  },
+  backDiamondAccent: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    transform: [{ rotate: '45deg' }],
   },
   backHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    marginBottom: 6,
+    zIndex: 1,
   },
   backHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  backLogoBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 7,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  backHeaderDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   backLogoIcon: {
-    width: 17,
-    height: 17,
+    width: 20,
+    height: 20,
   },
   backGameTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 0.3,
-  },
-  backHeaderUsername: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.45)',
-  },
-  backCurrentRank: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    gap: 10,
-  },
-  backCurrentRankIcon: {
-    width: 68,
-    height: 68,
-  },
-  backCurrentRankLabel: {
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 2,
-    marginBottom: 2,
-  },
-  backCurrentRankValue: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: -0.5,
-  },
-  backBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 2,
-  },
-  backStatItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  backStatDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  backPeakIcon: {
-    width: 26,
-    height: 26,
-  },
-  backStatValue: {
     fontSize: 14,
     fontWeight: '800',
     color: '#fff',
+    letterSpacing: 1.5,
   },
-  backStatLabel: {
-    fontSize: 7,
+  backDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  backDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  backDotSmall: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+  },
+  backUsernameWrapper: {
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+    zIndex: 1,
+  },
+  backUsername: {
+    fontSize: 14,
     fontWeight: '700',
-    letterSpacing: 1.2,
+    color: '#fff',
+  },
+  backGoldDivider: {
+    height: 1,
+    marginTop: 3,
+  },
+  backMainRank: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '55%',
+    zIndex: 1,
+  },
+  backRankTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    color: '#fff',
+  },
+  backCompetitiveLabel: {
+    fontSize: 7,
+    fontWeight: '600',
+    color: '#C9B67E',
+    letterSpacing: 2.5,
     marginTop: -1,
   },
-  viewMoreButton: {
-    alignSelf: 'flex-end',
-    paddingVertical: 3,
-    paddingHorizontal: 10,
-    marginTop: 4,
+  backMainRankIcon: {
+    position: 'absolute',
+    right: 10,
+    top: '50%',
+    marginTop: -70,
+    width: 140,
+    height: 140,
+    zIndex: 0,
   },
-  viewMoreText: {
+  backBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: 'auto',
+    zIndex: 1,
+  },
+  backStatBoxes: {
+    flexDirection: 'row',
+    gap: 6,
+    width: '66%',
+  },
+  backStatBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 182, 126, 0.25)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 0,
+    height: 38,
+    overflow: 'hidden',
+  },
+  backStatBoxPeak: {
+    flex: 1,
+  },
+  backStatBoxWinRate: {
+    flex: 0,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  backStatBoxText: {
+  },
+  backStatBoxIcon: {
+    width: 30,
+    height: 30,
+  },
+  backStatBoxLabel: {
+    fontSize: 7,
+    fontWeight: '600',
+    color: '#C9B67E',
+    letterSpacing: 1.2,
+    lineHeight: 9,
+  },
+  backStatBoxValue: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#B39DDB',
+    fontWeight: '800',
+    color: '#fff',
     letterSpacing: 0.3,
+    lineHeight: 14,
+  },
+  backStatBoxValueLarge: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+    lineHeight: 17,
   },
   modalOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 1 },
   overlayBackground: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },

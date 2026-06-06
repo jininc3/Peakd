@@ -52,12 +52,12 @@ export default function CreateLeaderboardSettings() {
           <IconSymbol size={22} name="chevron.left" color="#fff" />
         </TouchableOpacity>
         <View style={styles.progress}>
-          <View style={[styles.progressFill, { width: '80%' }]} />
+          <View style={[styles.progressFill, { width: '75%' }]} />
         </View>
       </View>
 
       <View style={styles.content}>
-        <ThemedText style={styles.step}>Step 4 of 5</ThemedText>
+        <ThemedText style={styles.step}>Step 3 of 4</ThemedText>
         <ThemedText style={styles.title}>Settings</ThemedText>
 
         {/* Invite Code */}

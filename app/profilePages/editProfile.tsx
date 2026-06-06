@@ -430,7 +430,7 @@ export default function EditProfileScreen() {
       <View style={styles.backgroundGlow} pointerEvents="none">
         <View style={styles.shimmerBand} pointerEvents="none">
           <LinearGradient
-            colors={['transparent', 'rgba(139, 127, 232, 0.03)', 'rgba(139, 127, 232, 0.06)', 'rgba(139, 127, 232, 0.03)', 'transparent']}
+            colors={['transparent', 'rgba(212, 184, 120, 0.03)', 'rgba(212, 184, 120, 0.06)', 'rgba(212, 184, 120, 0.03)', 'transparent']}
             locations={[0, 0.37, 0.5, 0.63, 1]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
@@ -439,7 +439,7 @@ export default function EditProfileScreen() {
         </View>
         <View style={styles.shimmerBandSecondary} pointerEvents="none">
           <LinearGradient
-            colors={['transparent', 'rgba(139, 127, 232, 0.035)', 'transparent']}
+            colors={['transparent', 'rgba(212, 184, 120, 0.035)', 'transparent']}
             locations={[0, 0.5, 1]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}

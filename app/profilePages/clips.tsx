@@ -251,9 +251,9 @@ export default function ClipsPage() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -266,7 +266,7 @@ export default function ClipsPage() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.035)',
+              'rgba(212, 184, 120, 0.035)',
               'transparent',
             ]}
             locations={[0, 0.5, 1]}
@@ -565,10 +565,10 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#8b7fe8',
+    backgroundColor: '#D4B878',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8b7fe8',
+    shadowColor: '#D4B878',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 10,
@@ -593,8 +593,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.1)',
   },
   categoryPillActive: {
-    backgroundColor: 'rgba(139, 127, 232, 0.15)',
-    borderColor: 'rgba(139, 127, 232, 0.3)',
+    backgroundColor: 'rgba(212, 184, 120, 0.15)',
+    borderColor: 'rgba(212, 184, 120, 0.3)',
   },
   categoryPillText: {
     fontSize: 13,

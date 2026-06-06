@@ -1020,7 +1020,7 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   gameTag: {
-    backgroundColor: '#B4A7F5',
+    backgroundColor: '#D4B878',
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,

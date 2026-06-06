@@ -948,9 +948,9 @@ export default function DuoFinderScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -964,7 +964,7 @@ export default function DuoFinderScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.035)',
+              'rgba(212, 184, 120, 0.035)',
               'transparent',
             ]}
             locations={[0, 0.5, 1]}
@@ -1047,7 +1047,7 @@ export default function DuoFinderScreen() {
                         <View style={styles.liveSearchBannerTextCol}>
                           <ThemedText style={styles.liveSearchBannerTagline}>FIND YOUR TEAMMATE</ThemedText>
                           <ThemedText style={styles.liveSearchBannerSubtext}>
-                            Live Search, Duo Finder & more
+                            Find teammates queuing right now
                           </ThemedText>
                         </View>
                         <TouchableOpacity
@@ -1094,14 +1094,14 @@ export default function DuoFinderScreen() {
                       onPress={() => setShowMyCards(true)}
                       activeOpacity={0.7}
                     >
-                      <IconSymbol size={18} name="square.stack.3d.up" color="#8B7FE8" />
+                      <IconSymbol size={18} name="square.stack.3d.up" color="#D4B878" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.advancedFiltersTab, activeFilterCount > 0 && styles.advancedFiltersTabActive]}
                       onPress={() => setShowFilterModal(true)}
                       activeOpacity={0.7}
                     >
-                      <IconSymbol size={16} name="slider.horizontal.3" color={activeFilterCount > 0 ? '#8B7FE8' : '#fff'} />
+                      <IconSymbol size={16} name="slider.horizontal.3" color={activeFilterCount > 0 ? '#D4B878' : '#fff'} />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.tabsDivider} />
@@ -1191,9 +1191,9 @@ export default function DuoFinderScreen() {
               <LinearGradient
                 colors={[
                   'transparent',
-                  'rgba(139, 127, 232, 0.03)',
-                  'rgba(139, 127, 232, 0.06)',
-                  'rgba(139, 127, 232, 0.03)',
+                  'rgba(212, 184, 120, 0.03)',
+                  'rgba(212, 184, 120, 0.06)',
+                  'rgba(212, 184, 120, 0.03)',
                   'transparent',
                 ]}
                 locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -1206,7 +1206,7 @@ export default function DuoFinderScreen() {
               <LinearGradient
                 colors={[
                   'transparent',
-                  'rgba(139, 127, 232, 0.035)',
+                  'rgba(212, 184, 120, 0.035)',
                   'transparent',
                 ]}
                 locations={[0, 0.5, 1]}
@@ -1504,7 +1504,7 @@ export default function DuoFinderScreen() {
           <Pressable style={styles.infoModalBubble} onPress={(e) => e.stopPropagation()}>
             <View style={styles.infoModalPointer} />
             <View style={styles.infoModalHeader}>
-              <IconSymbol size={18} name="info.circle.fill" color="#8B7FE8" />
+              <IconSymbol size={18} name="info.circle.fill" color="#D4B878" />
               <ThemedText style={styles.infoModalTitle}>How Duo/Team Finder Works</ThemedText>
             </View>
             <View style={styles.infoModalBody}>
@@ -1616,7 +1616,7 @@ const styles = StyleSheet.create({
   },
   infoModalClose: {
     alignSelf: 'flex-end',
-    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    backgroundColor: 'rgba(212, 184, 120, 0.15)',
     borderRadius: 10,
     paddingHorizontal: 18,
     paddingVertical: 8,
@@ -1664,7 +1664,7 @@ const styles = StyleSheet.create({
     left: 0,
     width: '50%',
     height: 2,
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
     borderRadius: 1,
   },
   headerTabText: {
@@ -1681,10 +1681,10 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 14,
-    backgroundColor: 'rgba(139, 127, 232, 0.12)',
+    backgroundColor: 'rgba(212, 184, 120, 0.12)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.2)',
+    borderColor: 'rgba(212, 184, 120, 0.2)',
   },
   myCardsButtonText: {
     fontSize: 14,
@@ -1811,7 +1811,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingBottom: 8,
     borderBottomWidth: 3,
-    borderBottomColor: '#8B7FE8',
+    borderBottomColor: '#D4B878',
   },
   tabButtonText: {
     fontSize: 16,
@@ -1871,15 +1871,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 32,
     height: 32,
-    backgroundColor: 'rgba(139, 127, 232, 0.12)',
+    backgroundColor: 'rgba(212, 184, 120, 0.12)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.2)',
+    borderColor: 'rgba(212, 184, 120, 0.2)',
     marginBottom: 8,
   },
   advancedFiltersTabActive: {
-    backgroundColor: 'rgba(139, 127, 232, 0.12)',
-    borderColor: 'rgba(139, 127, 232, 0.2)',
+    backgroundColor: 'rgba(212, 184, 120, 0.12)',
+    borderColor: 'rgba(212, 184, 120, 0.2)',
   },
   advancedFiltersText: {
     fontSize: 13,
@@ -1930,7 +1930,7 @@ const styles = StyleSheet.create({
     right: -1,
     bottom: -1,
     borderRadius: 17,
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
     opacity: 0.25,
   },
   liveSearchBanner: {
@@ -1940,13 +1940,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f0f14',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.4)',
-    borderTopColor: 'rgba(139, 127, 232, 0.55)',
+    borderColor: 'rgba(212, 184, 120, 0.4)',
+    borderTopColor: 'rgba(212, 184, 120, 0.55)',
     paddingVertical: 18,
     paddingHorizontal: 20,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#8B7FE8',
+    shadowColor: '#D4B878',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -2010,7 +2010,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#000',
     borderWidth: 1.5,
-    borderColor: 'rgba(139, 127, 232, 0.5)',
+    borderColor: 'rgba(212, 184, 120, 0.5)',
   },
   joinQueueText: {
     fontSize: 13,

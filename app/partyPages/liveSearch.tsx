@@ -30,6 +30,10 @@ export default function LiveSearchScreen() {
   const [valorantInGameName, setValorantInGameName] = useState<string | undefined>(undefined);
   const [leagueInGameIcon, setLeagueInGameIcon] = useState<string | undefined>(undefined);
   const [leagueInGameName, setLeagueInGameName] = useState<string | undefined>(undefined);
+  const [valorantWinRate, setValorantWinRate] = useState<number>(0);
+  const [valorantGamesPlayed, setValorantGamesPlayed] = useState<number>(0);
+  const [leagueWinRate, setLeagueWinRate] = useState<number>(0);
+  const [leagueGamesPlayed, setLeagueGamesPlayed] = useState<number>(0);
 
   // Load duo cards
   useEffect(() => {
@@ -50,11 +54,23 @@ export default function LiveSearchScreen() {
             const tagLine = userData.valorantAccount?.tag || userData.valorantAccount?.tagLine || '';
             setValorantInGameName(tagLine ? `${userData.valorantStats.gameName}#${tagLine}` : userData.valorantStats.gameName);
           }
+          if (userData.valorantStats?.winRate !== undefined) {
+            setValorantWinRate(userData.valorantStats.winRate);
+          }
+          if (userData.valorantStats?.gamesPlayed !== undefined) {
+            setValorantGamesPlayed(userData.valorantStats.gamesPlayed);
+          }
           if (userData.riotStats?.profileIconId) {
             setLeagueInGameIcon(`https://ddragon.leagueoflegends.com/cdn/14.1.1/img/profileicon/${userData.riotStats.profileIconId}.png`);
           }
           if (userData.riotAccount?.gameName) {
             setLeagueInGameName(`${userData.riotAccount.gameName}#${userData.riotAccount.tagLine || ''}`);
+          }
+          if (userData.riotStats?.winRate !== undefined) {
+            setLeagueWinRate(userData.riotStats.winRate);
+          }
+          if (userData.riotStats?.gamesPlayed !== undefined) {
+            setLeagueGamesPlayed(userData.riotStats.gamesPlayed);
           }
         }
 
@@ -87,9 +103,9 @@ export default function LiveSearchScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -102,7 +118,7 @@ export default function LiveSearchScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.035)',
+              'rgba(212, 184, 120, 0.035)',
               'transparent',
             ]}
             locations={[0, 0.5, 1]}
@@ -130,6 +146,10 @@ export default function LiveSearchScreen() {
         valorantInGameName={valorantInGameName}
         leagueInGameIcon={leagueInGameIcon}
         leagueInGameName={leagueInGameName}
+        valorantWinRate={valorantWinRate}
+        valorantGamesPlayed={valorantGamesPlayed}
+        leagueWinRate={leagueWinRate}
+        leagueGamesPlayed={leagueGamesPlayed}
         onMatchStateChange={handleMatchStateChange}
       />
     </ThemedView>
@@ -173,9 +193,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(139, 127, 232, 0.12)',
+    backgroundColor: 'rgba(212, 184, 120, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.2)',
+    borderColor: 'rgba(212, 184, 120, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },

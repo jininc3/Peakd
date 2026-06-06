@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     height: '60%',
     borderTopWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.15)',
+    borderColor: 'rgba(212, 184, 120, 0.15)',
   },
   handle: {
     width: 36, height: 4, borderRadius: 2,
@@ -390,8 +390,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   chipSelected: {
-    backgroundColor: 'rgba(139, 127, 232, 0.12)',
-    borderColor: 'rgba(139, 127, 232, 0.4)',
+    backgroundColor: 'rgba(212, 184, 120, 0.12)',
+    borderColor: 'rgba(212, 184, 120, 0.4)',
   },
   chipText: {
     fontSize: 13,
@@ -434,8 +434,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   rankChipSelected: {
-    backgroundColor: 'rgba(139, 127, 232, 0.12)',
-    borderColor: 'rgba(139, 127, 232, 0.4)',
+    backgroundColor: 'rgba(212, 184, 120, 0.12)',
+    borderColor: 'rgba(212, 184, 120, 0.4)',
   },
   rankChipText: {
     fontSize: 13,

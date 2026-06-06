@@ -122,7 +122,7 @@ export default function DuoSearchingAnimation({ game, onCancel, currentRank, mai
     <View style={styles.container}>
       <View style={styles.card}>
         <LinearGradient
-          colors={['rgba(74, 222, 128, 0.08)', 'rgba(139, 127, 232, 0.04)', 'transparent']}
+          colors={['rgba(74, 222, 128, 0.08)', 'rgba(212, 184, 120, 0.04)', 'transparent']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}

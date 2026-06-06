@@ -346,7 +346,7 @@ export default function SharePostModal({
               >
                 {loading ? (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#8B7FE8" />
+                    <ActivityIndicator size="small" color="#D4B878" />
                   </View>
                 ) : filteredUsers.length === 0 ? (
                   <View style={styles.emptyContainer}>
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
   },
   userAvatarSelected: {
     borderWidth: 2,
-    borderColor: '#8B7FE8',
+    borderColor: '#D4B878',
   },
   userAvatarImage: {
     width: 64,
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
     borderRadius: 10,
     width: 20,
     height: 20,
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   sendButton: {
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionIconContainerActive: {
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
   },
   actionLabel: {
     fontSize: 11,

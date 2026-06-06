@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/config/firebase';
 import { getUserProfile, signOut as authSignOut } from '@/services/authService';
@@ -10,6 +10,11 @@ import { getReportedPostIds } from '@/services/reportService';
 import { Image } from 'react-native';
 import { registerForPushNotificationsAsync } from '@/services/notificationService';
 import { clearLeagueStatsCache } from '@/services/riotService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const FEED_CACHE_KEY = 'cached_feed_posts';
+const FEED_FOLLOWING_CACHE_KEY = 'cached_following_ids';
+const USER_PROFILE_CACHE_KEY = 'cached_user_profile';
 
 interface User {
   id: string;
@@ -93,6 +98,8 @@ interface AuthContextType {
   removeBlockedUser: (userId: string) => void;
   isPostReported: (postId: string) => boolean;
   addReportedPost: (postId: string) => void;
+  waitingForFeed: boolean;
+  markFeedReady: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -111,19 +118,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
   const [blockedByUserIds, setBlockedByUserIds] = useState<Set<string>>(new Set());
   const [reportedPostIds, setReportedPostIds] = useState<Set<string>>(new Set());
+  const [waitingForFeed, setWaitingForFeed] = useState(false);
   // Immediately transition to home screen (skeleton shimmer shows there)
   const setLoadingFalse = () => {
     setIsLoading(false);
   };
+  const markFeedReady = useCallback(() => {
+    setWaitingForFeed(false);
+  }, []);
 
   // Preload feed posts while loading screen is shown
-  const preloadFeed = async (userId: string, blocked?: Set<string>, blockedBy?: Set<string>) => {
+  const preloadFeed = async (userId: string, blocked?: Set<string>, blockedBy?: Set<string>, prefetchedFollowingIds?: string[]) => {
     try {
       const POSTS_PER_PAGE = 8;
 
-      // Get following users
-      const followingData = await getFollowing(userId);
-      let userIds = followingData.map(follow => follow.followingId);
+
+      // Use pre-fetched following IDs or fetch them
+      let userIds: string[];
+      if (prefetchedFollowingIds && prefetchedFollowingIds.length > 0) {
+        userIds = [...prefetchedFollowingIds];
+      } else {
+        const followingData = await getFollowing(userId);
+        userIds = followingData.map(follow => follow.followingId);
+      }
 
       // Remove current user and blocked users from the list
       userIds = userIds.filter(id => id !== userId);
@@ -146,25 +163,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         batches.push(userIds.slice(i, i + batchSize));
       }
 
-      let allBatchPosts: any[] = [];
+      // Fetch posts from all batches in parallel
+      const batchResults = await Promise.all(
+        batches.map(batch => {
+          const q = query(
+            collection(db, 'posts'),
+            where('userId', 'in', batch),
+            orderBy('createdAt', 'desc'),
+            limit(POSTS_PER_PAGE * 2)
+          );
+          return getDocs(q);
+        })
+      );
 
-      // Fetch posts from each batch
-      for (const batch of batches) {
-        const q = query(
-          collection(db, 'posts'),
-          where('userId', 'in', batch),
-          orderBy('createdAt', 'desc'),
-          limit(POSTS_PER_PAGE * 2)
-        );
-
-        const snapshot = await getDocs(q);
-        const batchPosts = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Post));
-
-        allBatchPosts = [...allBatchPosts, ...batchPosts];
-      }
+      const allBatchPosts = batchResults.flatMap(snapshot =>
+        snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post))
+      );
 
       // Sort all posts by date
       allBatchPosts.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
@@ -172,54 +186,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Take only what we need (8 posts)
       const postsToShow = allBatchPosts.slice(0, POSTS_PER_PAGE);
 
-      // Enrich posts with user avatar and rank data (so home screen doesn't need to)
-      const uniquePostUserIds = [...new Set(postsToShow.map((p: Post) => p.userId))];
-      const userDataMap = new Map<string, any>();
-      const userBatchSize = 10;
-      for (let i = 0; i < uniquePostUserIds.length; i += userBatchSize) {
-        const batch = uniquePostUserIds.slice(i, i + userBatchSize);
-        try {
-          const userQuery = query(
-            collection(db, 'users'),
-            where('__name__', 'in', batch)
-          );
-          const userSnapshot = await getDocs(userQuery);
-          userSnapshot.docs.forEach(doc => {
-            userDataMap.set(doc.id, doc.data());
-          });
-        } catch (error) {
-          console.error('Error batch fetching users for enrichment:', error);
+      // Helper to enrich posts with user data
+      const enrichPosts = async (posts: Post[]) => {
+        const uniqueIds = [...new Set(posts.map((p: Post) => p.userId))];
+        const dataMap = new Map<string, any>();
+        const batchSz = 10;
+        const uBatches: string[][] = [];
+        for (let i = 0; i < uniqueIds.length; i += batchSz) {
+          uBatches.push(uniqueIds.slice(i, i + batchSz));
         }
+        const results = await Promise.all(
+          uBatches.map(batch =>
+            getDocs(query(collection(db, 'users'), where('__name__', 'in', batch)))
+              .catch(error => { console.error('Error batch fetching users for enrichment:', error); return null; })
+          )
+        );
+        results.forEach(snapshot => {
+          snapshot?.docs.forEach(doc => {
+            dataMap.set(doc.id, doc.data());
+          });
+        });
+        return posts.map((post: Post) => {
+          const userData = dataMap.get(post.userId);
+          if (userData) {
+            let leagueRank = undefined;
+            let valorantRank = undefined;
+            if (userData.riotStats?.rankedSolo) {
+              leagueRank = `${userData.riotStats.rankedSolo.tier} ${userData.riotStats.rankedSolo.rank}`;
+            }
+            if (userData.valorantStats?.currentRank) {
+              valorantRank = userData.valorantStats.currentRank;
+            }
+            return {
+              ...post,
+              avatar: userData.avatar || post.avatar || null,
+              leagueRank,
+              valorantRank,
+              showRankOnPosts: userData.showRankOnPosts ?? false,
+            };
+          }
+          return post;
+        });
+      };
+
+      // Phase 1: Enrich and emit the first 2 posts immediately
+      const INITIAL_COUNT = 2;
+      const firstBatch = postsToShow.slice(0, INITIAL_COUNT);
+      const restBatch = postsToShow.slice(INITIAL_COUNT);
+
+      const enrichedFirst = await enrichPosts(firstBatch);
+      setPreloadedPosts(enrichedFirst);
+      console.log(`⚡ First ${enrichedFirst.length} posts ready`);
+
+      // Phase 2: Enrich the rest and merge
+      if (restBatch.length > 0) {
+        const enrichedRest = await enrichPosts(restBatch);
+        const allEnriched = [...enrichedFirst, ...enrichedRest];
+        setPreloadedPosts(allEnriched);
+        console.log(`✅ All ${allEnriched.length} posts ready`);
+
+        // Cache full set to AsyncStorage
+        try {
+          const cacheable = allEnriched.map((p: Post) => ({
+            ...p,
+            createdAt: { seconds: p.createdAt.seconds, nanoseconds: p.createdAt.nanoseconds },
+          }));
+          AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify(cacheable)).catch(() => {});
+          AsyncStorage.setItem(FEED_FOLLOWING_CACHE_KEY, JSON.stringify(userIds)).catch(() => {});
+        } catch {}
+      } else {
+        // Cache what we have
+        try {
+          const cacheable = enrichedFirst.map((p: Post) => ({
+            ...p,
+            createdAt: { seconds: p.createdAt.seconds, nanoseconds: p.createdAt.nanoseconds },
+          }));
+          AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify(cacheable)).catch(() => {});
+          AsyncStorage.setItem(FEED_FOLLOWING_CACHE_KEY, JSON.stringify(userIds)).catch(() => {});
+        } catch {}
       }
 
-      const enrichedPosts = postsToShow.map((post: Post) => {
-        const userData = userDataMap.get(post.userId);
-        if (userData) {
-          let leagueRank = undefined;
-          let valorantRank = undefined;
-          if (userData.riotStats?.rankedSolo) {
-            leagueRank = `${userData.riotStats.rankedSolo.tier} ${userData.riotStats.rankedSolo.rank}`;
-          }
-          if (userData.valorantStats?.currentRank) {
-            valorantRank = userData.valorantStats.currentRank;
-          }
-          return {
-            ...post,
-            avatar: userData.avatar || post.avatar || null,
-            leagueRank,
-            valorantRank,
-            showRankOnPosts: userData.showRankOnPosts ?? false,
-          };
-        }
-        return post;
-      });
-
-      setPreloadedPosts(enrichedPosts);
-      console.log(`✅ Preloaded ${enrichedPosts.length} posts (enriched)`);
 
       // Prefetch feed images for instant rendering
       const imageUrls: string[] = [];
-      enrichedPosts.forEach((post: Post) => {
+      postsToShow.forEach((post: Post) => {
         if (post.avatar) {
           imageUrls.push(post.avatar);
         }
@@ -365,12 +415,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // User is signed in, get their profile
+        // User is signed in — try cached profile + feed first for instant render
         try {
+          // Phase 1: Load ALL caches in parallel (profile + feed + following)
+          const [cachedProfileJson, cachedPostsJson, cachedFollowingJson] = await Promise.all([
+            AsyncStorage.getItem(USER_PROFILE_CACHE_KEY).catch(() => null),
+            AsyncStorage.getItem(FEED_CACHE_KEY).catch(() => null),
+            AsyncStorage.getItem(FEED_FOLLOWING_CACHE_KEY).catch(() => null),
+          ]);
+
+          let usedCache = false;
+          if (cachedProfileJson) {
+            try {
+              const cachedProfile = JSON.parse(cachedProfileJson);
+              // Only use cache if it belongs to the same user
+              if (cachedProfile.id === firebaseUser.uid && !cachedProfile.needsUsernameSetup) {
+                setUser(cachedProfile);
+                setWaitingForFeed(true);
+
+                if (cachedPostsJson) {
+                  const cachedPosts = JSON.parse(cachedPostsJson).map((p: any) => ({
+                    ...p,
+                    createdAt: new Timestamp(p.createdAt.seconds, p.createdAt.nanoseconds),
+                  }));
+                  setPreloadedPosts(cachedPosts);
+                  if (cachedFollowingJson) {
+                    setPreloadedFollowingIds(JSON.parse(cachedFollowingJson));
+                  }
+                  console.log(`⚡ Instant load: ${cachedPosts.length} cached posts`);
+                }
+                // Show home screen NOW with cached data
+                setLoadingFalse();
+                usedCache = true;
+              }
+            } catch {}
+          }
+
+          // Phase 2: Fetch fresh profile from network (always, to stay up to date)
           const userProfile = await getUserProfile(firebaseUser.uid);
 
           if (userProfile) {
-            setUser({
+            const freshUser: User = {
               id: userProfile.id,
               username: userProfile.username,
               email: userProfile.email,
@@ -387,29 +472,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               isPrivate: userProfile.isPrivate || false,
               provider: userProfile.provider,
               interests: (userProfile as any).interests || [],
-            });
+            };
+            setUser(freshUser);
 
-            // Preload feed before showing home page; others run in background
+            // Cache fresh profile for next launch
+            AsyncStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify(freshUser)).catch(() => {});
+
             if (!userProfile.needsUsernameSetup) {
-              // Load block lists and reported posts before feed so they are filtered
-              let blocked = new Set<string>();
-              let blockedBy = new Set<string>();
-              try {
-                const [blockedData, blockedByData, reportedIds] = await Promise.all([
-                  getBlockedUsers(userProfile.id),
-                  getBlockedByUserIds(userProfile.id),
-                  getReportedPostIds(userProfile.id),
-                ]);
-                blocked = new Set(blockedData.map(b => b.blockedUserId));
-                blockedBy = new Set(blockedByData);
-                setBlockedUserIds(blocked);
-                setBlockedByUserIds(blockedBy);
-                setReportedPostIds(new Set(reportedIds));
-              } catch (e) {
-                console.log('Block/report lists not available yet, continuing without filtering');
+              setWaitingForFeed(true);
+              // If we didn't use cache, try loading feed cache now before network fetch
+              if (!usedCache) {
+                if (cachedPostsJson) {
+                  try {
+                    const cachedPosts = JSON.parse(cachedPostsJson).map((p: any) => ({
+                      ...p,
+                      createdAt: new Timestamp(p.createdAt.seconds, p.createdAt.nanoseconds),
+                    }));
+                    setPreloadedPosts(cachedPosts);
+                    if (cachedFollowingJson) {
+                      setPreloadedFollowingIds(JSON.parse(cachedFollowingJson));
+                    }
+                    setLoadingFalse();
+                    usedCache = true;
+                  } catch {}
+                }
               }
 
-              await preloadFeed(userProfile.id, blocked, blockedBy);
+              // Fetch fresh feed data in background
+              (async () => {
+                let blocked = new Set<string>();
+                let blockedBy = new Set<string>();
+                let followingIds: string[] = [];
+                try {
+                  const [blockedData, blockedByData, reportedIds, followingData] = await Promise.all([
+                    getBlockedUsers(userProfile.id),
+                    getBlockedByUserIds(userProfile.id),
+                    getReportedPostIds(userProfile.id),
+                    getFollowing(userProfile.id),
+                  ]);
+                  blocked = new Set(blockedData.map(b => b.blockedUserId));
+                  blockedBy = new Set(blockedByData);
+                  setBlockedUserIds(blocked);
+                  setBlockedByUserIds(blockedBy);
+                  setReportedPostIds(new Set(reportedIds));
+                  followingIds = followingData.map(f => f.followingId);
+                } catch (e) {
+                  console.log('Block/report/following lists not available yet, continuing without filtering');
+                }
+
+                await preloadFeed(userProfile.id, blocked, blockedBy, followingIds);
+              })();
+
               // Don't block home page for search/profile data
               preloadSearchHistory(userProfile.id).catch(() => {});
               preloadProfileData(userProfile.id, userProfile).catch(() => {});
@@ -449,26 +562,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               interests: [],
             });
 
-            // Preload feed before showing home page; others run in background
+            // Load cached feed and show home screen immediately
             if (!isGoogleUser && !isAppleUser) {
-              let blocked = new Set<string>();
-              let blockedBy = new Set<string>();
+              setWaitingForFeed(true);
               try {
-                const [blockedData, blockedByData, reportedIds] = await Promise.all([
-                  getBlockedUsers(firebaseUser.uid),
-                  getBlockedByUserIds(firebaseUser.uid),
-                  getReportedPostIds(firebaseUser.uid),
+                const [cachedPostsJson, cachedFollowingJson] = await Promise.all([
+                  AsyncStorage.getItem(FEED_CACHE_KEY),
+                  AsyncStorage.getItem(FEED_FOLLOWING_CACHE_KEY),
                 ]);
-                blocked = new Set(blockedData.map(b => b.blockedUserId));
-                blockedBy = new Set(blockedByData);
-                setBlockedUserIds(blocked);
-                setBlockedByUserIds(blockedBy);
-                setReportedPostIds(new Set(reportedIds));
-              } catch (e) {
-                console.log('Block/report lists not available yet, continuing without filtering');
-              }
+                if (cachedPostsJson) {
+                  const cachedPosts = JSON.parse(cachedPostsJson).map((p: any) => ({
+                    ...p,
+                    createdAt: new Timestamp(p.createdAt.seconds, p.createdAt.nanoseconds),
+                  }));
+                  setPreloadedPosts(cachedPosts);
+                  if (cachedFollowingJson) {
+                    setPreloadedFollowingIds(JSON.parse(cachedFollowingJson));
+                  }
+                  setLoadingFalse();
+                }
+              } catch {}
 
-              await preloadFeed(firebaseUser.uid, blocked, blockedBy);
+              // Fetch fresh data in background
+              (async () => {
+                let blocked = new Set<string>();
+                let blockedBy = new Set<string>();
+                let followingIds: string[] = [];
+                try {
+                  const [blockedData, blockedByData, reportedIds, followingData] = await Promise.all([
+                    getBlockedUsers(firebaseUser.uid),
+                    getBlockedByUserIds(firebaseUser.uid),
+                    getReportedPostIds(firebaseUser.uid),
+                    getFollowing(firebaseUser.uid),
+                  ]);
+                  blocked = new Set(blockedData.map(b => b.blockedUserId));
+                  blockedBy = new Set(blockedByData);
+                  setBlockedUserIds(blocked);
+                  setBlockedByUserIds(blockedBy);
+                  setReportedPostIds(new Set(reportedIds));
+                  followingIds = followingData.map(f => f.followingId);
+                } catch (e) {
+                  console.log('Block/report/following lists not available yet, continuing without filtering');
+                }
+
+                await preloadFeed(firebaseUser.uid, blocked, blockedBy, followingIds);
+              })();
+
               preloadSearchHistory(firebaseUser.uid).catch(() => {});
               preloadProfileData(firebaseUser.uid, {
                 avatar: firebaseUser.photoURL,
@@ -503,7 +642,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userProfile = await getUserProfile(currentUser.uid);
       if (userProfile) {
-        setUser({
+        const freshUser: User = {
           id: userProfile.id,
           username: userProfile.username,
           email: userProfile.email,
@@ -520,7 +659,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isPrivate: userProfile.isPrivate || false,
           provider: userProfile.provider,
           interests: (userProfile as any).interests || [],
-        });
+        };
+        setUser(freshUser);
+        AsyncStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify(freshUser)).catch(() => {});
       }
     } catch (error) {
       console.error('Error refreshing user profile:', error);
@@ -535,6 +676,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       await authSignOut();
       clearLeagueStatsCache();
+      AsyncStorage.multiRemove([FEED_CACHE_KEY, FEED_FOLLOWING_CACHE_KEY, USER_PROFILE_CACHE_KEY]).catch(() => {});
       setUser(null);
       setPreloadedPosts(null);
       setPreloadedFollowingIds(null);
@@ -544,6 +686,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setBlockedUserIds(new Set());
       setBlockedByUserIds(new Set());
       setReportedPostIds(new Set());
+      setWaitingForFeed(false);
     } catch (error) {
       console.error('Failed to sign out:', error);
       throw error;
@@ -635,6 +778,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         removeBlockedUser,
         isPostReported,
         addReportedPost,
+        waitingForFeed,
+        markFeedReady,
       }}
     >
       {children}

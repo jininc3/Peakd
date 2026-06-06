@@ -395,9 +395,9 @@ export default function CommentModal({
                 disabled={!commentText.trim() || submitting}
               >
                 {submitting ? (
-                  <ActivityIndicator size="small" color="#8B7FE8" />
+                  <ActivityIndicator size="small" color="#D4B878" />
                 ) : (
-                  <IconSymbol size={24} name="arrow.up" color={commentText.trim() ? "#8B7FE8" : "#888"} />
+                  <IconSymbol size={24} name="arrow.up" color={commentText.trim() ? "#D4B878" : "#888"} />
                 )}
               </TouchableOpacity>
             </View>
@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 1.5,
-    borderColor: '#8B7FE8',
+    borderColor: '#D4B878',
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',

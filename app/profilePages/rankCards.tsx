@@ -19,17 +19,21 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 import { useRouter } from '@/hooks/useRouter';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { db } from '@/config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useValorantStats } from '@/contexts/ValorantStatsContext';
 import { formatRank } from '@/services/riotService';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Module-level cache so rank cards persist across navigations
+let cachedRankCardData: { [userId: string]: { riotAccount: any; valorantAccount: any; riotStats: any; valorantStats: any; enabledRankCards: string[]; username: string } } = {};
 
 export default function RankCardsScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { fetchStats: fetchValorantStats } = useValorantStats();
+  const { valorantStats: contextValorantStats, fetchStats: fetchValorantStats } = useValorantStats();
   const params = useLocalSearchParams<{ userId?: string; username?: string }>();
 
   // If userId is passed, we're viewing another user's rank cards
@@ -37,15 +41,27 @@ export default function RankCardsScreen() {
   const isOwnProfile = !viewingUserId;
   const targetUserId = viewingUserId || user?.id;
 
-  const [riotAccount, setRiotAccount] = useState<any>(null);
-  const [valorantAccount, setValorantAccount] = useState<any>(null);
-  const [riotStats, setRiotStats] = useState<any>(null);
-  const [valorantStats, setValorantStats] = useState<any>(null);
-  const [enabledRankCards, setEnabledRankCards] = useState<string[]>([]);
-  const [fetchedUsername, setFetchedUsername] = useState<string>('User');
-  const [loading, setLoading] = useState(true);
+  const cached = targetUserId ? cachedRankCardData[targetUserId] : null;
+  const [riotAccount, setRiotAccount] = useState<any>(cached?.riotAccount || null);
+  const [valorantAccount, setValorantAccount] = useState<any>(cached?.valorantAccount || null);
+  const [riotStats, setRiotStats] = useState<any>(cached?.riotStats || null);
+  const [valorantStats, setValorantStats] = useState<any>(cached?.valorantStats || null);
+  const [enabledRankCards, setEnabledRankCards] = useState<string[]>(cached?.enabledRankCards || []);
+  const [fetchedUsername, setFetchedUsername] = useState<string>(cached?.username || 'User');
+  const [loading, setLoading] = useState(!cached);
   const [viewMode, setViewMode] = useState<'stacked' | 'swipe'>('stacked');
   const swipeScrollX = useRef(new Animated.Value(0)).current;
+  const [revealedCards, setRevealedCards] = useState<Set<string>>(new Set());
+
+  // Load revealed cards from storage
+  useEffect(() => {
+    if (!targetUserId) return;
+    AsyncStorage.getItem('revealedRankCards').then(data => {
+      const revealed: string[] = data ? JSON.parse(data) : [];
+      const userCards = revealed.filter(key => key.startsWith(targetUserId + ':'));
+      setRevealedCards(new Set(userCards));
+    }).catch(() => {});
+  }, [targetUserId]);
 
   const fetchData = useCallback(async () => {
     if (!targetUserId) { setLoading(false); return; }
@@ -57,8 +73,36 @@ export default function RankCardsScreen() {
         setValorantAccount(data.valorantAccount || null);
         setRiotStats(data.riotStats || null);
         setValorantStats(data.valorantStats || null);
-        setEnabledRankCards(data.enabledRankCards || []);
         setFetchedUsername(data.username || params.username || 'User');
+
+        // Ensure enabledRankCards includes all linked accounts (matches profile.tsx logic)
+        const cards = data.enabledRankCards || [];
+        let updatedCards = [...cards];
+        if (data.riotAccount && !updatedCards.includes('league')) {
+          updatedCards.push('league');
+        }
+        if (data.valorantAccount && !updatedCards.includes('valorant')) {
+          updatedCards.push('valorant');
+        }
+        if (!data.riotAccount) {
+          updatedCards = updatedCards.filter((c: string) => c !== 'league' && c !== 'tft');
+        }
+        if (!data.valorantAccount) {
+          updatedCards = updatedCards.filter((c: string) => c !== 'valorant');
+        }
+        setEnabledRankCards(updatedCards);
+
+        // Update module-level cache
+        if (targetUserId) {
+          cachedRankCardData[targetUserId] = {
+            riotAccount: data.riotAccount || null,
+            valorantAccount: data.valorantAccount || null,
+            riotStats: data.riotStats || null,
+            valorantStats: data.valorantStats || null,
+            enabledRankCards: updatedCards,
+            username: data.username || params.username || 'User',
+          };
+        }
       }
     } catch (error) {
       console.error('Error fetching rank card data:', error);
@@ -67,9 +111,13 @@ export default function RankCardsScreen() {
     }
   }, [targetUserId, params.username]);
 
+  const isFirstLoad = useRef(!cached);
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
+      if (isFirstLoad.current) {
+        setLoading(true);
+        isFirstLoad.current = false;
+      }
       fetchData();
     }, [fetchData])
   );
@@ -82,6 +130,9 @@ export default function RankCardsScreen() {
   }, [fetchData, fetchValorantStats, isOwnProfile]);
 
   // Derive userGames — identical mapping to profile.tsx (userGamesBase)
+  // For own profile, prefer context stats (fetched fresh) over Firestore cache
+  const effectiveValorantStats = isOwnProfile ? (contextValorantStats || valorantStats) : valorantStats;
+
   const userGames = (riotAccount || valorantAccount)
     ? enabledRankCards
         .map(gameType => {
@@ -122,26 +173,26 @@ export default function RankCardsScreen() {
               profileIconId: riotStats?.profileIconId,
             };
           }
-          if (gameType === 'valorant' && valorantStats) {
+          if (gameType === 'valorant' && effectiveValorantStats) {
             return {
               id: 3,
               name: 'Valorant',
-              rank: valorantStats.currentRank || 'Unranked',
-              trophies: valorantStats.rankRating || 0,
+              rank: effectiveValorantStats.currentRank || 'Unranked',
+              trophies: effectiveValorantStats.rankRating || 0,
               icon: '🎯',
               image: require('@/assets/images/valorant-black.png'),
-              wins: valorantStats.wins || 0,
-              losses: valorantStats.losses || 0,
-              winRate: valorantStats.winRate || 0,
-              matchHistory: valorantStats.matchHistory || [],
-              valorantCard: valorantStats.card?.small,
-              peakRank: valorantStats.peakRank
-                ? { tier: valorantStats.peakRank.tier, season: valorantStats.peakRank.season }
+              wins: effectiveValorantStats.wins || 0,
+              losses: effectiveValorantStats.losses || 0,
+              winRate: effectiveValorantStats.winRate || 0,
+              matchHistory: effectiveValorantStats.matchHistory || [],
+              valorantCard: effectiveValorantStats.card?.small,
+              peakRank: effectiveValorantStats.peakRank
+                ? { tier: effectiveValorantStats.peakRank.tier, season: effectiveValorantStats.peakRank.season }
                 : undefined,
-              accountLevel: valorantStats.accountLevel,
-              gamesPlayed: valorantStats.gamesPlayed,
-              mmr: valorantStats.mmr,
-              mostPlayedAgent: valorantStats.mostPlayedAgent,
+              accountLevel: effectiveValorantStats.accountLevel,
+              gamesPlayed: effectiveValorantStats.gamesPlayed,
+              mmr: effectiveValorantStats.mmr,
+              mostPlayedAgent: effectiveValorantStats.mostPlayedAgent,
             };
           }
           return null;
@@ -157,9 +208,9 @@ export default function RankCardsScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -172,7 +223,7 @@ export default function RankCardsScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.035)',
+              'rgba(212, 184, 120, 0.035)',
               'transparent',
             ]}
             locations={[0, 0.5, 1]}
@@ -282,7 +333,7 @@ export default function RankCardsScreen() {
 
               return (
                 <View key={game.id} style={styles.verticalCardWrapper}>
-                  <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} onRefresh={handleRankCardRefresh} />
+                  <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} onRefresh={handleRankCardRefresh} initialFlipped={revealedCards.has(`${targetUserId}:${game.name}`)} />
                 </View>
               );
             })()}
@@ -325,7 +376,7 @@ export default function RankCardsScreen() {
                       ]}
                     >
                       <View style={{ width: '100%' }}>
-                        <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} isBackOfStack={index < totalCards - 1} onRefresh={handleRankCardRefresh} />
+                        <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} isBackOfStack={index < totalCards - 1} onRefresh={handleRankCardRefresh} initialFlipped={revealedCards.has(`${targetUserId}:${game.name}`)} />
                       </View>
                     </View>
                   );

@@ -518,9 +518,9 @@ export default function SearchScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -534,7 +534,7 @@ export default function SearchScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.035)',
+              'rgba(212, 184, 120, 0.035)',
               'transparent',
             ]}
             locations={[0, 0.5, 1]}
@@ -727,7 +727,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(139, 127, 232, 0.06)',
+    backgroundColor: 'rgba(212, 184, 120, 0.06)',
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 8,
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.15)',
+    borderColor: 'rgba(212, 184, 120, 0.15)',
     gap: 10,
   },
   searchInput: {

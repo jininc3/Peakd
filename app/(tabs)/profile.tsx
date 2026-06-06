@@ -1082,37 +1082,6 @@ export default function ProfileScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      {/* Background shimmer — matches tabs pages */}
-      <View style={styles.backgroundGlow} pointerEvents="none">
-        <View style={styles.shimmerBand} pointerEvents="none">
-          <LinearGradient
-            colors={[
-              'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
-              'transparent',
-            ]}
-            locations={[0, 0.37, 0.5, 0.63, 1]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
-        <View style={styles.shimmerBandSecondary} pointerEvents="none">
-          <LinearGradient
-            colors={[
-              'transparent',
-              'rgba(139, 127, 232, 0.035)',
-              'transparent',
-            ]}
-            locations={[0, 0.5, 1]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
-      </View>
 
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
@@ -1448,7 +1417,7 @@ export default function ProfileScreen() {
                           username={displayUsername}
                           isFocused={true}
                           flipOnly={true}
-                          autoReveal={revealedCards.has(`${user?.id}:${game.name}`)}
+                          initialFlipped={revealedCards.has(`${user?.id}:${game.name}`)}
                           onFlip={() => handleRankCardFlip(game.name)}
                         />
                       </View>
@@ -1856,7 +1825,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f0f',
+    backgroundColor: '#1a1a1a',
   },
   backgroundGlow: {
     ...StyleSheet.absoluteFillObject,
@@ -2476,7 +2445,7 @@ const styles = StyleSheet.create({
   clipsViewAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#fff',
+    color: '#888',
   },
   clipsGrid: {
     flexDirection: 'row',
@@ -2602,7 +2571,7 @@ const styles = StyleSheet.create({
   achievementsViewAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#fff',
+    color: '#888',
   },
   achievementsBadgeRow: {
     flexDirection: 'row',
@@ -2746,7 +2715,7 @@ const styles = StyleSheet.create({
   rankCardsViewAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#fff',
+    color: '#888',
   },
   rankCardsScrollContent: {
     paddingHorizontal: 16,

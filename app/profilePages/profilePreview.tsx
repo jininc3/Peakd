@@ -714,7 +714,7 @@ export default function ProfilePreviewScreen() {
                   style={styles.rankCardsViewAll}
                 >
                   <ThemedText style={styles.rankCardsViewAllText}>View all</ThemedText>
-                  <IconSymbol size={14} name="arrow.right" color="#8B7FE8" />
+                  <IconSymbol size={14} name="arrow.right" color="#D4B878" />
                 </TouchableOpacity>
               </View>
               <ThemedText style={styles.rankCardsPreviewSubtitle}>
@@ -792,7 +792,7 @@ export default function ProfilePreviewScreen() {
                   style={styles.clipsViewAll}
                 >
                   <ThemedText style={styles.clipsViewAllText}>View all</ThemedText>
-                  <IconSymbol size={14} name="arrow.right" color="#8B7FE8" />
+                  <IconSymbol size={14} name="arrow.right" color="#D4B878" />
                 </TouchableOpacity>
               )}
             </View>
@@ -879,7 +879,7 @@ export default function ProfilePreviewScreen() {
                 style={styles.achievementsViewAll}
               >
                 <ThemedText style={styles.achievementsViewAllText}>View all</ThemedText>
-                <IconSymbol size={14} name="arrow.right" color="#8B7FE8" />
+                <IconSymbol size={14} name="arrow.right" color="#D4B878" />
               </TouchableOpacity>
             </View>
 
@@ -1252,7 +1252,7 @@ const styles = StyleSheet.create({
   rankCardsDotActive: {
     width: 18,
     borderRadius: 3,
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
   },
   // Clips Section
   clipsSection: {

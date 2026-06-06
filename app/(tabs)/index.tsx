@@ -141,6 +141,7 @@ export default function HomeScreen() {
     isUserBlocked,
     isPostReported,
     addReportedPost,
+    markFeedReady,
   } = useAuth();
   const [activeTab, setActiveTab] = useState<'forYou' | 'following'>('forYou');
   const [followingPosts, setFollowingPosts] = useState<Post[]>([]);
@@ -205,6 +206,18 @@ export default function HomeScreen() {
   const currentPosts = activeTab === 'forYou' ? forYouPosts : followingPosts;
 
   const POSTS_PER_PAGE = 8;
+
+  // Signal to loading screen that the feed is ready to display
+  const feedReadySignaled = useRef(false);
+  useEffect(() => {
+    if (feedReadySignaled.current) return;
+    const followingReady = activeTab === 'following' && !loading;
+    const forYouReady = activeTab === 'forYou' && forYouFetched;
+    if (followingReady || forYouReady) {
+      feedReadySignaled.current = true;
+      markFeedReady();
+    }
+  }, [activeTab, loading, forYouFetched, markFeedReady]);
 
   // Callback to register video players
   const handlePlayerReady = useCallback((postId: string, player: any) => {
@@ -290,15 +303,17 @@ export default function HomeScreen() {
 
   // Consume preloaded posts from AuthContext (already enriched with rank data)
   useEffect(() => {
-    if (preloadedPosts && !hasConsumedPreload) {
+    if (preloadedPosts) {
       const filtered = preloadedPosts.filter(p => !isUserBlocked(p.userId) && !isPostReported(p.id));
       setFollowingPosts(filtered);
       followingCacheRef.current['_all'] = filtered;
       setLoading(false);
-      setHasConsumedPreload(true);
+      if (!hasConsumedPreload) {
+        setHasConsumedPreload(true);
+      }
       clearPreloadedPosts();
     }
-  }, [preloadedPosts, hasConsumedPreload, clearPreloadedPosts]);
+  }, [preloadedPosts, clearPreloadedPosts]);
 
   // Track the newest post timestamp whenever followingPosts changes
   useEffect(() => {
@@ -1268,6 +1283,12 @@ export default function HomeScreen() {
     });
   };
 
+  const isInitialLoading = activeTab === 'following' ? loading : forYouLoading;
+
+  if (isInitialLoading) {
+    return <ThemedView style={styles.container} />;
+  }
+
   return (
     <ThemedView style={styles.container}>
       {/* Ambient background glow */}
@@ -1277,9 +1298,9 @@ export default function HomeScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -1293,7 +1314,7 @@ export default function HomeScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.035)',
+              'rgba(212, 184, 120, 0.035)',
               'transparent',
             ]}
             locations={[0, 0.5, 1]}
@@ -1697,7 +1718,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'transparent',
     zIndex: 200,
-    paddingTop: 100,
+    paddingTop: 110,
     paddingHorizontal: 16,
   },
   tabDropdownSheet: {
@@ -1720,8 +1741,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
   },
   tabDropdownCardActive: {
-    borderColor: 'rgba(139, 127, 232, 0.3)',
-    backgroundColor: 'rgba(139, 127, 232, 0.08)',
+    borderColor: 'rgba(212, 184, 120, 0.3)',
+    backgroundColor: 'rgba(212, 184, 120, 0.08)',
   },
   tabDropdownCardText: {
     fontSize: 15,
@@ -1829,8 +1850,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   gameFilterPillActive: {
-    backgroundColor: 'rgba(139, 127, 232, 0.1)',
-    borderColor: 'rgba(139, 127, 232, 0.3)',
+    backgroundColor: 'rgba(212, 184, 120, 0.1)',
+    borderColor: 'rgba(212, 184, 120, 0.3)',
   },
   gameFilterIcon: {
     width: 18,
@@ -2096,8 +2117,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.25)',
-    shadowColor: '#8B7FE8',
+    borderColor: 'rgba(212, 184, 120, 0.25)',
+    shadowColor: '#D4B878',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 10,

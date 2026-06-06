@@ -917,7 +917,7 @@ export default function LeaderboardScreen() {
                   activeOpacity={0.7}
                 >
                   <ThemedText style={styles.viewFullButtonText}>View full leaderboard</ThemedText>
-                  <IconSymbol size={14} name="chevron.down" color="#8B7FE8" />
+                  <IconSymbol size={14} name="chevron.down" color="#D4B878" />
                 </TouchableOpacity>
               )}
               {leaderboardExpanded && remainingPlayers.length > 3 && (
@@ -927,7 +927,7 @@ export default function LeaderboardScreen() {
                   activeOpacity={0.7}
                 >
                   <ThemedText style={styles.viewFullButtonText}>Collapse</ThemedText>
-                  <IconSymbol size={14} name="chevron.up" color="#8B7FE8" />
+                  <IconSymbol size={14} name="chevron.up" color="#D4B878" />
                 </TouchableOpacity>
               )}
             </>
@@ -946,9 +946,9 @@ export default function LeaderboardScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -962,7 +962,7 @@ export default function LeaderboardScreen() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.035)',
+              'rgba(212, 184, 120, 0.035)',
               'transparent',
             ]}
             locations={[0, 0.5, 1]}
@@ -1027,16 +1027,26 @@ export default function LeaderboardScreen() {
               <IconSymbol size={20} name="person.2.fill" color="#fff" />
               <ThemedText style={styles.activeLobbiesTitle}>Active Lobbies</ThemedText>
             </View>
-            <TouchableOpacity
-              onPress={() => router.push('/partyPages/lobbies')}
-              activeOpacity={0.7}
-            >
-              <ThemedText style={styles.activeLobbiesViewAll}>View All</ThemedText>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => router.push('/partyPages/joinParty')}
+                activeOpacity={0.7}
+                style={styles.joinLobbyButton}
+              >
+                <IconSymbol size={12} name="ticket" color="#fff" />
+                <ThemedText style={styles.joinLobbyButtonText}>Join</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push('/partyPages/lobbies')}
+                activeOpacity={0.7}
+              >
+                <ThemedText style={styles.activeLobbiesViewAll}>View All</ThemedText>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {lobbiesLoading ? (
-            <ActivityIndicator size="small" color="#8B7FE8" style={{ paddingVertical: 24 }} />
+            <ActivityIndicator size="small" color="#D4B878" style={{ paddingVertical: 24 }} />
           ) : filteredLobbies.length > 0 ? (
             <ScrollView
               horizontal
@@ -1127,7 +1137,7 @@ export default function LeaderboardScreen() {
                 onPress={() => router.push('/partyPages/createLeaderboardName')}
                 activeOpacity={0.7}
               >
-                <IconSymbol size={32} name="plus.circle.fill" color="#8B7FE8" />
+                <IconSymbol size={32} name="plus.circle.fill" color="#D4B878" />
                 <ThemedText style={styles.lobbyCardCreateText}>Create Lobby</ThemedText>
               </TouchableOpacity>
             </ScrollView>
@@ -1137,7 +1147,7 @@ export default function LeaderboardScreen() {
               onPress={() => router.push('/partyPages/createLeaderboardName')}
               activeOpacity={0.7}
             >
-              <IconSymbol size={28} name="plus.circle.fill" color="#8B7FE8" />
+              <IconSymbol size={28} name="plus.circle.fill" color="#D4B878" />
               <ThemedText style={styles.activeLobbiesEmptyText}>Create your first lobby</ThemedText>
               <ThemedText style={styles.activeLobbiesEmptySubtext}>Compete with friends on a leaderboard</ThemedText>
             </TouchableOpacity>
@@ -1159,7 +1169,7 @@ export default function LeaderboardScreen() {
             {/* Speech bubble pointer */}
             <View style={styles.infoModalPointer} />
             <View style={styles.infoModalHeader}>
-              <IconSymbol size={18} name="info.circle.fill" color="#8B7FE8" />
+              <IconSymbol size={18} name="info.circle.fill" color="#D4B878" />
               <ThemedText style={styles.infoModalTitle}>How Leaderboards Work</ThemedText>
             </View>
             <View style={styles.infoModalBody}>
@@ -1305,7 +1315,7 @@ const styles = StyleSheet.create({
   },
   infoModalClose: {
     alignSelf: 'flex-end',
-    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    backgroundColor: 'rgba(212, 184, 120, 0.15)',
     borderRadius: 10,
     paddingHorizontal: 18,
     paddingVertical: 8,
@@ -1353,7 +1363,7 @@ const styles = StyleSheet.create({
     left: 0,
     width: '50%',
     height: 2,
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
     borderRadius: 1,
   },
   headerTabText: {
@@ -1832,8 +1842,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
   },
   gameDropdownCardActive: {
-    borderColor: 'rgba(139, 127, 232, 0.3)',
-    backgroundColor: 'rgba(139, 127, 232, 0.1)',
+    borderColor: 'rgba(212, 184, 120, 0.3)',
+    backgroundColor: 'rgba(212, 184, 120, 0.1)',
   },
   gameDropdownLogo: {
     width: 20,
@@ -1854,7 +1864,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#1a1a1a',
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.25)',
+    borderColor: 'rgba(212, 184, 120, 0.25)',
     overflow: 'hidden',
   },
   yourProgressHero: {
@@ -1877,7 +1887,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   youBadge: {
-    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    backgroundColor: 'rgba(212, 184, 120, 0.15)',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -1891,7 +1901,7 @@ const styles = StyleSheet.create({
   yourProgressAvatarRing: {
     borderRadius: 22,
     borderWidth: 2,
-    borderColor: 'rgba(139, 127, 232, 0.4)',
+    borderColor: 'rgba(212, 184, 120, 0.4)',
     padding: 1.5,
   },
   yourProgressAvatar: {
@@ -1976,7 +1986,7 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
     borderRadius: 3,
   },
   progressBarLabel: {
@@ -2009,7 +2019,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   lobbiesSubTabActive: {
-    borderBottomColor: '#8B7FE8',
+    borderBottomColor: '#D4B878',
   },
   lobbiesSubTabText: {
     fontSize: 14,
@@ -2020,7 +2030,7 @@ const styles = StyleSheet.create({
     color: '#F0D6A2',
   },
   lobbiesSubTabBadge: {
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -2043,7 +2053,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#8B7FE8',
+    borderColor: '#D4B878',
   },
   lobbiesCreateButtonText: {
     fontSize: 13,
@@ -2074,7 +2084,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: 'rgba(139, 127, 232, 0.3)',
+    borderColor: 'rgba(212, 184, 120, 0.3)',
     borderStyle: 'dashed',
     paddingVertical: 24,
     paddingHorizontal: 20,
@@ -2165,9 +2175,24 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   activeLobbiesViewAll: {
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#888',
+  },
+  joinLobbyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  joinLobbyButtonText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#F0D6A2',
+    color: '#fff',
   },
   activeLobbiesScroll: {
     paddingHorizontal: 16,
@@ -2186,12 +2211,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderStyle: 'dashed',
-    borderColor: 'rgba(139, 127, 232, 0.3)',
+    borderColor: 'rgba(212, 184, 120, 0.3)',
   },
   lobbyCardCreateText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#F0D6A2',
+    color: '#fff',
     marginTop: 8,
   },
   lobbyTypeBadge: {
@@ -2199,14 +2224,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#B4A7F5',
+    borderColor: '#D4B878',
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   lobbyTypeBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#B4A7F5',
+    color: '#D4B878',
     letterSpacing: 0.5,
   },
   lobbyAvatars: {
@@ -2229,7 +2254,7 @@ const styles = StyleSheet.create({
   lobbyAvatarFallback: {
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(139, 127, 232, 0.2)',
+    backgroundColor: 'rgba(212, 184, 120, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },

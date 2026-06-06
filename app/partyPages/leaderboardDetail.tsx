@@ -3,10 +3,12 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet, TouchableOpacity, View, Image, Alert, RefreshControl, Modal, ActivityIndicator, TextInput, Animated, PanResponder, Dimensions } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View, Image, Alert, RefreshControl, Modal, ActivityIndicator, TextInput, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { formatRankDisplay } from '@/utils/formatRankDisplay';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Gesture, GestureDetector, GestureHandlerRootView, ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import ReanimatedAnimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
 import { db, functions } from '@/config/firebase';
 import { doc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -234,36 +236,52 @@ export default function LeaderboardDetail() {
   const [spectators, setSpectators] = useState<any[]>([]);
   const [updatingStats, setUpdatingStats] = useState(false);
 
-  // Swipe-to-dismiss for invite modal
-  const inviteModalTranslateY = useRef(new Animated.Value(0)).current;
-  const invitePanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 10,
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          inviteModalTranslateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100) {
-          Animated.timing(inviteModalTranslateY, {
-            toValue: 600,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            setShowInviteModal(false);
-            inviteModalTranslateY.setValue(0);
-          });
-        } else {
-          Animated.spring(inviteModalTranslateY, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
+  // Swipe-to-dismiss for invite modal (reanimated)
+  const inviteTranslateY = useSharedValue(0);
+  const inviteScrollOffset = useSharedValue(0);
+  const inviteStartY = useSharedValue(0);
+  const invitePanRef = useRef(null);
+
+  const handleCloseInviteModal = useCallback(() => {
+    setShowInviteModal(false);
+  }, []);
+
+  const invitePanGesture = Gesture.Pan()
+    .withRef(invitePanRef)
+    .manualActivation(true)
+    .onTouchesDown((e) => {
+      'worklet';
+      inviteStartY.value = e.allTouches[0].absoluteY;
     })
-  ).current;
+    .onTouchesMove((e, stateManager) => {
+      'worklet';
+      const dy = e.allTouches[0].absoluteY - inviteStartY.value;
+      if (inviteScrollOffset.value <= 1 && dy > 8) {
+        stateManager.activate();
+      } else if (dy < -8 || inviteScrollOffset.value > 1) {
+        stateManager.fail();
+      }
+    })
+    .onUpdate((e) => {
+      'worklet';
+      if (e.translationY > 0) {
+        inviteTranslateY.value = e.translationY;
+      }
+    })
+    .onEnd((e) => {
+      'worklet';
+      if (e.translationY > 100 || e.velocityY > 500) {
+        inviteTranslateY.value = withTiming(600, { duration: 200 }, () => {
+          runOnJS(handleCloseInviteModal)();
+        });
+      } else {
+        inviteTranslateY.value = withSpring(0, { damping: 20, stiffness: 300 });
+      }
+    });
+
+  const inviteAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: inviteTranslateY.value }],
+  }));
 
   const isCreator = partyData?.createdBy === user?.id;
   const isMember = partyData?.members?.includes(user?.id);
@@ -393,6 +411,8 @@ export default function LeaderboardDetail() {
 
   // Open invite modal and fetch mutuals
   const handleOpenInviteModal = async () => {
+    inviteTranslateY.value = 0;
+    inviteScrollOffset.value = 0;
     setShowInviteModal(true);
     setInviteSearchQuery('');
     setLoadingMutuals(true);
@@ -1115,9 +1135,9 @@ export default function LeaderboardDetail() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.03)',
-              'rgba(139, 127, 232, 0.06)',
-              'rgba(139, 127, 232, 0.03)',
+              'rgba(212, 184, 120, 0.03)',
+              'rgba(212, 184, 120, 0.06)',
+              'rgba(212, 184, 120, 0.03)',
               'transparent',
             ]}
             locations={[0, 0.37, 0.5, 0.63, 1]}
@@ -1130,7 +1150,7 @@ export default function LeaderboardDetail() {
           <LinearGradient
             colors={[
               'transparent',
-              'rgba(139, 127, 232, 0.035)',
+              'rgba(212, 184, 120, 0.035)',
               'transparent',
             ]}
             locations={[0, 0.5, 1]}
@@ -1152,10 +1172,15 @@ export default function LeaderboardDetail() {
         <View style={styles.coverPhotoSection}>
           {/* Header Icons */}
           <View style={styles.headerIconsRow}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/partyPages/lobbies')}>
               <IconSymbol size={20} name="chevron.left" color="#fff" />
             </TouchableOpacity>
             <View style={styles.headerRightButtons}>
+              {canInvite && (
+                <TouchableOpacity style={styles.headerPillButton} onPress={handleOpenInviteModal}>
+                  <IconSymbol size={16} name="person.badge.plus" color="#ccc" />
+                </TouchableOpacity>
+              )}
               {isCreator && (
                 <TouchableOpacity style={styles.headerPillButton} onPress={() => setShowEditModal(true)}>
                   <IconSymbol size={16} name="gearshape.fill" color="#ccc" />
@@ -1179,7 +1204,7 @@ export default function LeaderboardDetail() {
         <View style={styles.leaderboardInfoSection}>
           {/* Icon + Name Row */}
           <View style={styles.infoRow}>
-            <View style={styles.leaderboardIconWrapper}>
+            <TouchableOpacity style={styles.leaderboardIconWrapper} onPress={isCreator ? () => setShowIconPickerModal(true) : undefined} activeOpacity={isCreator ? 0.7 : 1}>
               {leaderboardIcon ? (
                 <Image source={{ uri: leaderboardIcon }} style={styles.leaderboardIcon} />
               ) : gameLogo ? (
@@ -1191,7 +1216,7 @@ export default function LeaderboardDetail() {
                   <ThemedText style={styles.leaderboardIconInitial}>{leaderboardName?.[0]?.toUpperCase()}</ThemedText>
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
 
             <View style={styles.infoDetails}>
               <ThemedText style={styles.leaderboardName} numberOfLines={1}>{leaderboardName}</ThemedText>
@@ -1215,17 +1240,11 @@ export default function LeaderboardDetail() {
                 <ThemedText style={[styles.challengeButtonText, isActive && styles.challengeButtonTextActive]}>Challenge</ThemedText>
               </TouchableOpacity>
             )}
-            {canInvite && (
-              <TouchableOpacity style={styles.inviteButton} onPress={handleOpenInviteModal}>
-                <IconSymbol size={14} name="person.badge.plus" color="#fff" />
-                <ThemedText style={styles.inviteButtonText}>Invite</ThemedText>
-              </TouchableOpacity>
-            )}
           </View>
         </View>
 
         {/* Top 3 Podium */}
-        {players.length >= 2 && (() => {
+        {players.length >= 3 && (() => {
           const top3 = players.slice(0, Math.min(3, players.length));
           const first = top3[0];
           const second = top3[1];
@@ -1305,7 +1324,7 @@ export default function LeaderboardDetail() {
         })()}
 
         {/* Column Headers */}
-        {players.length > 3 && (
+        {(players.length <= 2 || players.length > 3) && (
           <View style={styles.columnHeaders}>
             <ThemedText style={[styles.columnHeaderText, { width: 40 }]}>RANK</ThemedText>
             <ThemedText style={[styles.columnHeaderText, { flex: 1, paddingLeft: 40 }]}>PLAYER</ThemedText>
@@ -1317,7 +1336,7 @@ export default function LeaderboardDetail() {
 
         {/* Player Rows (4th place and below) */}
         <View style={styles.playerList}>
-          {players.filter(p => p.rank > 3).map((player, index) => {
+          {players.filter(p => players.length <= 2 || p.rank > 3).map((player, index) => {
             const rankIcon = isLeague
               ? getLeagueRankIcon(player.currentRank)
               : getValorantRankIcon(player.currentRank);
@@ -1592,33 +1611,11 @@ export default function LeaderboardDetail() {
         >
           <View style={styles.editModalContent}>
             <View style={styles.editModalHeader}>
-              <ThemedText style={styles.editModalTitle}>Edit Leaderboard</ThemedText>
+              <ThemedText style={styles.editModalTitle}>Edit Lobby</ThemedText>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
                 <IconSymbol size={20} name="xmark" color="#888" />
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity style={styles.editModalOption} onPress={handleChangeCoverPhoto}>
-              <View style={styles.editModalOptionIcon}>
-                <IconSymbol size={18} name="photo" color="#888" />
-              </View>
-              <View style={styles.editModalOptionText}>
-                <ThemedText style={styles.editModalOptionTitle}>Change Cover Photo</ThemedText>
-                <ThemedText style={styles.editModalOptionSubtitle}>Update the banner image</ThemedText>
-              </View>
-              <IconSymbol size={16} name="chevron.right" color="#444" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.editModalOption} onPress={() => { setShowEditModal(false); setShowIconPickerModal(true); }}>
-              <View style={styles.editModalOptionIcon}>
-                <IconSymbol size={18} name="square.and.pencil" color="#888" />
-              </View>
-              <View style={styles.editModalOptionText}>
-                <ThemedText style={styles.editModalOptionTitle}>Change Leaderboard Icon</ThemedText>
-                <ThemedText style={styles.editModalOptionSubtitle}>Update the leaderboard icon</ThemedText>
-              </View>
-              <IconSymbol size={16} name="chevron.right" color="#444" />
-            </TouchableOpacity>
 
             {partyData?.challengeStatus === 'pending' && (
               <TouchableOpacity
@@ -1701,24 +1698,6 @@ export default function LeaderboardDetail() {
               </TouchableOpacity>
             )}
 
-            {inviteCode && (
-              <TouchableOpacity
-                style={styles.editModalOption}
-                onPress={() => {
-                  handleCopyInviteCode();
-                  setShowEditModal(false);
-                }}
-              >
-                <View style={styles.editModalOptionIcon}>
-                  <IconSymbol size={18} name="doc.on.doc" color="#888" />
-                </View>
-                <View style={styles.editModalOptionText}>
-                  <ThemedText style={styles.editModalOptionTitle}>Invite Code</ThemedText>
-                  <ThemedText style={styles.editModalOptionSubtitle}>{inviteCode}</ThemedText>
-                </View>
-                <IconSymbol size={16} name="doc.on.doc" color="#444" />
-              </TouchableOpacity>
-            )}
           </View>
         </TouchableOpacity>
       </Modal>
@@ -1730,19 +1709,20 @@ export default function LeaderboardDetail() {
         animationType="slide"
         onRequestClose={() => setShowInviteModal(false)}
       >
+        <GestureHandlerRootView style={{ flex: 1 }}>
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setShowInviteModal(false)}
         >
-          <Animated.View
-            style={[styles.inviteModalContent, { transform: [{ translateY: inviteModalTranslateY }] }]}
-            {...invitePanResponder.panHandlers}
+          <GestureDetector gesture={invitePanGesture}>
+          <ReanimatedAnimated.View
+            style={[styles.inviteModalContent, inviteAnimatedStyle]}
           >
             <View style={styles.inviteModalHandle} />
 
             <View style={styles.inviteModalHeader}>
-              <ThemedText style={styles.inviteModalTitle}>Invite to Leaderboard</ThemedText>
+              <ThemedText style={styles.inviteModalTitle}>Invite to Lobby</ThemedText>
             </View>
 
             <View style={styles.inviteSearchContainer}>
@@ -1761,7 +1741,25 @@ export default function LeaderboardDetail() {
               )}
             </View>
 
-            <ScrollView style={styles.inviteUsersList} showsVerticalScrollIndicator={false}>
+            {inviteCode && (
+              <TouchableOpacity style={styles.inviteCodeRow} onPress={handleCopyInviteCode} activeOpacity={0.7}>
+                <View style={styles.inviteCodeLeft}>
+                  <IconSymbol size={14} name="ticket" color="#D4B878" />
+                  <ThemedText style={styles.inviteCodeLabel}>Invite Code</ThemedText>
+                </View>
+                <View style={styles.inviteCodeRight}>
+                  <ThemedText style={styles.inviteCodeText}>{inviteCode}</ThemedText>
+                  <IconSymbol size={12} name="doc.on.doc" color="#555" />
+                </View>
+              </TouchableOpacity>
+            )}
+
+            <GHScrollView
+              style={styles.inviteUsersList}
+              showsVerticalScrollIndicator={false}
+              onScroll={(e) => { inviteScrollOffset.value = e.nativeEvent.contentOffset.y; }}
+              scrollEventThrottle={16}
+            >
               {loadingMutuals || searchingUsers ? (
                 <View style={styles.inviteLoadingContainer}>
                   <ActivityIndicator size="small" color="#fff" />
@@ -1866,9 +1864,11 @@ export default function LeaderboardDetail() {
                   )}
                 </>
               )}
-            </ScrollView>
-          </Animated.View>
+            </GHScrollView>
+          </ReanimatedAnimated.View>
+          </GestureDetector>
         </TouchableOpacity>
+        </GestureHandlerRootView>
       </Modal>
 
       {/* Manage Members Modal */}
@@ -1919,9 +1919,6 @@ export default function LeaderboardDetail() {
                     </View>
                     <View style={styles.manageMemberInfo}>
                       <ThemedText style={styles.manageMemberName}>{player.username}</ThemedText>
-                      <ThemedText style={styles.manageMemberRank}>
-                        Rank #{player.rank} • {formatRankDisplay(player.currentRank)}
-                      </ThemedText>
                     </View>
                     <View style={styles.manageMemberActions}>
                       <TouchableOpacity
@@ -2300,7 +2297,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     zIndex: 2,
     gap: 16,
-    paddingBottom: 16,
+    paddingBottom: 4,
   },
   infoRow: {
     flexDirection: 'row',
@@ -2899,7 +2896,9 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     overflow: 'hidden',
     borderRadius: 14,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   podiumHeader: {
     flexDirection: 'row',
@@ -3193,7 +3192,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#1a1a1a',
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.25)',
+    borderColor: 'rgba(212, 184, 120, 0.25)',
     overflow: 'hidden',
   },
   yourProgressHero: {
@@ -3207,7 +3206,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   youBadge: {
-    backgroundColor: 'rgba(139, 127, 232, 0.15)',
+    backgroundColor: 'rgba(212, 184, 120, 0.15)',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -3222,7 +3221,7 @@ const styles = StyleSheet.create({
   yourProgressAvatarRing: {
     borderRadius: 30,
     borderWidth: 2,
-    borderColor: 'rgba(139, 127, 232, 0.4)',
+    borderColor: 'rgba(212, 184, 120, 0.4)',
     padding: 2,
   },
   yourProgressAvatar: {
@@ -3312,7 +3311,7 @@ const styles = StyleSheet.create({
   },
   yourProgressBarFill: {
     height: '100%',
-    backgroundColor: '#8B7FE8',
+    backgroundColor: '#D4B878',
     borderRadius: 3,
   },
   yourProgressBarLabel: {
@@ -3452,6 +3451,40 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#fff',
   },
+  inviteCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(212, 184, 120, 0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 184, 120, 0.2)',
+  },
+  inviteCodeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inviteCodeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#999',
+  },
+  inviteCodeRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  inviteCodeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#D4B878',
+    letterSpacing: 1,
+  },
   inviteSectionLabel: {
     fontSize: 12,
     fontWeight: '600',
@@ -3510,7 +3543,9 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   inviteSendButton: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#D4B878',
     paddingHorizontal: 14,
     borderRadius: 8,
     minWidth: 84,
@@ -3520,11 +3555,12 @@ const styles = StyleSheet.create({
   },
   inviteSendButtonSent: {
     backgroundColor: '#2a2a2a',
+    borderColor: '#2a2a2a',
   },
   inviteSendButtonText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#000',
+    color: '#D4B878',
     letterSpacing: 0.3,
   },
   pendingBadge: {

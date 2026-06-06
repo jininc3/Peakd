@@ -285,6 +285,15 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePo
 
         {/* Stats panel: row 1 — rank | role/agent icons; row 2 — win rate + games */}
         <View style={styles.statsPanel}>
+          {duo.inGameName && (
+            <View style={styles.inGameRow}>
+              {duo.inGameIcon ? (
+                <Image source={{ uri: duo.inGameIcon }} style={styles.inGameIcon} />
+              ) : null}
+              <ThemedText style={styles.inGameName} numberOfLines={1}>{duo.inGameName}</ThemedText>
+            </View>
+          )}
+
           <View style={styles.statsTopRow}>
             <View style={styles.rankBlock}>
               <Image source={currentRankIcon} style={styles.rankImg} resizeMode="contain" />
@@ -455,6 +464,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  inGameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  inGameIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+  },
+  inGameName: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#F0D6A2',
+    flexShrink: 1,
+  },
   statsBottomRow: {
     flexDirection: 'row',
     gap: 14,
@@ -536,9 +561,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 14,
-    backgroundColor: 'rgba(139, 127, 232, 0.12)',
+    backgroundColor: 'rgba(212, 184, 120, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(139, 127, 232, 0.2)',
+    borderColor: 'rgba(212, 184, 120, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

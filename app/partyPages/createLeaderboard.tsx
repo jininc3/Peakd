@@ -22,7 +22,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/config/firebase';
 import { collection, getDocs, doc, getDoc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { uploadPartyIcon, uploadPartyCoverPhoto } from '@/services/storageService';
+import { uploadPartyIcon } from '@/services/storageService';
 
 const DEFAULT_LOBBY_ICONS = [
   { id: 'lobby1', source: require('@/assets/images/lobby1.png') },
@@ -71,7 +71,6 @@ export default function CreateLeaderboardScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [leaderboardIcon, setLeaderboardIcon] = useState<string | null>(null);
   const [selectedDefaultIcon, setSelectedDefaultIcon] = useState<string>('lobby1');
-  const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [invitePermission, setInvitePermission] = useState<'leader_only' | 'anyone'>('leader_only');
@@ -206,24 +205,6 @@ export default function CreateLeaderboardScreen() {
     }
   };
 
-  const handlePickCoverPhoto = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        setCoverPhoto(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error picking cover photo:', error);
-      Alert.alert('Error', 'Failed to select cover photo');
-    }
-  };
-
   const handleCreateLeaderboard = async () => {
     if (!selectedGame) {
       Alert.alert('Error', 'Please select a game');
@@ -311,16 +292,6 @@ export default function CreateLeaderboardScreen() {
         }
       } catch (uploadError) {
         console.error('Error uploading leaderboard icon:', uploadError);
-      }
-
-      // Upload cover photo if selected
-      if (coverPhoto) {
-        try {
-          const coverPhotoUrl = await uploadPartyCoverPhoto(generatedPartyId, coverPhoto);
-          await updateDoc(leaderboardDocRef, { coverPhoto: coverPhotoUrl });
-        } catch (uploadError) {
-          console.error('Error uploading cover photo:', uploadError);
-        }
       }
 
       if (selectedFollowers.length > 0) {
@@ -482,29 +453,6 @@ export default function CreateLeaderboardScreen() {
             </View>
             <ThemedText style={styles.formHint}>Choose which game you want to create a leaderboard for</ThemedText>
           </View>
-        </View>
-
-        {/* Cover Photo */}
-        <View style={styles.formSection}>
-          <ThemedText style={styles.formLabel}>COVER PHOTO</ThemedText>
-          <TouchableOpacity
-            style={styles.coverPhotoPicker}
-            onPress={handlePickCoverPhoto}
-            activeOpacity={0.7}
-          >
-            {coverPhoto ? (
-              <Image source={{ uri: coverPhoto }} style={styles.coverPhotoPreview} />
-            ) : (
-              <View style={styles.coverPhotoPlaceholder}>
-                <IconSymbol size={22} name="photo" color="#555" />
-                <ThemedText style={styles.coverPhotoPlaceholderText}>Tap to add</ThemedText>
-              </View>
-            )}
-            <View style={styles.coverPhotoEditBadge}>
-              <IconSymbol size={12} name="camera.fill" color="#fff" />
-            </View>
-          </TouchableOpacity>
-          <ThemedText style={styles.formHint}>Optional - displayed at the top of your leaderboard</ThemedText>
         </View>
 
         {/* Settings Grid */}
@@ -691,18 +639,14 @@ export default function CreateLeaderboardScreen() {
         onRequestClose={() => setShowPreview(false)}
       >
         <View style={pvStyles.container}>
-          {/* Cover Photo */}
+          {/* Header */}
           <View style={pvStyles.coverSection}>
-            {coverPhoto ? (
-              <Image source={{ uri: coverPhoto }} style={pvStyles.coverImage} />
-            ) : (
-              <LinearGradient
-                colors={['#252525', '#1a1a1a', '#0f0f0f']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={pvStyles.coverImage}
-              />
-            )}
+            <LinearGradient
+              colors={['#252525', '#1a1a1a', '#0f0f0f']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={pvStyles.coverImage}
+            />
             <LinearGradient
               colors={['transparent', '#0f0f0f']}
               start={{ x: 0, y: 0 }}
@@ -977,41 +921,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
-  // Cover Photo
-  coverPhotoPicker: {
-    width: '100%',
-    height: 120,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 10,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  coverPhotoPreview: {
-    width: '100%',
-    height: '100%',
-  },
-  coverPhotoPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  coverPhotoPlaceholderText: {
-    fontSize: 12,
-    color: '#444',
-  },
-  coverPhotoEditBadge: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
   // Icon Selection
   iconSelectionRow: {
     flexDirection: 'row',
@@ -1030,7 +939,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   defaultIconOptionSelected: {
-    borderColor: '#8B7FE8',
+    borderColor: '#D4B878',
   },
   defaultIconImage: {
     width: '100%',

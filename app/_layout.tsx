@@ -20,7 +20,7 @@ import InAppNotificationContainer from '@/app/components/InAppNotificationContai
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const { isAuthenticated, isLoading, needsUsernameSetup, user } = useAuth();
+  const { isAuthenticated, isLoading, needsUsernameSetup, user, waitingForFeed } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const { showNotification } = useInAppNotification();
@@ -257,7 +257,7 @@ function RootLayoutNav() {
       </Stack>
       <StatusBar style="auto" />
       <InAppNotificationContainer />
-      <LoadingScreen style={StyleSheet.absoluteFill} isVisible={isLoading} />
+      <LoadingScreen style={StyleSheet.absoluteFill} isVisible={isLoading || waitingForFeed} />
     </ThemeProvider>
   );
 }

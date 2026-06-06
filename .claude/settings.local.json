@@ -17,7 +17,11 @@
       "Bash(wc:*)",
       "Bash(npx firebase:*)",
       "Bash(eas:*)",
-      "Bash(find \"C:/Users/jinha/Desktop/peakd-web/app/\\(app\\)\" -name \"page.tsx\")"
+      "Bash(find \"C:/Users/jinha/Desktop/peakd-web/app/\\(app\\)\" -name \"page.tsx\")",
+      "Bash(ls -la C:/Users/jinha/Desktop/Peakd/app/\\\\\\(tabs\\\\\\)/)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": []
