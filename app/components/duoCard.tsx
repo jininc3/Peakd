@@ -285,15 +285,6 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePo
 
         {/* Stats panel: row 1 — rank | role/agent icons; row 2 — win rate + games */}
         <View style={styles.statsPanel}>
-          {duo.inGameName && (
-            <View style={styles.inGameRow}>
-              {duo.inGameIcon ? (
-                <Image source={{ uri: duo.inGameIcon }} style={styles.inGameIcon} />
-              ) : null}
-              <ThemedText style={styles.inGameName} numberOfLines={1}>{duo.inGameName}</ThemedText>
-            </View>
-          )}
-
           <View style={styles.statsTopRow}>
             <View style={styles.rankBlock}>
               <Image source={currentRankIcon} style={styles.rankImg} resizeMode="contain" />
@@ -320,24 +311,24 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePo
                 )}
               </View>
             )}
-          </View>
 
-          {(duo.winRate > 0 || duo.gamesPlayed > 0) && (
-            <View style={styles.statsBottomRow}>
-              {duo.winRate > 0 && (
-                <ThemedText style={styles.winRateInline}>
-                  <ThemedText style={styles.winRateInlineValue}>{duo.winRate}% </ThemedText>
-                  <ThemedText style={styles.winRateInlineLabel}>WIN RATE</ThemedText>
-                </ThemedText>
-              )}
-              {duo.gamesPlayed > 0 && (
-                <ThemedText style={styles.winRateInline}>
-                  <ThemedText style={styles.winRateInlineValue}>{duo.gamesPlayed} </ThemedText>
-                  <ThemedText style={styles.winRateInlineLabel}>GAMES</ThemedText>
-                </ThemedText>
-              )}
-            </View>
-          )}
+            {(duo.winRate > 0 || duo.gamesPlayed > 0) && (
+              <View style={styles.statsRight}>
+                {duo.winRate > 0 && (
+                  <ThemedText style={styles.winRateInline}>
+                    <ThemedText style={styles.winRateInlineValue}>{duo.winRate}% </ThemedText>
+                    <ThemedText style={styles.winRateInlineLabel}>WR</ThemedText>
+                  </ThemedText>
+                )}
+                {duo.gamesPlayed > 0 && (
+                  <ThemedText style={styles.winRateInline}>
+                    <ThemedText style={styles.winRateInlineValue}>{duo.gamesPlayed} </ThemedText>
+                    <ThemedText style={styles.winRateInlineLabel}>GAMES</ThemedText>
+                  </ThemedText>
+                )}
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Message with inline message button */}
@@ -464,6 +455,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  statsRight: {
+    marginLeft: 'auto',
+    alignItems: 'flex-end',
+    gap: 2,
+  },
   inGameRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -479,10 +475,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#F0D6A2',
     flexShrink: 1,
-  },
-  statsBottomRow: {
-    flexDirection: 'row',
-    gap: 14,
   },
   rankBlock: {
     flexDirection: 'row',

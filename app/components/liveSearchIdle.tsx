@@ -1,8 +1,8 @@
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { StyleSheet, View, Image, TouchableOpacity, Dimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import DuoCard from '@/app/components/duoCard';
+import { formatRankDisplay } from '@/utils/formatRankDisplay';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 import Animated, {
   useSharedValue,
@@ -44,6 +44,11 @@ const LEAGUE_RANK_ICONS: { [key: string]: any } = {
   unranked: require('@/assets/images/leagueranks/unranked.png'),
 };
 
+const GAME_ICONS: { [key: string]: any } = {
+  valorant: require('@/assets/images/valorant-red.png'),
+  league: require('@/assets/images/lol-icon.png'),
+};
+
 const getRankIcon = (rank: string, game: 'valorant' | 'league') => {
   if (!rank || rank === 'Unranked') {
     return game === 'valorant' ? VALORANT_RANK_ICONS.unranked : LEAGUE_RANK_ICONS.unranked;
@@ -54,6 +59,7 @@ const getRankIcon = (rank: string, game: 'valorant' | 'league') => {
 };
 
 interface LiveSearchIdleProps {
+  cardsLoaded?: boolean;
   hasCards: boolean;
   valorantCard: any;
   leagueCard: any;
@@ -76,6 +82,7 @@ interface LiveSearchIdleProps {
 }
 
 export default function LiveSearchIdle({
+  cardsLoaded,
   hasCards,
   valorantCard,
   leagueCard,
@@ -87,8 +94,6 @@ export default function LiveSearchIdle({
   onCreateCard,
   valorantInGameName,
   leagueInGameName,
-  valorantInGameIcon,
-  leagueInGameIcon,
   username,
   avatar,
   valorantWinRate,
@@ -98,9 +103,10 @@ export default function LiveSearchIdle({
 }: LiveSearchIdleProps) {
   const activeCard = searchGamePick === 'valorant' ? valorantCard : searchGamePick === 'league' ? leagueCard : null;
   const activeInGameName = searchGamePick === 'valorant' ? valorantInGameName : searchGamePick === 'league' ? leagueInGameName : undefined;
-  const activeInGameIcon = searchGamePick === 'valorant' ? valorantInGameIcon : searchGamePick === 'league' ? leagueInGameIcon : undefined;
+  const activeWinRate = searchGamePick === 'valorant' ? (valorantWinRate || 0) : (leagueWinRate || 0);
+  const activeGamesPlayed = searchGamePick === 'valorant' ? (valorantGamesPlayed || 0) : (leagueGamesPlayed || 0);
 
-  // Auto-select game if none selected
+  // Auto-select game
   useEffect(() => {
     if (!searchGamePick && hasCards) {
       if (valorantCard) onPickGame('valorant');
@@ -109,233 +115,185 @@ export default function LiveSearchIdle({
   }, [hasCards, valorantCard, leagueCard]);
 
   // Animations
-  const dotOpacity = useSharedValue(0.4);
   const contentOpacity = useSharedValue(0);
-  const contentTranslateY = useSharedValue(16);
+  const contentTranslateY = useSharedValue(12);
+  const ringPulse = useSharedValue(0.3);
 
   useEffect(() => {
-    dotOpacity.value = withRepeat(
+    contentOpacity.value = withDelay(100, withTiming(1, { duration: 500 }));
+    contentTranslateY.value = withDelay(100, withTiming(0, { duration: 500, easing: Easing.out(Easing.ease) }));
+    ringPulse.value = withRepeat(
       withSequence(
-        withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.4, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.7, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.3, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
       ),
-      -1,
-      false
+      -1, false
     );
-    contentOpacity.value = withDelay(200, withTiming(1, { duration: 500 }));
-    contentTranslateY.value = withDelay(200, withTiming(0, { duration: 500, easing: Easing.out(Easing.ease) }));
   }, []);
-
-  const dotPulseStyle = useAnimatedStyle(() => ({
-    opacity: dotOpacity.value,
-  }));
 
   const contentStyle = useAnimatedStyle(() => ({
     opacity: contentOpacity.value,
     transform: [{ translateY: contentTranslateY.value }],
   }));
 
-  const handleGameChange = () => {
-    if (valorantCard && leagueCard) {
-      onPickGame(searchGamePick === 'valorant' ? 'league' : 'valorant');
-    }
-  };
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: ringPulse.value,
+  }));
 
   const canSearch = !!searchGamePick && !!searchModePick;
+  const hasBothGames = !!valorantCard && !!leagueCard;
+
+  if (!cardsLoaded) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.content, { gap: 24 }]}>
+          {/* Game toggle skeleton */}
+          <Skeleton width="100%" height={48} borderRadius={14} />
+          {/* Rank emblem skeleton */}
+          <View style={{ alignItems: 'center', height: 180, justifyContent: 'center' }}>
+            <Skeleton width={140} height={140} borderRadius={70} />
+          </View>
+          {/* Rank name skeleton */}
+          <View style={{ alignItems: 'center', gap: 8, marginTop: -8 }}>
+            <Skeleton width={180} height={28} borderRadius={6} />
+            <Skeleton width={140} height={16} borderRadius={4} />
+          </View>
+          {/* Stats row skeleton */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}><Skeleton width="100%" height={64} borderRadius={12} /></View>
+            <View style={{ flex: 1 }}><Skeleton width="100%" height={64} borderRadius={12} /></View>
+            <View style={{ flex: 1 }}><Skeleton width="100%" height={64} borderRadius={12} /></View>
+          </View>
+          {/* Mode toggle skeleton */}
+          <Skeleton width="100%" height={48} borderRadius={14} />
+          {/* Button skeleton */}
+          <Skeleton width="100%" height={52} borderRadius={28} />
+        </View>
+      </View>
+    );
+  }
+
+  if (!hasCards) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.noCardCenter}>
+          <ThemedText style={styles.noCardTitle}>Create a Rank Card</ThemedText>
+          <ThemedText style={styles.noCardSub}>You need a rank card to queue for live search</ThemedText>
+          <TouchableOpacity style={styles.createCardBtn} onPress={onCreateCard} activeOpacity={0.8}>
+            <ThemedText style={styles.createCardBtnText}>Create Card</ThemedText>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Summary Banner */}
-      <Animated.View style={[styles.summaryCard, contentStyle]}>
-        <LinearGradient
-          colors={['#1e1e22', '#161618']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.summaryContent}>
-          <View style={styles.summaryTopRow}>
+      <Animated.View style={[styles.content, contentStyle]}>
+        {/* Game Toggle */}
+        <View style={styles.gameToggleRow}>
+          <TouchableOpacity
+            style={[styles.gameToggle, searchGamePick === 'valorant' && styles.gameToggleActive]}
+            onPress={() => onPickGame('valorant')}
+            activeOpacity={0.7}
+            disabled={!valorantCard}
+          >
+            <Image source={GAME_ICONS.valorant} style={styles.gameToggleIcon} resizeMode="contain" />
+            <ThemedText style={[styles.gameToggleText, searchGamePick === 'valorant' && styles.gameToggleTextActive]}>
+              Valorant
+            </ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.gameToggle, searchGamePick === 'league' && styles.gameToggleActive]}
+            onPress={() => onPickGame('league')}
+            activeOpacity={0.7}
+            disabled={!leagueCard}
+          >
+            <Image source={GAME_ICONS.league} style={styles.gameToggleIconLg} resizeMode="contain" />
+            <ThemedText style={[styles.gameToggleText, searchGamePick === 'league' && styles.gameToggleTextActive]}>
+              League
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
+
+        {/* Hero Rank Emblem */}
+        {activeCard && searchGamePick && (
+          <View style={styles.heroSection}>
+            {/* Outer glow ring */}
+            <Animated.View style={[styles.heroRingOuter, ringStyle]} />
+            <View style={styles.heroRingInner} />
             <Image
-              source={require('@/assets/images/peakdlogo2.png')}
-              style={styles.summaryLogo}
+              source={getRankIcon(activeCard.currentRank, searchGamePick)}
+              style={styles.heroRankIcon}
               resizeMode="contain"
             />
-            <View style={styles.summaryIconsRow}>
-              <View style={styles.summaryGameIcon}>
-                <Image source={require('@/assets/images/valorant-red.png')} style={styles.summaryValorantImg} resizeMode="contain" />
-              </View>
-              <View style={styles.summaryGameIcon}>
-                <Image source={require('@/assets/images/lol-icon.png')} style={styles.summaryLeagueImg} resizeMode="contain" />
-              </View>
-            </View>
           </View>
+        )}
 
-          <View style={styles.summaryBottomRow}>
-            <View style={{ flex: 1 }}>
-              <ThemedText style={styles.summaryTagline}>FIND YOUR TEAMMATE</ThemedText>
-              <ThemedText style={styles.summarySubtext}>Find teammates queuing right now</ThemedText>
+        {/* Rank Name + IGN */}
+        {activeCard && (
+          <View style={styles.infoSection}>
+            <ThemedText style={styles.rankName}>
+              {formatRankDisplay(activeCard.currentRank || 'Unranked')}
+            </ThemedText>
+            {activeInGameName && (
+              <ThemedText style={styles.ignText}>{activeInGameName}</ThemedText>
+            )}
+          </View>
+        )}
+
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          {activeWinRate > 0 && (
+            <View style={styles.statCard}>
+              <ThemedText style={styles.statValue}>{activeWinRate}%</ThemedText>
+              <ThemedText style={styles.statLabel}>WIN RATE</ThemedText>
             </View>
-            <View style={styles.summaryLiveRow}>
-              <Animated.View style={[styles.summaryDot, dotPulseStyle]} />
-              <ThemedText style={styles.summaryLiveText}>LIVE</ThemedText>
+          )}
+          {activeGamesPlayed > 0 && (
+            <View style={styles.statCard}>
+              <ThemedText style={styles.statValue}>{activeGamesPlayed}</ThemedText>
+              <ThemedText style={styles.statLabel}>GAMES</ThemedText>
             </View>
+          )}
+          <View style={styles.statCard}>
+            <ThemedText style={styles.statValue}>~18s</ThemedText>
+            <ThemedText style={styles.statLabel}>AVG WAIT</ThemedText>
           </View>
         </View>
 
-        {/* Bottom glow */}
-        <LinearGradient
-          colors={['transparent', 'rgba(100, 120, 255, 0.5)', 'transparent']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.summaryGlow}
-        />
-      </Animated.View>
+        {/* Mode Toggle */}
+        <View style={styles.modeToggleRow}>
+          <TouchableOpacity
+            style={[styles.modeToggle, searchModePick === 'lfg' && styles.modeToggleActive]}
+            onPress={() => onPickMode('lfg')}
+            activeOpacity={0.7}
+          >
+            <IconSymbol size={15} name="person.3.fill" color={searchModePick === 'lfg' ? '#fff' : '#555'} />
+            <ThemedText style={[styles.modeToggleText, searchModePick === 'lfg' && styles.modeToggleTextActive]}>
+              LFG
+            </ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeToggle, searchModePick === 'duo' && styles.modeToggleActive]}
+            onPress={() => onPickMode('duo')}
+            activeOpacity={0.7}
+          >
+            <IconSymbol size={15} name="person.2.fill" color={searchModePick === 'duo' ? '#fff' : '#555'} />
+            <ThemedText style={[styles.modeToggleText, searchModePick === 'duo' && styles.modeToggleTextActive]}>
+              Find Duo
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
 
-      <Animated.View style={[styles.content, contentStyle]}>
-        {/* Duo Card Preview */}
-        {hasCards && activeCard && searchGamePick && (
-          <View style={styles.duoCardSection}>
-            <DuoCard
-              duo={{
-                id: 0,
-                username: username || activeCard.username || 'You',
-                status: 'online',
-                matchPercentage: 0,
-                currentRank: activeCard.currentRank || 'Unranked',
-                peakRank: activeCard.peakRank || '',
-                favoriteAgent: activeCard.mainAgent || '',
-                favoriteRole: activeCard.mainRole || '',
-                winRate: searchGamePick === 'valorant' ? (valorantWinRate || 0) : (leagueWinRate || 0),
-                gamesPlayed: searchGamePick === 'valorant' ? (valorantGamesPlayed || 0) : (leagueGamesPlayed || 0),
-                game: searchGamePick === 'valorant' ? 'Valorant' : 'League of Legends',
-                avatar: avatar,
-                inGameIcon: activeInGameIcon,
-                inGameName: activeInGameName,
-              }}
-              noShadow
-            />
-          </View>
-        )}
-
-        {/* Mode Picker */}
-        {hasCards && (
-          <View style={styles.modeSection}>
-            <ThemedText style={styles.sectionLabel}>CHOOSE A MODE</ThemedText>
-            <View style={styles.modeCards}>
-              <TouchableOpacity
-                style={[styles.modeCard, searchModePick === 'lfg' && styles.modeCardActive]}
-                onPress={() => onPickMode(searchModePick === 'lfg' ? null : 'lfg')}
-                activeOpacity={0.85}
-              >
-                <LinearGradient
-                  colors={searchModePick === 'lfg' ? ['#1e1e22', '#161618'] : ['#141416', '#111113']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.modeCardContent}>
-                  <View style={styles.modeCardTopRow}>
-                    <IconSymbol size={22} name="person.3.fill" color={searchModePick === 'lfg' ? '#fff' : '#555'} />
-                    {searchModePick === 'lfg' && (
-                      <View style={styles.modeCheckBadge}>
-                        <IconSymbol size={11} name="checkmark" color="#fff" />
-                      </View>
-                    )}
-                  </View>
-                  <View>
-                    <ThemedText style={[styles.modeCardTitle, searchModePick === 'lfg' && styles.modeCardTitleActive]}>
-                      LFG
-                    </ThemedText>
-                    <ThemedText style={styles.modeCardDesc}>
-                      Need one more for a 5 stack?
-                    </ThemedText>
-                  </View>
-                </View>
-                {searchModePick === 'lfg' && (
-                  <LinearGradient
-                    colors={['transparent', 'rgba(100, 120, 255, 0.5)', 'transparent']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.modeCardGlow}
-                  />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modeCard, searchModePick === 'duo' && styles.modeCardActive]}
-                onPress={() => onPickMode(searchModePick === 'duo' ? null : 'duo')}
-                activeOpacity={0.85}
-              >
-                <LinearGradient
-                  colors={searchModePick === 'duo' ? ['#1e1e22', '#161618'] : ['#141416', '#111113']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.modeCardContent}>
-                  <View style={styles.modeCardTopRow}>
-                    <IconSymbol size={22} name="person.2.fill" color={searchModePick === 'duo' ? '#fff' : '#555'} />
-                    {searchModePick === 'duo' && (
-                      <View style={styles.modeCheckBadge}>
-                        <IconSymbol size={11} name="checkmark" color="#fff" />
-                      </View>
-                    )}
-                  </View>
-                  <View>
-                    <ThemedText style={[styles.modeCardTitle, searchModePick === 'duo' && styles.modeCardTitleActive]}>
-                      Find Duo
-                    </ThemedText>
-                    <ThemedText style={styles.modeCardDesc}>
-                      Find one teammate near your rank
-                    </ThemedText>
-                  </View>
-                </View>
-                {searchModePick === 'duo' && (
-                  <LinearGradient
-                    colors={['transparent', 'rgba(100, 120, 255, 0.5)', 'transparent']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.modeCardGlow}
-                  />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Start Match */}
+        {/* Find Match Button */}
         <TouchableOpacity
-          style={[
-            styles.searchBtn,
-            hasCards && !canSearch && styles.searchBtnDisabled,
-          ]}
-          onPress={hasCards ? onSearch : onCreateCard}
-          activeOpacity={0.85}
-          disabled={hasCards && !canSearch}
+          style={[styles.findMatchBtn, !canSearch && styles.findMatchBtnDisabled]}
+          onPress={onSearch}
+          activeOpacity={0.8}
+          disabled={!canSearch}
         >
-          <LinearGradient
-            colors={['#1e1e22', '#161618']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.searchBtnContent}>
-            <View>
-              <ThemedText style={styles.searchBtnText}>
-                {hasCards ? 'Start Match' : 'Create a Rank Card'}
-              </ThemedText>
-              {hasCards && (
-                <ThemedText style={styles.searchBtnSub}>~18s estimated wait</ThemedText>
-              )}
-            </View>
-            <IconSymbol size={18} name="chevron.right" color="rgba(255,255,255,0.4)" />
-          </View>
-          <LinearGradient
-            colors={['transparent', 'rgba(100, 120, 255, 0.5)', 'transparent']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.searchBtnGlow}
-          />
+          <ThemedText style={styles.findMatchText}>Find Match</ThemedText>
         </TouchableOpacity>
       </Animated.View>
     </View>
@@ -346,284 +304,202 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingBottom: 20,
-    overflow: 'visible',
+  },
+  content: {
+    flex: 1,
+    paddingTop: 8,
+    gap: 24,
   },
 
-  // Summary Banner
-  summaryCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(100, 120, 255, 0.15)',
-    overflow: 'hidden',
-    marginTop: 16,
-    marginBottom: 20,
-    shadowColor: 'rgba(100, 120, 255, 0.3)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 30,
-    elevation: 6,
-  },
-  summaryContent: {
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    gap: 14,
-  },
-  summaryTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  summaryLogo: {
-    width: 156,
-    height: 58,
-    marginLeft: -18,
-  },
-  summaryIconsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  summaryGameIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    overflow: 'hidden',
+  // No card state
+  noCardCenter: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 40,
   },
-  summaryValorantImg: {
+  noCardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  noCardSub: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  createCardBtn: {
+    marginTop: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+  },
+  createCardBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f0f0f',
+  },
+
+  // Game toggle
+  gameToggleRow: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    padding: 4,
+  },
+  gameToggle: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 11,
+  },
+  gameToggleActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  gameToggleIcon: {
     width: 20,
     height: 20,
   },
-  summaryLeagueImg: {
-    width: 34,
-    height: 34,
+  gameToggleIconLg: {
+    width: 24,
+    height: 24,
   },
-  summaryBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  summaryTagline: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.9)',
-    letterSpacing: 1.5,
-    marginBottom: 2,
-  },
-  summarySubtext: {
-    fontSize: 13,
-    color: '#888',
-  },
-  summaryLiveRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  summaryDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4ADE80',
-  },
-  summaryLiveText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#4ADE80',
-    letterSpacing: 1,
-  },
-  summaryGlow: {
-    position: 'absolute',
-    bottom: 0,
-    left: '20%',
-    right: '20%',
-    height: 2,
-  },
-
-  content: {
-    flex: 1,
-    width: '100%',
-  },
-  duoCardSection: {
-    marginBottom: 16,
-  },
-
-  // Section Label
-  sectionLabel: {
-    fontSize: 11,
+  gameToggleText: {
+    fontSize: 15,
     fontWeight: '600',
     color: '#555',
-    letterSpacing: 1.5,
-    marginBottom: 12,
+  },
+  gameToggleTextActive: {
+    color: '#fff',
   },
 
-  // Mode Section
-  modeSection: {
-    marginBottom: 16,
-  },
-  modeCards: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modeCard: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  modeCardActive: {
-    borderColor: 'rgba(100, 120, 255, 0.15)',
-    shadowColor: 'rgba(100, 120, 255, 0.3)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 4,
-  },
-  modeCardContent: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  modeCardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  modeCheckBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#4ADE80',
+  // Hero rank emblem
+  heroSection: {
     alignItems: 'center',
     justifyContent: 'center',
+    height: 180,
   },
-  modeCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#666',
-    marginBottom: 2,
-  },
-  modeCardTitleActive: {
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  modeCardDesc: {
-    fontSize: 12,
-    color: '#888',
-    lineHeight: 17,
-  },
-  modeCardGlow: {
+  heroRingOuter: {
     position: 'absolute',
-    bottom: 0,
-    left: '20%',
-    right: '20%',
-    height: 2,
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  },
+  heroRingInner: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.015)',
+  },
+  heroRankIcon: {
+    width: 110,
+    height: 110,
   },
 
-  // Game & Rank Bar
-  settingsBar: {
-    flexDirection: 'row',
+  // Info
+  infoSection: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 16,
+    gap: 4,
+    marginTop: -8,
   },
-  settingItem: {
-    flex: 1,
+  rankName: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  ignText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#F0D6A2',
+  },
+
+  // Stats row
+  statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
   },
-  settingItemIcon: {
-    width: 32,
-    height: 32,
-  },
-  settingItemTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ddd',
-  },
-  settingItemSub: {
-    fontSize: 11,
-    color: '#666',
-    marginTop: 1,
-  },
-  settingChangeRow: {
-    flexDirection: 'row',
+  statCard: {
+    flex: 1,
     alignItems: 'center',
-    gap: 3,
-    marginTop: 1,
-  },
-  settingChangeText: {
-    fontSize: 12,
-    color: '#F0D6A2',
-    fontWeight: '500',
-  },
-  settingDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginHorizontal: 12,
-  },
-
-  // Start Match Button
-  searchBtn: {
-    borderRadius: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(100, 120, 255, 0.15)',
-    overflow: 'hidden',
-    marginBottom: 16,
-    shadowColor: 'rgba(100, 120, 255, 0.3)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 4,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    gap: 4,
   },
-  searchBtnDisabled: {
-    opacity: 0.35,
+  statValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#fff',
   },
-  searchBtnContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-  },
-  searchBtnText: {
-    fontSize: 16,
+  statLabel: {
+    fontSize: 10,
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  searchBtnSub: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 2,
-  },
-  searchBtnGlow: {
-    position: 'absolute',
-    bottom: 0,
-    left: '20%',
-    right: '20%',
-    height: 2,
+    color: '#555',
+    letterSpacing: 0.8,
   },
 
-  // Footer
-  footerRow: {
+  // Mode toggle
+  modeToggleRow: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    padding: 4,
+  },
+  modeToggle: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    marginBottom: 12,
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 11,
   },
-  footerText: {
-    fontSize: 12,
+  modeToggleActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  modeToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#555',
+  },
+  modeToggleTextActive: {
+    color: '#fff',
+  },
+
+  // Find Match button
+  findMatchBtn: {
+    backgroundColor: '#fff',
+    borderRadius: 28,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  findMatchBtnDisabled: {
+    opacity: 0.4,
+  },
+  findMatchText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f0f0f',
   },
 });

@@ -14,6 +14,8 @@ import { createOrGetChat, sendMessage } from '@/services/chatService';
 import { DuoCardData } from '@/app/(tabs)/duoFinder';
 
 interface LiveSearchContentProps {
+  cancelRef?: React.MutableRefObject<(() => void) | null>;
+  cardsLoaded?: boolean;
   valorantCard: DuoCardData | null;
   leagueCard: DuoCardData | null;
   valorantInGameIcon?: string;
@@ -28,6 +30,8 @@ interface LiveSearchContentProps {
 }
 
 export default function LiveSearchContent({
+  cancelRef,
+  cardsLoaded,
   valorantCard,
   leagueCard,
   valorantInGameIcon,
@@ -286,6 +290,11 @@ export default function LiveSearchContent({
     setSearchMode(null);
   }, [user?.id, searchGame, cleanupSearch]);
 
+  // Keep cancelRef in sync so the parent back button can cancel
+  useEffect(() => {
+    if (cancelRef) cancelRef.current = cancelSearch;
+  }, [cancelSearch, cancelRef]);
+
   const handleAccept = async () => {
     if (!currentMatchId || !user?.id) return;
     setHasAccepted(true);
@@ -490,6 +499,7 @@ export default function LiveSearchContent({
           />
         ) : (
           <LiveSearchIdle
+            cardsLoaded={cardsLoaded}
             hasCards={hasCards}
             valorantCard={valorantCard}
             leagueCard={leagueCard}

@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const FEED_CACHE_KEY = 'cached_feed_posts';
 const FEED_FOLLOWING_CACHE_KEY = 'cached_following_ids';
 const USER_PROFILE_CACHE_KEY = 'cached_user_profile';
+const FOR_YOU_CACHE_KEY = 'cached_for_you_posts';
 
 interface User {
   id: string;
@@ -74,6 +75,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   preloadedPosts: Post[] | null;
+  preloadedForYouPosts: Post[] | null;
   preloadedFollowingIds: string[] | null;
   preloadedSearchHistory: SearchUser[] | null;
   preloadedProfilePosts: Post[] | null;
@@ -87,6 +89,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   needsUsernameSetup: boolean;
   clearPreloadedPosts: () => void;
+  clearPreloadedForYouPosts: () => void;
   clearPreloadedSearchHistory: () => void;
   clearPreloadedProfileData: () => void;
   setNewlyFollowedUserPosts: (posts: Post[], userId: string) => void;
@@ -108,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [preloadedPosts, setPreloadedPosts] = useState<Post[] | null>(null);
+  const [preloadedForYouPosts, setPreloadedForYouPosts] = useState<Post[] | null>(null);
   const [preloadedSearchHistory, setPreloadedSearchHistory] = useState<SearchUser[] | null>(null);
   const [preloadedProfilePosts, setPreloadedProfilePosts] = useState<Post[] | null>(null);
   const [preloadedRiotStats, setPreloadedRiotStats] = useState<any | null>(null);
@@ -417,11 +421,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // User is signed in — try cached profile + feed first for instant render
         try {
-          // Phase 1: Load ALL caches in parallel (profile + feed + following)
-          const [cachedProfileJson, cachedPostsJson, cachedFollowingJson] = await Promise.all([
+          // Phase 1: Load ALL caches in parallel (profile + feed + following + for you)
+          const [cachedProfileJson, cachedPostsJson, cachedFollowingJson, cachedForYouJson] = await Promise.all([
             AsyncStorage.getItem(USER_PROFILE_CACHE_KEY).catch(() => null),
             AsyncStorage.getItem(FEED_CACHE_KEY).catch(() => null),
             AsyncStorage.getItem(FEED_FOLLOWING_CACHE_KEY).catch(() => null),
+            AsyncStorage.getItem(FOR_YOU_CACHE_KEY).catch(() => null),
           ]);
 
           let usedCache = false;
@@ -431,7 +436,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Only use cache if it belongs to the same user
               if (cachedProfile.id === firebaseUser.uid && !cachedProfile.needsUsernameSetup) {
                 setUser(cachedProfile);
-                setWaitingForFeed(true);
 
                 if (cachedPostsJson) {
                   const cachedPosts = JSON.parse(cachedPostsJson).map((p: any) => ({
@@ -443,6 +447,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setPreloadedFollowingIds(JSON.parse(cachedFollowingJson));
                   }
                   console.log(`⚡ Instant load: ${cachedPosts.length} cached posts`);
+                }
+                if (cachedForYouJson) {
+                  try {
+                    const cachedForYou = JSON.parse(cachedForYouJson).map((p: any) => ({
+                      ...p,
+                      createdAt: new Timestamp(p.createdAt.seconds, p.createdAt.nanoseconds),
+                    }));
+                    setPreloadedForYouPosts(cachedForYou);
+                    console.log(`⚡ Instant load: ${cachedForYou.length} cached For You posts`);
+                  } catch {}
+                }
+                // Only block on feed loading if we have no cached feed data at all
+                const hasAnyCachedFeed = !!cachedPostsJson || !!cachedForYouJson;
+                if (!hasAnyCachedFeed) {
+                  setWaitingForFeed(true);
                 }
                 // Show home screen NOW with cached data
                 setLoadingFalse();
@@ -479,9 +498,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify(freshUser)).catch(() => {});
 
             if (!userProfile.needsUsernameSetup) {
-              setWaitingForFeed(true);
               // If we didn't use cache, try loading feed cache now before network fetch
               if (!usedCache) {
+                let loadedAnyCacheFeed = false;
                 if (cachedPostsJson) {
                   try {
                     const cachedPosts = JSON.parse(cachedPostsJson).map((p: any) => ({
@@ -494,7 +513,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     }
                     setLoadingFalse();
                     usedCache = true;
+                    loadedAnyCacheFeed = true;
                   } catch {}
+                }
+                if (cachedForYouJson) {
+                  try {
+                    const cachedForYou = JSON.parse(cachedForYouJson).map((p: any) => ({
+                      ...p,
+                      createdAt: new Timestamp(p.createdAt.seconds, p.createdAt.nanoseconds),
+                    }));
+                    setPreloadedForYouPosts(cachedForYou);
+                    loadedAnyCacheFeed = true;
+                  } catch {}
+                }
+                if (!loadedAnyCacheFeed) {
+                  setWaitingForFeed(true);
                 }
               }
 
@@ -564,11 +597,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // Load cached feed and show home screen immediately
             if (!isGoogleUser && !isAppleUser) {
-              setWaitingForFeed(true);
+              let loadedAnyCacheFeed = false;
               try {
-                const [cachedPostsJson, cachedFollowingJson] = await Promise.all([
+                const [cachedPostsJson, cachedFollowingJson, cachedForYouJson2] = await Promise.all([
                   AsyncStorage.getItem(FEED_CACHE_KEY),
                   AsyncStorage.getItem(FEED_FOLLOWING_CACHE_KEY),
+                  AsyncStorage.getItem(FOR_YOU_CACHE_KEY),
                 ]);
                 if (cachedPostsJson) {
                   const cachedPosts = JSON.parse(cachedPostsJson).map((p: any) => ({
@@ -580,8 +614,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setPreloadedFollowingIds(JSON.parse(cachedFollowingJson));
                   }
                   setLoadingFalse();
+                  loadedAnyCacheFeed = true;
+                }
+                if (cachedForYouJson2) {
+                  try {
+                    const cachedForYou = JSON.parse(cachedForYouJson2).map((p: any) => ({
+                      ...p,
+                      createdAt: new Timestamp(p.createdAt.seconds, p.createdAt.nanoseconds),
+                    }));
+                    setPreloadedForYouPosts(cachedForYou);
+                    loadedAnyCacheFeed = true;
+                  } catch {}
                 }
               } catch {}
+              if (!loadedAnyCacheFeed) {
+                setWaitingForFeed(true);
+              }
 
               // Fetch fresh data in background
               (async () => {
@@ -676,9 +724,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       await authSignOut();
       clearLeagueStatsCache();
-      AsyncStorage.multiRemove([FEED_CACHE_KEY, FEED_FOLLOWING_CACHE_KEY, USER_PROFILE_CACHE_KEY]).catch(() => {});
+      AsyncStorage.multiRemove([FEED_CACHE_KEY, FEED_FOLLOWING_CACHE_KEY, USER_PROFILE_CACHE_KEY, FOR_YOU_CACHE_KEY]).catch(() => {});
       setUser(null);
       setPreloadedPosts(null);
+      setPreloadedForYouPosts(null);
       setPreloadedFollowingIds(null);
       setPreloadedSearchHistory(null);
       setPreloadedProfilePosts(null);
@@ -695,6 +744,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearPreloadedPosts = () => {
     setPreloadedPosts(null);
+  };
+
+  const clearPreloadedForYouPosts = () => {
+    setPreloadedForYouPosts(null);
   };
 
   const clearPreloadedSearchHistory = () => {
@@ -754,6 +807,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isLoading,
         preloadedPosts,
+        preloadedForYouPosts,
         preloadedFollowingIds,
         preloadedSearchHistory,
         preloadedProfilePosts,
@@ -767,6 +821,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user,
         needsUsernameSetup: !!user?.needsUsernameSetup,
         clearPreloadedPosts,
+        clearPreloadedForYouPosts,
         clearPreloadedSearchHistory,
         clearPreloadedProfileData,
         setNewlyFollowedUserPosts,

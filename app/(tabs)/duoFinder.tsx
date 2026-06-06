@@ -25,6 +25,7 @@ import { useFocusEffect } from 'expo-router';
 import { Alert, Dimensions, ScrollView, FlatList, ActivityIndicator, Pressable, StyleSheet, TouchableOpacity, View, RefreshControl, Image, Modal, Animated, Easing } from 'react-native';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const GRID_SIZE = 40;
 import { doc, getDoc, setDoc, deleteDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useRouter } from '@/hooks/useRouter';
@@ -101,7 +102,9 @@ interface DuoPostWithId {
   expiresAt: any;
 }
 
-
+// Module-level caches for instant re-visits
+let cachedDuoCards: DuoCardWithId[] | null = null;
+let cachedDuoPosts: DuoPostWithId[] | null = null;
 
 export default function DuoFinderScreen() {
   const { user, isUserBlocked } = useAuth();
@@ -138,13 +141,13 @@ export default function DuoFinderScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Find Duo state (legacy cards still used for live search)
-  const [duoCards, setDuoCards] = useState<DuoCardWithId[]>([]);
+  const [duoCards, setDuoCards] = useState<DuoCardWithId[]>(cachedDuoCards || []);
   const [loadingDuoCards, setLoadingDuoCards] = useState(false);
 
   // Duo Posts feed state
-  const [duoPosts, setDuoPosts] = useState<DuoPostWithId[]>([]);
-  const [displayedPosts, setDisplayedPosts] = useState<DuoPostWithId[]>([]);
-  const [loadingDuoPosts, setLoadingDuoPosts] = useState(false);
+  const [duoPosts, setDuoPosts] = useState<DuoPostWithId[]>(cachedDuoPosts || []);
+  const [displayedPosts, setDisplayedPosts] = useState<DuoPostWithId[]>((cachedDuoPosts || []).slice(0, 10));
+  const [loadingDuoPosts, setLoadingDuoPosts] = useState(!cachedDuoPosts);
   const [refreshingPosts, setRefreshingPosts] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showPostDuoCard, setShowPostDuoCard] = useState(false);
@@ -212,6 +215,11 @@ export default function DuoFinderScreen() {
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
+
+        // Set linked account state (eliminates separate checkLinkedAccounts call)
+        setHasValorantAccount(!!userData.valorantAccount);
+        setHasLeagueAccount(!!userData.riotAccount);
+        setEnabledRankCards(userData.enabledRankCards || []);
 
         // Extract in-game icons, names, and stats from user stats
         if (userData.valorantStats?.card?.small) {
@@ -464,35 +472,8 @@ export default function DuoFinderScreen() {
 
 
 
-  // Check if user has Valorant or League accounts (RankCards)
-  useFocusEffect(
-    useCallback(() => {
-      const checkLinkedAccounts = async () => {
-        if (!user?.id) return;
-
-        try {
-          const userDocRef = doc(db, 'users', user.id);
-          const userDoc = await getDoc(userDocRef);
-
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            const hasLeague = !!userData.riotAccount;
-            const hasValorant = !!userData.valorantAccount;
-
-            setHasValorantAccount(hasValorant);
-            setHasLeagueAccount(hasLeague);
-            setEnabledRankCards(userData.enabledRankCards || []);
-          }
-        } catch (error) {
-          console.error('Error checking linked accounts:', error);
-        }
-      };
-
-      checkLinkedAccounts();
-    }, [user?.id])
-  );
-
   // Re-sync duo cards every time the tab gains focus (picks up newly added rank cards)
+  // Also sets linked account state (hasValorantAccount, hasLeagueAccount, enabledRankCards)
   useFocusEffect(
     useCallback(() => {
       syncDuoCardsWithStats(false);
@@ -553,121 +534,113 @@ export default function DuoFinderScreen() {
         return;
       }
 
-      let allCards: DuoCardWithId[] = [];
+      // Fetch all game queries in parallel
+      const snapshots = await Promise.all(
+        gamesToFetch.map(game =>
+          getDocs(query(
+            duoCardsRef,
+            where('game', '==', game),
+            where('status', '==', 'active'),
+            orderBy('updatedAt', 'desc'),
+            limit(50)
+          ))
+        )
+      );
 
-      for (const game of gamesToFetch) {
-        // Fetch all active duo cards for this game
-        const q = query(
-          duoCardsRef,
-          where('game', '==', game),
-          where('status', '==', 'active'),
-          orderBy('updatedAt', 'desc'),
-          limit(50) // Fetch more than 5 to account for filtering out own card
-        );
-
-        const snapshot = await getDocs(q);
-        const cards = await Promise.all(
-          snapshot.docs
-            .filter(docSnapshot => docSnapshot.data().userId !== user.id) // Exclude own card
-            .map(async (docSnapshot) => {
-              const cardData = docSnapshot.data();
-
-              // Fetch user's avatar, in-game icon, in-game name, and stats
-              let avatar = undefined;
-              let inGameIcon = undefined;
-              let inGameName = undefined;
-              let winRate = undefined;
-              let gamesPlayed = undefined;
-              let rankUpUsername = undefined;
-              try {
-                const userDocRef = doc(db, 'users', cardData.userId);
-                const userDoc = await getDoc(userDocRef);
-                if (userDoc.exists()) {
-                  const userData = userDoc.data();
-                  avatar = userData?.avatar;
-                  rankUpUsername = userData?.username;
-                  // Get in-game icon, name, and stats based on game type
-                  if (cardData.game === 'valorant') {
-                    if (userData?.valorantStats?.card?.small) {
-                      inGameIcon = userData.valorantStats.card.small;
-                    }
-                    if (userData?.valorantStats?.gameName) {
-                      const tagLine = userData?.valorantAccount?.tag || userData?.valorantAccount?.tagLine || '';
-                      inGameName = tagLine ? `${userData.valorantStats.gameName}#${tagLine}` : userData.valorantStats.gameName;
-                    }
-                    // Get win rate and games played for Valorant
-                    if (userData?.valorantStats?.winRate !== undefined) {
-                      winRate = userData.valorantStats.winRate;
-                    }
-                    if (userData?.valorantStats?.gamesPlayed !== undefined) {
-                      gamesPlayed = userData.valorantStats.gamesPlayed;
-                    }
-                  } else if (cardData.game === 'league') {
-                    // League stores profileIconId, need to construct URL
-                    if (userData?.riotStats?.profileIconId) {
-                      inGameIcon = `https://ddragon.leagueoflegends.com/cdn/14.24.1/img/profileicon/${userData.riotStats.profileIconId}.png`;
-                    }
-                    if (userData?.riotAccount?.gameName) {
-                      const tagLine = userData.riotAccount.tagLine || '';
-                      inGameName = `${userData.riotAccount.gameName}#${tagLine}`;
-                    }
-                    // Get win rate and games played for League (from rankedSolo)
-                    if (userData?.riotStats?.rankedSolo) {
-                      const rankedSolo = userData.riotStats.rankedSolo;
-                      if (rankedSolo.winRate !== undefined) {
-                        winRate = rankedSolo.winRate;
-                      }
-                      // Calculate games played from wins + losses
-                      const wins = rankedSolo.wins || 0;
-                      const losses = rankedSolo.losses || 0;
-                      if (wins > 0 || losses > 0) {
-                        gamesPlayed = wins + losses;
-                      }
-                    }
-                  }
-                }
-              } catch (error) {
-                console.error('Error fetching user data for:', cardData.userId, error);
-              }
-
-              return {
-                id: docSnapshot.id,
-                userId: cardData.userId,
-                game: cardData.game,
-                username: rankUpUsername || cardData.username,
-                currentRank: cardData.currentRank,
-                region: cardData.region,
-                mainRole: cardData.mainRole,
-                peakRank: cardData.peakRank,
-                mainAgent: cardData.mainAgent,
-                lookingFor: cardData.lookingFor || 'Any',
-                updatedAt: cardData.updatedAt,
-                avatar: avatar,
-                inGameIcon: inGameIcon,
-                inGameName: inGameName,
-                winRate: winRate,
-                gamesPlayed: gamesPlayed,
-                rankUpUsername: rankUpUsername,
-              };
-            })
-        ) as DuoCardWithId[];
-
-        // Apply client-side filters
-        const filteredCards = cards.filter(card => {
-          // Role filter
-          if (filters.role && card.mainRole !== filters.role) return false;
-
-          // Rank filter
-          if (!isRankInRange(card.currentRank, card.game, filters.minRank, filters.maxRank)) return false;
-
-          return true;
+      // Collect all card docs (excluding own)
+      const allCardDocs: { id: string; data: any }[] = [];
+      snapshots.forEach(snapshot => {
+        snapshot.docs.forEach(docSnapshot => {
+          if (docSnapshot.data().userId !== user.id) {
+            allCardDocs.push({ id: docSnapshot.id, data: docSnapshot.data() });
+          }
         });
+      });
 
-        allCards = [...allCards, ...filteredCards];
+      // Batch-fetch all unique user docs
+      const uniqueUserIds = [...new Set(allCardDocs.map(c => c.data.userId))];
+      const userDataMap = new Map<string, any>();
+      const batchSize = 10;
+      const userBatches: string[][] = [];
+      for (let i = 0; i < uniqueUserIds.length; i += batchSize) {
+        userBatches.push(uniqueUserIds.slice(i, i + batchSize));
       }
+      const userResults = await Promise.all(
+        userBatches.map(batch =>
+          getDocs(query(collection(db, 'users'), where('__name__', 'in', batch)))
+            .catch(() => null)
+        )
+      );
+      userResults.forEach(snapshot => {
+        snapshot?.docs.forEach(d => userDataMap.set(d.id, d.data()));
+      });
+
+      // Enrich cards with user data
+      const enrichedCards: DuoCardWithId[] = allCardDocs.map(({ id: cardId, data: cardData }) => {
+        const userData = userDataMap.get(cardData.userId);
+        let avatar = undefined;
+        let inGameIcon = undefined;
+        let inGameName = undefined;
+        let winRate = undefined;
+        let gamesPlayed = undefined;
+        let rankUpUsername = undefined;
+
+        if (userData) {
+          avatar = userData.avatar;
+          rankUpUsername = userData.username;
+          if (cardData.game === 'valorant') {
+            if (userData.valorantStats?.card?.small) inGameIcon = userData.valorantStats.card.small;
+            if (userData.valorantStats?.gameName) {
+              const tagLine = userData.valorantAccount?.tag || userData.valorantAccount?.tagLine || '';
+              inGameName = tagLine ? `${userData.valorantStats.gameName}#${tagLine}` : userData.valorantStats.gameName;
+            }
+            if (userData.valorantStats?.winRate !== undefined) winRate = userData.valorantStats.winRate;
+            if (userData.valorantStats?.gamesPlayed !== undefined) gamesPlayed = userData.valorantStats.gamesPlayed;
+          } else if (cardData.game === 'league') {
+            if (userData.riotStats?.profileIconId) {
+              inGameIcon = `https://ddragon.leagueoflegends.com/cdn/14.24.1/img/profileicon/${userData.riotStats.profileIconId}.png`;
+            }
+            if (userData.riotAccount?.gameName) {
+              const tagLine = userData.riotAccount.tagLine || '';
+              inGameName = `${userData.riotAccount.gameName}#${tagLine}`;
+            }
+            if (userData.riotStats?.rankedSolo) {
+              const rankedSolo = userData.riotStats.rankedSolo;
+              if (rankedSolo.winRate !== undefined) winRate = rankedSolo.winRate;
+              const wins = rankedSolo.wins || 0;
+              const losses = rankedSolo.losses || 0;
+              if (wins > 0 || losses > 0) gamesPlayed = wins + losses;
+            }
+          }
+        }
+
+        return {
+          id: cardId,
+          userId: cardData.userId,
+          game: cardData.game,
+          username: rankUpUsername || cardData.username,
+          currentRank: cardData.currentRank,
+          region: cardData.region,
+          mainRole: cardData.mainRole,
+          peakRank: cardData.peakRank,
+          mainAgent: cardData.mainAgent,
+          lookingFor: cardData.lookingFor || 'Any',
+          updatedAt: cardData.updatedAt,
+          avatar, inGameIcon, inGameName, winRate, gamesPlayed, rankUpUsername,
+        };
+      });
+
+      // Apply client-side filters
+      const filteredCards = enrichedCards.filter(card => {
+        if (filters.role && card.mainRole !== filters.role) return false;
+        if (!isRankInRange(card.currentRank, card.game, filters.minRank, filters.maxRank)) return false;
+        return true;
+      });
 
       // Limit to 10 cards
-      setDuoCards(allCards.slice(0, 10));
+      const finalCards = filteredCards.slice(0, 10);
+      setDuoCards(finalCards);
+      cachedDuoCards = finalCards;
     } catch (error) {
       console.error('Error fetching duo cards:', error);
       Alert.alert('Error', 'Failed to load duo cards. Please try again.');
@@ -706,28 +679,29 @@ export default function DuoFinderScreen() {
         return;
       }
 
+      // Fetch all game queries in parallel
+      const snapshots = await Promise.all(
+        gamesToFetch.map(game =>
+          getDocs(query(
+            postsRef,
+            where('status', '==', 'active'),
+            where('game', '==', game),
+            orderBy('createdAt', 'desc'),
+            limit(20)
+          ))
+        )
+      );
+
       let allPosts: DuoPostWithId[] = [];
-
-      for (const game of gamesToFetch) {
-        const q = query(
-          postsRef,
-          where('status', '==', 'active'),
-          where('game', '==', game),
-          orderBy('createdAt', 'desc'),
-          limit(20)
-        );
-
-        const snapshot = await getDocs(q);
+      snapshots.forEach(snapshot => {
         const posts = snapshot.docs
           .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as DuoPostWithId))
           .filter(post => {
-            // Filter out expired posts client-side
             if (post.expiresAt && post.expiresAt.toDate() < new Date()) return false;
             return true;
           });
-
         allPosts = [...allPosts, ...posts];
-      }
+      });
 
       // Sort all posts by createdAt desc
       allPosts.sort((a, b) => {
@@ -757,6 +731,7 @@ export default function DuoFinderScreen() {
       const withoutBlocked = filtered.filter(post => !isUserBlocked(post.userId));
       setDuoPosts(withoutBlocked);
       setDisplayedPosts(withoutBlocked.slice(0, POSTS_PER_PAGE));
+      cachedDuoPosts = withoutBlocked;
     } catch (error) {
       console.error('Error fetching duo posts:', error);
     } finally {
@@ -781,8 +756,9 @@ export default function DuoFinderScreen() {
   };
 
   // Fetch duo posts when filters or games change
+  // Skip loading skeleton if we have cached data
   useEffect(() => {
-    fetchDuoPosts();
+    fetchDuoPosts(!cachedDuoPosts);
   }, [filters, selectedGames, user?.id]);
 
   // Delete a duo post
@@ -941,6 +917,21 @@ export default function DuoFinderScreen() {
   // --- Live Search Functions ---
   return (
     <ThemedView style={styles.container}>
+      {/* Grid background */}
+      <View style={styles.gridOverlay} pointerEvents="none">
+        {Array.from({ length: Math.ceil(screenWidth / GRID_SIZE) + 1 }).map((_, i) => (
+          <View key={`v${i}`} style={[styles.gridLineV, { left: i * GRID_SIZE }]} />
+        ))}
+        {Array.from({ length: Math.ceil(screenHeight / GRID_SIZE) + 1 }).map((_, i) => (
+          <View key={`h${i}`} style={[styles.gridLineH, { top: i * GRID_SIZE }]} />
+        ))}
+        <LinearGradient
+          colors={['transparent', 'transparent', '#0f0f0f']}
+          locations={[0, 0.35, 0.7]}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
+
       {/* Background shimmer */}
       <View style={styles.backgroundGlow} pointerEvents="none">
         {/* Fixed shimmer band — diagonal gleam */}
@@ -1017,13 +1008,6 @@ export default function DuoFinderScreen() {
                     activeOpacity={0.85}
                     onPress={() => router.push('/partyPages/liveSearch')}
                   >
-                    <LinearGradient
-                      colors={['#1e1e22', '#161618']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={StyleSheet.absoluteFill}
-                    />
-
                     <View style={styles.liveSearchBannerContent}>
                       {/* Top row: Logo + Game Icons */}
                       <View style={styles.liveSearchBannerTopRow}>
@@ -1061,13 +1045,6 @@ export default function DuoFinderScreen() {
                       </View>
                     </View>
 
-                    {/* Bottom glow */}
-                    <LinearGradient
-                      colors={['transparent', 'rgba(100, 120, 255, 0.5)', 'transparent']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.liveSearchBannerGlow}
-                    />
                   </TouchableOpacity>
                 </View>
 
@@ -1534,6 +1511,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f0f0f',
   },
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gridLineV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+  },
+  gridLineH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+  },
   backgroundGlow: {
     ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
@@ -1699,8 +1693,6 @@ const styles = StyleSheet.create({
   liveSearchBannerCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
     backgroundColor: '#161618',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },

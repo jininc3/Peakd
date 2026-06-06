@@ -4,7 +4,7 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { StyleSheet, TouchableOpacity, View, Dimensions } from 'react-native';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -13,27 +13,46 @@ import { DuoCardData } from '@/app/(tabs)/duoFinder';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+// Module-level cache so data persists across navigations
+let _cachedData: {
+  userId: string;
+  valorantCard: DuoCardData | null;
+  leagueCard: DuoCardData | null;
+  valorantInGameIcon?: string;
+  valorantInGameName?: string;
+  leagueInGameIcon?: string;
+  leagueInGameName?: string;
+  valorantWinRate: number;
+  valorantGamesPlayed: number;
+  leagueWinRate: number;
+  leagueGamesPlayed: number;
+} | null = null;
+
 export default function LiveSearchScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const cancelRef = useRef<(() => void) | null>(null);
 
   const [liveMatchState, setLiveMatchState] = useState<'idle' | 'searching' | 'accepting' | 'matched'>('idle');
   const handleMatchStateChange = useCallback((state: 'idle' | 'searching' | 'accepting' | 'matched') => {
     setLiveMatchState(state);
   }, []);
 
-  const [valorantCard, setValorantCard] = useState<DuoCardData | null>(null);
-  const [leagueCard, setLeagueCard] = useState<DuoCardData | null>(null);
+  const cached = _cachedData?.userId === user?.id ? _cachedData : null;
+
+  const [valorantCard, setValorantCard] = useState<DuoCardData | null>(cached?.valorantCard ?? null);
+  const [leagueCard, setLeagueCard] = useState<DuoCardData | null>(cached?.leagueCard ?? null);
 
   // In-game info
-  const [valorantInGameIcon, setValorantInGameIcon] = useState<string | undefined>(undefined);
-  const [valorantInGameName, setValorantInGameName] = useState<string | undefined>(undefined);
-  const [leagueInGameIcon, setLeagueInGameIcon] = useState<string | undefined>(undefined);
-  const [leagueInGameName, setLeagueInGameName] = useState<string | undefined>(undefined);
-  const [valorantWinRate, setValorantWinRate] = useState<number>(0);
-  const [valorantGamesPlayed, setValorantGamesPlayed] = useState<number>(0);
-  const [leagueWinRate, setLeagueWinRate] = useState<number>(0);
-  const [leagueGamesPlayed, setLeagueGamesPlayed] = useState<number>(0);
+  const [valorantInGameIcon, setValorantInGameIcon] = useState<string | undefined>(cached?.valorantInGameIcon);
+  const [valorantInGameName, setValorantInGameName] = useState<string | undefined>(cached?.valorantInGameName);
+  const [leagueInGameIcon, setLeagueInGameIcon] = useState<string | undefined>(cached?.leagueInGameIcon);
+  const [leagueInGameName, setLeagueInGameName] = useState<string | undefined>(cached?.leagueInGameName);
+  const [valorantWinRate, setValorantWinRate] = useState<number>(cached?.valorantWinRate ?? 0);
+  const [valorantGamesPlayed, setValorantGamesPlayed] = useState<number>(cached?.valorantGamesPlayed ?? 0);
+  const [leagueWinRate, setLeagueWinRate] = useState<number>(cached?.leagueWinRate ?? 0);
+  const [leagueGamesPlayed, setLeagueGamesPlayed] = useState<number>(cached?.leagueGamesPlayed ?? 0);
+  const [cardsLoaded, setCardsLoaded] = useState(!!cached);
 
   // Load duo cards
   useEffect(() => {
@@ -41,54 +60,63 @@ export default function LiveSearchScreen() {
       if (!user?.id) return;
 
       try {
+        let vIcon: string | undefined;
+        let vName: string | undefined;
+        let lIcon: string | undefined;
+        let lName: string | undefined;
+        let vWr = 0, vGp = 0, lWr = 0, lGp = 0;
+        let vCard: DuoCardData | null = null;
+        let lCard: DuoCardData | null = null;
+
         const userDocRef = doc(db, 'users', user.id);
         const userDoc = await getDoc(userDocRef);
 
         if (userDoc.exists()) {
           const userData = userDoc.data();
 
-          if (userData.valorantStats?.card?.small) {
-            setValorantInGameIcon(userData.valorantStats.card.small);
-          }
+          if (userData.valorantStats?.card?.small) vIcon = userData.valorantStats.card.small;
           if (userData.valorantStats?.gameName) {
             const tagLine = userData.valorantAccount?.tag || userData.valorantAccount?.tagLine || '';
-            setValorantInGameName(tagLine ? `${userData.valorantStats.gameName}#${tagLine}` : userData.valorantStats.gameName);
+            vName = tagLine ? `${userData.valorantStats.gameName}#${tagLine}` : userData.valorantStats.gameName;
           }
-          if (userData.valorantStats?.winRate !== undefined) {
-            setValorantWinRate(userData.valorantStats.winRate);
-          }
-          if (userData.valorantStats?.gamesPlayed !== undefined) {
-            setValorantGamesPlayed(userData.valorantStats.gamesPlayed);
-          }
+          if (userData.valorantStats?.winRate !== undefined) vWr = userData.valorantStats.winRate;
+          if (userData.valorantStats?.gamesPlayed !== undefined) vGp = userData.valorantStats.gamesPlayed;
           if (userData.riotStats?.profileIconId) {
-            setLeagueInGameIcon(`https://ddragon.leagueoflegends.com/cdn/14.1.1/img/profileicon/${userData.riotStats.profileIconId}.png`);
+            lIcon = `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/profileicon/${userData.riotStats.profileIconId}.png`;
           }
           if (userData.riotAccount?.gameName) {
-            setLeagueInGameName(`${userData.riotAccount.gameName}#${userData.riotAccount.tagLine || ''}`);
+            lName = `${userData.riotAccount.gameName}#${userData.riotAccount.tagLine || ''}`;
           }
-          if (userData.riotStats?.winRate !== undefined) {
-            setLeagueWinRate(userData.riotStats.winRate);
-          }
-          if (userData.riotStats?.gamesPlayed !== undefined) {
-            setLeagueGamesPlayed(userData.riotStats.gamesPlayed);
-          }
+          if (userData.riotStats?.winRate !== undefined) lWr = userData.riotStats.winRate;
+          if (userData.riotStats?.gamesPlayed !== undefined) lGp = userData.riotStats.gamesPlayed;
         }
 
-        // Load Valorant card
-        const valorantCardRef = doc(db, 'duoCards', `${user.id}_valorant`);
-        const valorantCardDoc = await getDoc(valorantCardRef);
-        if (valorantCardDoc.exists()) {
-          setValorantCard(valorantCardDoc.data() as DuoCardData);
-        }
+        const valorantCardDoc = await getDoc(doc(db, 'duoCards', `${user.id}_valorant`));
+        if (valorantCardDoc.exists()) vCard = valorantCardDoc.data() as DuoCardData;
 
-        // Load League card
-        const leagueCardRef = doc(db, 'duoCards', `${user.id}_league`);
-        const leagueCardDoc = await getDoc(leagueCardRef);
-        if (leagueCardDoc.exists()) {
-          setLeagueCard(leagueCardDoc.data() as DuoCardData);
-        }
+        const leagueCardDoc = await getDoc(doc(db, 'duoCards', `${user.id}_league`));
+        if (leagueCardDoc.exists()) lCard = leagueCardDoc.data() as DuoCardData;
+
+        // Update state
+        setValorantInGameIcon(vIcon); setValorantInGameName(vName);
+        setValorantWinRate(vWr); setValorantGamesPlayed(vGp);
+        setLeagueInGameIcon(lIcon); setLeagueInGameName(lName);
+        setLeagueWinRate(lWr); setLeagueGamesPlayed(lGp);
+        setValorantCard(vCard); setLeagueCard(lCard);
+
+        // Persist to module cache
+        _cachedData = {
+          userId: user.id,
+          valorantCard: vCard, leagueCard: lCard,
+          valorantInGameIcon: vIcon, valorantInGameName: vName,
+          leagueInGameIcon: lIcon, leagueInGameName: lName,
+          valorantWinRate: vWr, valorantGamesPlayed: vGp,
+          leagueWinRate: lWr, leagueGamesPlayed: lGp,
+        };
       } catch (error) {
         console.error('Error loading duo cards:', error);
+      } finally {
+        setCardsLoaded(true);
       }
     };
 
@@ -131,15 +159,31 @@ export default function LiveSearchScreen() {
 
       {liveMatchState !== 'matched' && (
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              if (liveMatchState !== 'idle' && cancelRef.current) {
+                cancelRef.current();
+              } else {
+                router.back();
+              }
+            }}
+          >
             <IconSymbol size={20} name="chevron.left" color="#fff" />
           </TouchableOpacity>
-          <ThemedText style={styles.headerTitle}>Live Search</ThemedText>
-          <View style={{ width: 36 }} />
+          <View style={styles.headerTextCol}>
+            <View style={styles.headerLiveRow}>
+              <View style={styles.headerLiveDot} />
+              <ThemedText style={styles.headerLiveText}>LIVE SEARCH</ThemedText>
+            </View>
+            <ThemedText style={styles.headerTitle}>FIND TEAMMATES</ThemedText>
+          </View>
         </View>
       )}
 
       <LiveSearchContent
+        cancelRef={cancelRef}
+        cardsLoaded={cardsLoaded}
         valorantCard={valorantCard}
         leagueCard={leagueCard}
         valorantInGameIcon={valorantInGameIcon}
@@ -184,35 +228,38 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 14,
     paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 16,
+    paddingBottom: 8,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(212, 184, 120, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(212, 184, 120, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 8,
   },
-  helpButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+  headerTextCol: {
+    gap: 2,
+  },
+  headerLiveRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+  },
+  headerLiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#4ADE80',
+  },
+  headerLiveText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#4ADE80',
+    letterSpacing: 1,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '900',
     color: '#fff',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
 });

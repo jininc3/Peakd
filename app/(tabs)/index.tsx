@@ -19,8 +19,16 @@ import { ActivityIndicator, Animated, Dimensions, Image, ScrollView, StyleSheet,
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from '@/hooks/useRouter';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const FOR_YOU_CACHE_KEY = 'cached_for_you_posts';
 
 const { width, height: screenHeight } = Dimensions.get('window');
+
+// Grid background matching web app (64px, 2.5% white lines, fades from top)
+const GRID_SIZE = 40;
+
+
 
 // Scale-down press wrapper for tactile button feel
 const ScalePress = ({ onPress, style, children, disabled, activeOpacity, hitSlop }: {
@@ -131,8 +139,10 @@ export default function HomeScreen() {
   const {
     user: currentUser,
     preloadedPosts,
+    preloadedForYouPosts,
     preloadedFollowingIds,
     clearPreloadedPosts,
+    clearPreloadedForYouPosts,
     newlyFollowedUserPosts,
     newlyFollowedUserId,
     clearNewlyFollowedUserPosts,
@@ -314,6 +324,20 @@ export default function HomeScreen() {
       clearPreloadedPosts();
     }
   }, [preloadedPosts, clearPreloadedPosts]);
+
+  // Consume preloaded For You posts from AuthContext cache
+  const forYouNeedsBackgroundRefresh = useRef(false);
+  useEffect(() => {
+    if (preloadedForYouPosts && !forYouFetched) {
+      const filtered = preloadedForYouPosts.filter(p => !isUserBlocked(p.userId) && !isPostReported(p.id));
+      setForYouPosts(filtered);
+      forYouCacheRef.current['_all'] = filtered;
+      setForYouFetched(true);
+      setForYouLoading(false);
+      clearPreloadedForYouPosts();
+      forYouNeedsBackgroundRefresh.current = true;
+    }
+  }, [preloadedForYouPosts, forYouFetched, clearPreloadedForYouPosts]);
 
   // Track the newest post timestamp whenever followingPosts changes
   useEffect(() => {
@@ -688,39 +712,51 @@ export default function HomeScreen() {
       // Take only what we need
       const postsToShow = allPosts.slice(0, POSTS_PER_PAGE);
 
+      // Batch-fetch user data for all posts in parallel
+      const uniqueUserIds = [...new Set(postsToShow.map(p => p.userId))];
+      const userDataMap = new Map<string, any>();
+      const userBatchSize = 10;
+      const userBatches: string[][] = [];
+      for (let i = 0; i < uniqueUserIds.length; i += userBatchSize) {
+        userBatches.push(uniqueUserIds.slice(i, i + userBatchSize));
+      }
+      const userResults = await Promise.all(
+        userBatches.map(batch =>
+          getDocs(query(collection(db, 'users'), where('__name__', 'in', batch)))
+            .catch(error => { console.error('Error batch fetching users for For You:', error); return null; })
+        )
+      );
+      userResults.forEach(snapshot => {
+        snapshot?.docs.forEach(d => {
+          userDataMap.set(d.id, d.data());
+        });
+      });
+
       // Enrich with avatar, rank data, and filter out private accounts
       const enrichedPosts: Post[] = [];
       for (const post of postsToShow) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', post.userId));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
+        const userData = userDataMap.get(post.userId);
+        if (userData) {
+          if (userData.isPrivate) continue;
 
-            // Skip posts from private accounts
-            if (userData.isPrivate) continue;
+          let leagueRank = undefined;
+          let valorantRank = undefined;
 
-            let leagueRank = undefined;
-            let valorantRank = undefined;
-
-            if (userData.riotStats?.rankedSolo) {
-              leagueRank = `${userData.riotStats.rankedSolo.tier} ${userData.riotStats.rankedSolo.rank}`;
-            }
-            if (userData.valorantStats?.currentRank) {
-              valorantRank = userData.valorantStats.currentRank;
-            }
-
-            enrichedPosts.push({
-              ...post,
-              avatar: userData.avatar || post.avatar || undefined,
-              leagueRank,
-              valorantRank,
-              showRankOnPosts: userData.showRankOnPosts ?? false,
-            });
-          } else {
-            enrichedPosts.push(post);
+          if (userData.riotStats?.rankedSolo) {
+            leagueRank = `${userData.riotStats.rankedSolo.tier} ${userData.riotStats.rankedSolo.rank}`;
           }
-        } catch (error) {
-          console.error(`Error enriching For You post ${post.id}:`, error);
+          if (userData.valorantStats?.currentRank) {
+            valorantRank = userData.valorantStats.currentRank;
+          }
+
+          enrichedPosts.push({
+            ...post,
+            avatar: userData.avatar || post.avatar || undefined,
+            leagueRank,
+            valorantRank,
+            showRankOnPosts: userData.showRankOnPosts ?? false,
+          });
+        } else {
           enrichedPosts.push(post);
         }
       }
@@ -745,6 +781,17 @@ export default function HomeScreen() {
         setForYouLastDoc(snapshot.docs[snapshot.docs.length - 1]);
       }
       setForYouFetched(true);
+
+      // Cache For You posts to AsyncStorage for instant next launch (only initial fetch, no filter)
+      if (!isLoadMore && !selectedGameFilter && enrichedPosts.length > 0) {
+        try {
+          const cacheable = enrichedPosts.map((p: Post) => ({
+            ...p,
+            createdAt: { seconds: p.createdAt.seconds, nanoseconds: p.createdAt.nanoseconds },
+          }));
+          AsyncStorage.setItem(FOR_YOU_CACHE_KEY, JSON.stringify(cacheable)).catch(() => {});
+        } catch {}
+      }
 
     } catch (error) {
       console.error('Error fetching For You posts:', error);
@@ -797,6 +844,10 @@ export default function HomeScreen() {
       }
       if (!forYouFetched || filterChanged) {
         prevForYouFilterRef.current = selectedGameFilter;
+        fetchForYouPosts(false);
+      } else if (forYouNeedsBackgroundRefresh.current) {
+        // Silently refresh cached For You data in background
+        forYouNeedsBackgroundRefresh.current = false;
         fetchForYouPosts(false);
       }
     }
@@ -1293,6 +1344,20 @@ export default function HomeScreen() {
     <ThemedView style={styles.container}>
       {/* Ambient background glow */}
       <View style={styles.backgroundGlow} pointerEvents="none">
+        {/* Grid pattern (matches web landing-grid) */}
+        <View style={styles.gridOverlay}>
+          {Array.from({ length: Math.ceil(width / GRID_SIZE) + 1 }).map((_, i) => (
+            <View key={`v${i}`} style={[styles.gridLineV, { left: i * GRID_SIZE }]} />
+          ))}
+          {Array.from({ length: Math.ceil(screenHeight / GRID_SIZE) + 1 }).map((_, i) => (
+            <View key={`h${i}`} style={[styles.gridLineH, { top: i * GRID_SIZE }]} />
+          ))}
+          <LinearGradient
+            colors={['transparent', 'transparent', '#0f0f0f']}
+            locations={[0, 0.35, 0.7]}
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
         {/* Fixed shimmer band — diagonal gleam */}
         <View style={styles.shimmerBand} pointerEvents="none">
           <LinearGradient
@@ -1675,6 +1740,23 @@ const styles = StyleSheet.create({
   backgroundGlow: {
     ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
+  },
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gridLineV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+  },
+  gridLineH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
   },
   shimmerBand: {
     position: 'absolute',

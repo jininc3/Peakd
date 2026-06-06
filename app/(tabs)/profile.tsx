@@ -34,6 +34,8 @@ import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const width = screenWidth;
+const GRID_SIZE = 40;
 
 // Rank icon maps for profile banner pills
 const LEAGUE_RANK_ICONS: { [key: string]: any } = {
@@ -371,51 +373,6 @@ export default function ProfileScreen() {
 
   const userGames = userGamesBase;
 
-  // Fetch Riot account and stats (League and TFT)
-  // Lightweight function to fetch enabled rank cards and account data from Firestore (no API calls)
-  const fetchEnabledRankCards = async () => {
-    if (!user?.id) return;
-
-    try {
-      const userDoc = await getDoc(doc(db, 'users', user.id));
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        const cards = data.enabledRankCards || [];
-        let updatedCards = [...cards];
-        if (data.riotAccount && !updatedCards.includes('league')) {
-          updatedCards.push('league');
-        }
-        if (data.valorantAccount && !updatedCards.includes('valorant')) {
-          updatedCards.push('valorant');
-        }
-        // Remove cards for unlinked accounts
-        if (!data.riotAccount) {
-          updatedCards = updatedCards.filter(c => c !== 'league' && c !== 'tft');
-          setRiotAccount(null);
-          setRiotStats(null);
-        } else {
-          setRiotAccount(data.riotAccount);
-          if (data.riotStats) setRiotStats(data.riotStats);
-        }
-        if (!data.valorantAccount) {
-          updatedCards = updatedCards.filter(c => c !== 'valorant');
-          setValorantAccount(null);
-        } else {
-          setValorantAccount(data.valorantAccount);
-          // valorantStats are managed by ValorantStatsContext (loads cached stats on init)
-        }
-        setEnabledRankCards(updatedCards);
-        setClipCategories(data.clipCategories || []);
-        if (data.createdAt) {
-          setJoinedAt(data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt));
-        }
-        setLoadingRankCards(false);
-      }
-    } catch (error) {
-      console.error('Error fetching enabled rank cards:', error);
-    }
-  };
-
   const fetchRiotData = async (forceRefresh: boolean = false) => {
     if (!user?.id) return;
 
@@ -446,6 +403,7 @@ export default function ProfileScreen() {
           updatedCards = updatedCards.filter(c => c !== 'valorant');
         }
         setEnabledRankCards(updatedCards);
+        setClipCategories(data.clipCategories || []);
 
         if (data.createdAt) {
           setJoinedAt(data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt));
@@ -551,56 +509,14 @@ export default function ProfileScreen() {
   }, [preloadedProfilePosts, hasConsumedPreloadPosts]);
 
   // Consume preloaded Riot stats from AuthContext (loaded during loading screen)
+  // Just set the cached stats — fetchRiotData will read the user doc and fill in accounts/cards
   useEffect(() => {
-    if (preloadedRiotStats && !hasConsumedPreloadRiot && user?.id) {
+    if (preloadedRiotStats && !hasConsumedPreloadRiot) {
       console.log('✅ Using preloaded Riot stats from loading screen');
       setRiotStats(preloadedRiotStats);
       setHasConsumedPreloadRiot(true);
-
-      // Also fetch and set riotAccount, valorantAccount, and enabledRankCards from Firestore so rank cards show
-      (async () => {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.id));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            if (data.riotAccount) {
-              setRiotAccount(data.riotAccount);
-            } else {
-              setRiotAccount(null);
-              setRiotStats(null);
-            }
-            // Valorant account status (stats come from ValorantStatsContext)
-            if (data.valorantAccount) {
-              setValorantAccount(data.valorantAccount);
-            } else {
-              setValorantAccount(null);
-            }
-
-            // Ensure enabledRankCards only includes linked accounts
-            const cards = data.enabledRankCards || [];
-            let updatedCards = [...cards];
-            if (data.riotAccount && !updatedCards.includes('league')) {
-              updatedCards.push('league');
-            }
-            if (data.valorantAccount && !updatedCards.includes('valorant')) {
-              updatedCards.push('valorant');
-            }
-            if (!data.riotAccount) {
-              updatedCards = updatedCards.filter(c => c !== 'league' && c !== 'tft');
-            }
-            if (!data.valorantAccount) {
-              updatedCards = updatedCards.filter(c => c !== 'valorant');
-            }
-            setEnabledRankCards(updatedCards);
-          }
-        } catch (error) {
-          console.error('Error fetching riotAccount:', error);
-        } finally {
-          setLoadingRankCards(false);
-        }
-      })();
     }
-  }, [preloadedRiotStats, hasConsumedPreloadRiot, user?.id]);
+  }, [preloadedRiotStats, hasConsumedPreloadRiot]);
 
   // Clear preloaded data after consumption
   useEffect(() => {
@@ -609,28 +525,24 @@ export default function ProfileScreen() {
     }
   }, [hasConsumedPreloadPosts, hasConsumedPreloadRiot, clearPreloadedProfileData]);
 
-  // Fetch Riot data and posts when component mounts (only if no preloaded data)
+  // Fetch Riot data and posts when component mounts
+  // fetchRiotData reads user doc once for accounts, rank cards, categories, and stats
+  // If preloaded stats exist, they're already set above — fetchRiotData won't show a skeleton
   useEffect(() => {
     if (user?.id) {
-      // Only fetch Riot data if we didn't get preloaded stats
-      if (!hasConsumedPreloadRiot && !preloadedRiotStats) {
-        fetchRiotData();
-      }
-      // Only fetch posts if we didn't get preloaded posts
+      fetchRiotData();
       if (!hasConsumedPreloadPosts && !preloadedProfilePosts) {
         fetchPosts();
       }
     }
-  }, [user?.id, hasConsumedPreloadPosts, hasConsumedPreloadRiot, preloadedProfilePosts, preloadedRiotStats]);
+  }, [user?.id]);
 
-  // Refresh user data and rank cards on tab focus
-  // fetchRiotData() picks up newly linked accounts and uses client cache for stats (no redundant API calls)
+  // Refresh user data and rank cards on tab focus (throttled to 30s)
+  // fetchRiotData() reads user doc once and extracts all account/rank/category data
   const lastProfileFetch = useRef<number>(0);
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
-        // Always re-fetch rank cards and account data on focus (lightweight Firestore read)
-        fetchEnabledRankCards();
         const now = Date.now();
         if (now - lastProfileFetch.current > 30000) {
           lastProfileFetch.current = now;
@@ -1082,6 +994,21 @@ export default function ProfileScreen() {
 
   return (
     <ThemedView style={styles.container}>
+
+      {/* Grid background */}
+      <View style={styles.gridOverlay} pointerEvents="none">
+        {Array.from({ length: Math.ceil(width / GRID_SIZE) + 1 }).map((_, i) => (
+          <View key={`v${i}`} style={[styles.gridLineV, { left: i * GRID_SIZE }]} />
+        ))}
+        {Array.from({ length: Math.ceil(screenHeight / GRID_SIZE) + 1 }).map((_, i) => (
+          <View key={`h${i}`} style={[styles.gridLineH, { top: i * GRID_SIZE }]} />
+        ))}
+        <LinearGradient
+          colors={['transparent', 'transparent', '#1a1a1a']}
+          locations={[0, 0.35, 0.7]}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
 
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
@@ -3329,5 +3256,22 @@ const styles = StyleSheet.create({
     fontSize: 72,
     fontWeight: '700',
     color: '#fff',
+  },
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gridLineV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+  },
+  gridLineH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
   },
 });

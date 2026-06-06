@@ -16,6 +16,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+const GRID_SIZE = 40;
+
 // League of Legends rank icon mapping
 const LEAGUE_RANK_ICONS: { [key: string]: any } = {
   iron: require('@/assets/images/leagueranks/iron.png'),
@@ -263,6 +265,11 @@ interface MutualPlayer {
 let cachedLobbies: any[] | null = null;
 let prefetchedLobbyImages = new Set<string>();
 
+// Module-level cache for mutual leaderboard
+let cachedLeaguePlayers: MutualPlayer[] | null = null;
+let cachedValorantPlayers: MutualPlayer[] | null = null;
+let cachedSelectedGame: 'league' | 'valorant' | null = null;
+
 const MINIMUM_SKELETON_TIME = 400;
 
 const getLobbiesLeagueRankValue = (currentRank: string, lp: number): number => {
@@ -290,10 +297,10 @@ export default function LeaderboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [mutualIds, setMutualIds] = useState<Set<string>>(new Set());
-  const [leaguePlayers, setLeaguePlayers] = useState<MutualPlayer[]>([]);
-  const [valorantPlayers, setValorantPlayers] = useState<MutualPlayer[]>([]);
-  const [mutualLoading, setMutualLoading] = useState(true);
-  const [selectedMutualGame, setSelectedMutualGame] = useState<'league' | 'valorant'>('league');
+  const [leaguePlayers, setLeaguePlayers] = useState<MutualPlayer[]>(cachedLeaguePlayers || []);
+  const [valorantPlayers, setValorantPlayers] = useState<MutualPlayer[]>(cachedValorantPlayers || []);
+  const [mutualLoading, setMutualLoading] = useState(!cachedLeaguePlayers && !cachedValorantPlayers);
+  const [selectedMutualGame, setSelectedMutualGame] = useState<'league' | 'valorant'>(cachedSelectedGame || 'league');
   const [showGameDropdown, setShowGameDropdown] = useState(false);
   const [updatingStats, setUpdatingStats] = useState(false);
   const [lobbyCount, setLobbyCount] = useState(0);
@@ -342,69 +349,100 @@ export default function LeaderboardScreen() {
 
       const allUserIds = [...mutuals, user.id];
 
+      // Batch-fetch all user docs in parallel (Firestore 'in' limit is 30)
+      const userDataMap = new Map<string, any>();
+      const batchSize = 10;
+      const userBatches: string[][] = [];
+      for (let i = 0; i < allUserIds.length; i += batchSize) {
+        userBatches.push(allUserIds.slice(i, i + batchSize));
+      }
+      const userResults = await Promise.all(
+        userBatches.map(batch =>
+          getDocs(query(collection(db, 'users'), where('__name__', 'in', batch)))
+            .catch(error => { console.error('Error batch fetching users:', error); return null; })
+        )
+      );
+      userResults.forEach(snapshot => {
+        snapshot?.docs.forEach(d => userDataMap.set(d.id, d.data()));
+      });
+
+      // Identify which users need league/valorant gameStats
+      const leagueUserIds = allUserIds.filter(id => {
+        const ud = userDataMap.get(id);
+        return ud && (!!ud.riotAccount || !!ud.riotStats);
+      });
+      const valorantUserIds = allUserIds.filter(id => {
+        const ud = userDataMap.get(id);
+        return ud && (!!ud.valorantAccount || !!ud.valorantStats);
+      });
+
+      // Batch-fetch gameStats docs in parallel
+      const leagueStatsMap = new Map<string, any>();
+      const valorantStatsMap = new Map<string, any>();
+
+      const fetchGameStats = async (userIds: string[], game: string, resultMap: Map<string, any>) => {
+        // gameStats are subcollection docs, so we must fetch individually but in parallel
+        await Promise.all(
+          userIds.map(async (userId) => {
+            try {
+              const statsDoc = await getDoc(doc(db, 'users', userId, 'gameStats', game));
+              if (statsDoc.exists()) {
+                resultMap.set(userId, statsDoc.data());
+              }
+            } catch {}
+          })
+        );
+      };
+
+      await Promise.all([
+        fetchGameStats(leagueUserIds, 'league', leagueStatsMap),
+        fetchGameStats(valorantUserIds, 'valorant', valorantStatsMap),
+      ]);
+
+      // Build results from cached data
       const leagueResults: MutualPlayer[] = [];
       const valorantResults: MutualPlayer[] = [];
 
-      await Promise.all(
-        allUserIds.map(async (userId) => {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', userId));
-            const userData = userDoc.data();
-            const username = userData?.username || 'User';
-            const avatar = userData?.avatar || null;
+      for (const userId of allUserIds) {
+        const userData = userDataMap.get(userId);
+        if (!userData) continue;
+        const username = userData.username || 'User';
+        const avatar = userData.avatar || null;
 
-            // Skip League if this user has no Riot account linked
-            const hasRiotAccount = !!userData?.riotAccount || !!userData?.riotStats;
-            if (hasRiotAccount) {
-              const leagueStatsDoc = await getDoc(doc(db, 'users', userId, 'gameStats', 'league'));
-              let leagueStats = leagueStatsDoc.data();
-
-              if (!leagueStats?.currentRank && userData?.riotStats?.rankedSolo) {
-                leagueStats = {
-                  currentRank: `${userData.riotStats.rankedSolo.tier} ${userData.riotStats.rankedSolo.rank}`,
-                  lp: userData.riotStats.rankedSolo.leaguePoints || 0,
-                };
-              }
-
-              leagueResults.push({
-                userId,
-                username,
-                avatar,
-                currentRank: leagueStats?.currentRank || 'Unranked',
-                lp: leagueStats?.lp || 0,
-                rr: 0,
-                isCurrentUser: userId === user.id,
-              });
-            }
-
-            // Skip Valorant if this user has no Valorant account linked
-            const hasValorantAccount = !!userData?.valorantAccount || !!userData?.valorantStats;
-            if (hasValorantAccount) {
-              const valStatsDoc = await getDoc(doc(db, 'users', userId, 'gameStats', 'valorant'));
-              let valStats = valStatsDoc.data();
-
-              if (!valStats?.currentRank && userData?.valorantStats) {
-                valStats = {
-                  currentRank: userData.valorantStats.currentRank || 'Unranked',
-                  rr: userData.valorantStats.rankRating || 0,
-                };
-              }
-
-              valorantResults.push({
-                userId,
-                username,
-                avatar,
-                currentRank: valStats?.currentRank || 'Unranked',
-                lp: 0,
-                rr: valStats?.rr || 0,
-                isCurrentUser: userId === user.id,
-              });
-            }
-          } catch (error) {
-            console.error(`Error fetching stats for user ${userId}:`, error);
+        // League
+        if (leagueUserIds.includes(userId)) {
+          let leagueStats = leagueStatsMap.get(userId);
+          if (!leagueStats?.currentRank && userData.riotStats?.rankedSolo) {
+            leagueStats = {
+              currentRank: `${userData.riotStats.rankedSolo.tier} ${userData.riotStats.rankedSolo.rank}`,
+              lp: userData.riotStats.rankedSolo.leaguePoints || 0,
+            };
           }
-        })
-      );
+          leagueResults.push({
+            userId, username, avatar,
+            currentRank: leagueStats?.currentRank || 'Unranked',
+            lp: leagueStats?.lp || 0, rr: 0,
+            isCurrentUser: userId === user.id,
+          });
+        }
+
+        // Valorant
+        if (valorantUserIds.includes(userId)) {
+          let valStats = valorantStatsMap.get(userId);
+          if (!valStats?.currentRank && userData.valorantStats) {
+            valStats = {
+              currentRank: userData.valorantStats.currentRank || 'Unranked',
+              rr: userData.valorantStats.rankRating || 0,
+            };
+          }
+          valorantResults.push({
+            userId, username, avatar,
+            currentRank: valStats?.currentRank || 'Unranked',
+            lp: 0, rr: valStats?.rr || 0,
+            isCurrentUser: userId === user.id,
+          });
+        }
+      }
 
       leagueResults.sort((a, b) => getLeagueRankValue(b.currentRank, b.lp) - getLeagueRankValue(a.currentRank, a.lp));
       valorantResults.sort((a, b) => getValorantRankValue(b.currentRank, b.rr) - getValorantRankValue(a.currentRank, a.rr));
@@ -435,8 +473,12 @@ export default function LeaderboardScreen() {
 
       setLeaguePlayers(leagueResults);
       setValorantPlayers(valorantResults);
+      cachedLeaguePlayers = leagueResults;
+      cachedValorantPlayers = valorantResults;
       if (!preserveGame) {
-        setSelectedMutualGame(valorantResults.length > leagueResults.length ? 'valorant' : 'league');
+        const game = valorantResults.length > leagueResults.length ? 'valorant' : 'league';
+        setSelectedMutualGame(game);
+        cachedSelectedGame = game;
       }
       setMutualLoading(false);
     } catch (error) {
@@ -456,8 +498,10 @@ export default function LeaderboardScreen() {
   };
 
   // Fetch mutual follower IDs and their game stats
+  // If cache exists, show it instantly and refresh silently in background
   useEffect(() => {
-    fetchMutualsAndStats();
+    const hasCache = cachedLeaguePlayers || cachedValorantPlayers;
+    fetchMutualsAndStats(!hasCache);
   }, [user?.id]);
 
   // Recompute rank changes & daily gain when switching games
@@ -939,6 +983,21 @@ export default function LeaderboardScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* Grid background */}
+      <View style={styles.gridOverlay} pointerEvents="none">
+        {Array.from({ length: Math.ceil(screenWidth / GRID_SIZE) + 1 }).map((_, i) => (
+          <View key={`v${i}`} style={[styles.gridLineV, { left: i * GRID_SIZE }]} />
+        ))}
+        {Array.from({ length: Math.ceil(screenHeight / GRID_SIZE) + 1 }).map((_, i) => (
+          <View key={`h${i}`} style={[styles.gridLineH, { top: i * GRID_SIZE }]} />
+        ))}
+        <LinearGradient
+          colors={['transparent', 'transparent', '#0f0f0f']}
+          locations={[0, 0.35, 0.7]}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
+
       {/* Background shimmer */}
       <View style={styles.backgroundGlow} pointerEvents="none">
         {/* Fixed shimmer band — diagonal gleam */}
@@ -2336,5 +2395,22 @@ const styles = StyleSheet.create({
   activeLobbiesEmptySubtext: {
     fontSize: 13,
     color: '#555',
+  },
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gridLineV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+  },
+  gridLineH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
   },
 });

@@ -28,6 +28,9 @@ interface SearchUser {
 const MAX_HISTORY_ITEMS = 7;
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const width = screenWidth;
+
+const GRID_SIZE = 40;
 
 // Skeleton item component with shimmer effect
 const SkeletonItem = ({ index }: { index: number }) => {
@@ -511,6 +514,20 @@ export default function SearchScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* Grid background */}
+      <View style={styles.gridOverlay} pointerEvents="none">
+        {Array.from({ length: Math.ceil(width / GRID_SIZE) + 1 }).map((_, i) => (
+          <View key={`v${i}`} style={[styles.gridLineV, { left: i * GRID_SIZE }]} />
+        ))}
+        {Array.from({ length: Math.ceil(screenHeight / GRID_SIZE) + 1 }).map((_, i) => (
+          <View key={`h${i}`} style={[styles.gridLineH, { top: i * GRID_SIZE }]} />
+        ))}
+        <LinearGradient
+          colors={['transparent', 'transparent', '#0f0f0f']}
+          locations={[0, 0.35, 0.7]}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
       {/* Background shimmer */}
       <View style={styles.backgroundPattern} pointerEvents="none">
         {/* Fixed shimmer band — diagonal gleam */}
@@ -823,5 +840,22 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 8,
+  },
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gridLineV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+  },
+  gridLineH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
   },
 });
