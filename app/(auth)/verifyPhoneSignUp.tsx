@@ -18,7 +18,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
 import { deleteIncompleteAccount, createPhoneAuthAccount, tryResumePhoneSignup } from '@/services/authService';
-import rnfbAuth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { functions } from '@/config/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 export default function VerifyPhoneSignUp() {
   const { user } = useAuth();
@@ -39,7 +40,6 @@ export default function VerifyPhoneSignUp() {
   const [code, setCode] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [confirmation, setConfirmation] = useState<FirebaseAuthTypes.ConfirmationResult | null>(null);
   const [codeSent, setCodeSent] = useState(false);
 
   const hiddenInputRef = useRef<TextInput | null>(null);
@@ -51,12 +51,17 @@ export default function VerifyPhoneSignUp() {
   const sendVerificationCode = async () => {
     try {
       setIsSending(true);
-      const confirm = await rnfbAuth().signInWithPhoneNumber(phoneNumber);
-      setConfirmation(confirm);
+      const sendCode = httpsCallable(functions, 'sendPhoneVerificationCode');
+      await sendCode({ phoneNumber });
       setCodeSent(true);
     } catch (error: any) {
       console.error('Error sending verification code:', error);
-      Alert.alert('Error', 'Failed to send verification code. Please try again.');
+      const msg = error?.message || '';
+      if (msg.includes('Invalid phone number')) {
+        Alert.alert('Error', 'Invalid phone number. Please check and try again.');
+      } else {
+        Alert.alert('Error', 'Failed to send verification code. Please try again.');
+      }
     } finally {
       setIsSending(false);
     }
@@ -76,45 +81,75 @@ export default function VerifyPhoneSignUp() {
       return;
     }
 
-    if (!confirmation) {
-      Alert.alert('Error', 'No verification session found. Please resend the code.');
-      return;
-    }
-
     try {
       setIsVerifying(true);
-      await confirmation.confirm(code);
-      await rnfbAuth().signOut();
 
+      // Verify code via Twilio
+      const verifyCode = httpsCallable(functions, 'verifyPhoneCode');
+      const result = await verifyCode({ phoneNumber, code });
+      const data = result.data as { verified: boolean; accountExists: boolean };
+
+      if (!data.verified) {
+        Alert.alert('Error', 'Incorrect verification code. Please try again.');
+        return;
+      }
+
+      if (data.accountExists) {
+        // Phone already has an account
+        // Check if it's an incomplete signup
+        const resumeResult = await tryResumePhoneSignup(phoneNumber);
+        if (resumeResult === 'resume') {
+          router.replace({
+            pathname: '/(auth)/signUpUsername',
+            params: { ...params },
+          });
+          return;
+        }
+        Alert.alert(
+          'Already Registered',
+          'This phone number already has an account.',
+          [
+            {
+              text: 'Use Different Number',
+              onPress: () => router.replace('/(auth)/phoneSignUp'),
+            },
+            {
+              text: 'Go to Login',
+              onPress: () => router.replace('/(auth)/login'),
+            },
+          ]
+        );
+        return;
+      }
+
+      // Phone verified, no existing account — create the account
       try {
         await createPhoneAuthAccount(phoneNumber);
       } catch (createError: any) {
         if (createError.code === 'auth/email-already-in-use') {
-          // Incomplete signup from before — try to resume
-          const result = await tryResumePhoneSignup(phoneNumber);
-          if (result === 'resume') {
+          const resumeResult = await tryResumePhoneSignup(phoneNumber);
+          if (resumeResult === 'resume') {
             router.replace({
               pathname: '/(auth)/signUpUsername',
               params: { ...params },
             });
             return;
-          } else {
-            Alert.alert(
-              'Already Registered',
-              'This phone number already has an account.',
-              [
-                {
-                  text: 'Use Different Number',
-                  onPress: () => router.replace('/(auth)/phoneSignUp'),
-                },
-                {
-                  text: 'Go to Login',
-                  onPress: () => router.replace('/(auth)/login'),
-                },
-              ]
-            );
-            return;
           }
+          Alert.alert(
+            'Already Registered',
+            'This phone number already has an account.',
+            [
+              {
+                text: 'Use Different Number',
+                onPress: () => router.replace('/(auth)/phoneSignUp'),
+              },
+              {
+                text: 'Go to Login',
+                onPress: () => router.replace('/(auth)/login'),
+              },
+            ]
+          );
+          return;
         }
         throw createError;
       }
@@ -136,8 +171,11 @@ export default function VerifyPhoneSignUp() {
       );
     } catch (error: any) {
       console.error('Verification error:', error);
-      if (error.code === 'auth/invalid-verification-code') {
-        Alert.alert('Error', 'Invalid verification code. Please try again.');
+      const msg = error?.message || '';
+      if (msg.includes('Incorrect')) {
+        Alert.alert('Error', 'Incorrect verification code. Please try again.');
+      } else if (msg.includes('expired')) {
+        Alert.alert('Code Expired', 'Your code has expired. Please request a new one.');
       } else {
         Alert.alert('Error', 'Failed to verify code. Please try again.');
       }
@@ -164,7 +202,6 @@ export default function VerifyPhoneSignUp() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await rnfbAuth().signOut();
               await deleteIncompleteAccount();
               router.replace('/(auth)/login');
             } catch (error) {
@@ -302,7 +339,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
-  resendText: { fontSize: 13, fontWeight: '600', color: '#1a73e8' },
+  resendText: { fontSize: 13, fontWeight: '600', color: '#888' },
   bottomSection: { paddingHorizontal: 28, paddingBottom: 40 },
   continueButton: { backgroundColor: '#fff', borderRadius: 28, paddingVertical: 16, alignItems: 'center' },
   continueButtonText: { color: '#0f0f0f', fontSize: 16, fontWeight: '700' },

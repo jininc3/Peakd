@@ -16,7 +16,6 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
-import rnfbAuth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { auth, functions } from '@/config/firebase';
 import { signInWithCustomToken } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
@@ -29,7 +28,6 @@ export default function VerifyPhoneLogin() {
   const [code, setCode] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [confirmation, setConfirmation] = useState<FirebaseAuthTypes.ConfirmationResult | null>(null);
   const [codeSent, setCodeSent] = useState(false);
 
   const hiddenInputRef = useRef<TextInput | null>(null);
@@ -41,12 +39,17 @@ export default function VerifyPhoneLogin() {
   const sendVerificationCode = async () => {
     try {
       setIsSending(true);
-      const confirm = await rnfbAuth().signInWithPhoneNumber(phoneNumber);
-      setConfirmation(confirm);
+      const sendCode = httpsCallable(functions, 'sendPhoneVerificationCode');
+      await sendCode({ phoneNumber });
       setCodeSent(true);
     } catch (error: any) {
       console.error('Error sending verification code:', error);
-      Alert.alert('Error', 'Failed to send verification code. Please try again.');
+      const msg = error?.message || '';
+      if (msg.includes('Invalid phone number')) {
+        Alert.alert('Error', 'Invalid phone number. Please check and try again.');
+      } else {
+        Alert.alert('Error', 'Failed to send verification code. Please try again.');
+      }
     } finally {
       setIsSending(false);
     }
@@ -66,40 +69,36 @@ export default function VerifyPhoneLogin() {
       return;
     }
 
-    if (!confirmation) {
-      Alert.alert('Error', 'No verification session found. Please resend the code.');
-      return;
-    }
-
     try {
       setIsVerifying(true);
-      // Verify OTP via native SDK
-      await confirmation.confirm(code);
-      // Sign out of native SDK — it's a separate instance from the web SDK
-      await rnfbAuth().signOut();
 
-      // Get custom token from Cloud Function and sign in via web SDK
-      const generateLogin = httpsCallable(functions, 'generateLoginToken');
-      const result = await generateLogin({ phoneNumber });
-      const { customToken } = result.data as { customToken: string };
+      const verifyCode = httpsCallable(functions, 'verifyPhoneCode');
+      const result = await verifyCode({ phoneNumber, code });
+      const data = result.data as { verified: boolean; accountExists: boolean; customToken?: string };
 
-      await signInWithCustomToken(auth, customToken);
-      // AuthContext detects the sign-in via onAuthStateChanged and navigates automatically
-    } catch (error: any) {
-      console.error('Verification error:', error);
-      if (error.code === 'auth/invalid-verification-code') {
-        Alert.alert('Error', 'Invalid verification code. Please try again.');
-      } else if (
-        error?.code === 'functions/not-found' ||
-        error?.details?.code === 'not-found' ||
-        error?.message?.includes('No account found')
-      ) {
-        // Phone verified but no account exists — go straight to signup
+      if (!data.verified) {
+        Alert.alert('Error', 'Incorrect verification code. Please try again.');
+        return;
+      }
+
+      if (data.accountExists && data.customToken) {
+        // Existing account — sign in
+        await signInWithCustomToken(auth, data.customToken);
+        // AuthContext detects sign-in via onAuthStateChanged and navigates automatically
+      } else {
+        // No account — go to signup
         router.replace({
           pathname: '/(auth)/signUpBirthday',
           params: { signupMethod: 'phone', phoneNumber },
         });
-        return;
+      }
+    } catch (error: any) {
+      console.error('Verification error:', error);
+      const msg = error?.message || '';
+      if (msg.includes('Incorrect')) {
+        Alert.alert('Error', 'Incorrect verification code. Please try again.');
+      } else if (msg.includes('expired')) {
+        Alert.alert('Code Expired', 'Your code has expired. Please request a new one.');
       } else {
         Alert.alert('Error', 'Failed to verify code. Please try again.');
       }
@@ -232,7 +231,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
-  resendText: { fontSize: 13, fontWeight: '600', color: '#1a73e8' },
+  resendText: { fontSize: 13, fontWeight: '600', color: '#888' },
   bottomSection: { paddingHorizontal: 28, paddingBottom: 40 },
   continueButton: { backgroundColor: '#fff', borderRadius: 28, paddingVertical: 16, alignItems: 'center' },
   continueButtonText: { color: '#0f0f0f', fontSize: 16, fontWeight: '700' },

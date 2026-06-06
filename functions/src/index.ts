@@ -57,6 +57,10 @@ export {verifyEmailCodeFunction as verifyEmailCode} from "./email/emailVerificat
 export {checkEmailAccountExistsFunction as checkEmailAccountExists} from "./email/emailLoginVerification";
 export {generateEmailLoginTokenFunction as generateEmailLoginToken} from "./email/emailLoginVerification";
 
+// Phone verification (Twilio)
+export {sendPhoneVerificationCodeFunction as sendPhoneVerificationCode} from "./phone/phoneVerification";
+export {verifyPhoneCodeFunction as verifyPhoneCode} from "./phone/phoneVerification";
+
 // Export Rank History functions
 export {dailyRankSnapshotScheduled} from "./rankHistory/dailyRankSnapshot";
 
