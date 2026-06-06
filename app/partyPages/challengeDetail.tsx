@@ -335,7 +335,7 @@ export default function ChallengeDetail() {
       const spectatorPlayers = await Promise.all(spectatorIds.map(fetchPlayer));
       sortPlayers(spectatorPlayers);
       setSpectators(spectatorPlayers);
-    });
+    }, () => {});
     return () => unsubscribe();
   }, [id, user?.id]);
 

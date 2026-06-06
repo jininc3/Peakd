@@ -170,7 +170,7 @@ export default function NotificationsScreen() {
       setNotifications(filteredNotifs);
       setLoading(false);
       isFirstLoad.current = false;
-    });
+    }, () => {});
 
     // Clean up old notifications (30 days) on load
     cleanupOldNotifications();

@@ -117,7 +117,7 @@ export const subscribeToDuoQueue = (
     } else {
       callback(null);
     }
-  });
+  }, () => {});
 };
 
 /**
@@ -178,5 +178,5 @@ export const subscribeToMatch = (
     } else {
       callback(null);
     }
-  });
+  }, () => {});
 };

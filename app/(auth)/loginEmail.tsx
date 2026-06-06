@@ -7,8 +7,6 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform, Keyboard, Alert } from 'react-native';
 import { functions } from '@/config/firebase';
 import { httpsCallable } from 'firebase/functions';
-import rnfbAuth from '@react-native-firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginEmail() {
   const router = useRouter();
@@ -36,23 +34,16 @@ export default function LoginEmail() {
       const checkAccount = httpsCallable(functions, 'checkEmailAccountExists');
       await checkAccount({ email: normalizedEmail });
 
-      // Send sign-in link via Firebase (Firebase handles email delivery)
-      await rnfbAuth().sendSignInLinkToEmail(normalizedEmail, {
-        handleCodeInApp: true,
-        url: `https://${process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'rankup-a2a8a.firebaseapp.com'}`,
-        iOS: { bundleId: 'com.jininc3.Peakd' },
-        android: { packageName: 'com.jininc3.Peakd', installApp: false },
-      });
-
-      // Save email so we can complete sign-in when link is clicked
-      await AsyncStorage.setItem('emailForSignIn', normalizedEmail);
+      // Send OTP code via Resend
+      const sendCode = httpsCallable(functions, 'sendEmailVerificationCode');
+      await sendCode({ email: normalizedEmail, skipRegisteredCheck: true });
 
       router.push({
         pathname: '/(auth)/verifyEmailLogin',
         params: { email: normalizedEmail },
       });
     } catch (error: any) {
-      console.error('Error sending login link:', error);
+      console.error('Error sending login code:', error);
       if (error?.message?.includes('No account found')) {
         Alert.alert(
           'No Account Found',
@@ -63,7 +54,7 @@ export default function LoginEmail() {
           ]
         );
       } else {
-        Alert.alert('Error', 'Failed to send sign-in link. Please try again.');
+        Alert.alert('Error', 'Failed to send verification code. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -79,7 +70,7 @@ export default function LoginEmail() {
 
         <View style={styles.content}>
           <ThemedText style={styles.title}>Enter your{'\n'}email</ThemedText>
-          <ThemedText style={styles.subtitle}>We'll send a sign-in link to your email.</ThemedText>
+          <ThemedText style={styles.subtitle}>We'll send a verification code to your email.</ThemedText>
 
           <View style={styles.inputContainer}>
             <View style={styles.inputWrapper}>

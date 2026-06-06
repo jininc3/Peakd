@@ -159,7 +159,7 @@ export default function LobbiesScreen() {
       } else {
         setLoading(false);
       }
-    });
+    }, () => {});
 
     return () => unsubscribe();
   }, [user?.id]);

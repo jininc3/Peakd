@@ -1,74 +1,117 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
+  TextInput,
+  Keyboard,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
 import { auth, functions } from '@/config/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
-import rnfbAuth from '@react-native-firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Linking from 'expo-linking';
+
+const CODE_LENGTH = 6;
 
 export default function VerifyEmailLogin() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const email = params.email as string;
 
+  const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
-    const handleLink = ({ url }: { url: string }) => {
-      if (rnfbAuth().isSignInWithEmailLink(url)) {
-        handleSignIn(url);
-      }
-    };
-
-    // Listen for incoming deep links (app in foreground/background)
-    const subscription = Linking.addEventListener('url', handleLink);
-
-    // Check if app was opened from a killed state with this link
-    Linking.getInitialURL().then((url) => {
-      if (url && rnfbAuth().isSignInWithEmailLink(url)) {
-        handleSignIn(url);
-      }
-    });
-
-    return () => subscription.remove();
+    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
-  const handleSignIn = async (url: string) => {
+  // Auto-focus first input
+  useEffect(() => {
+    setTimeout(() => inputRefs.current[0]?.focus(), 300);
+  }, []);
+
+  const handleCodeChange = (text: string, index: number) => {
+    // Handle paste of full code
+    if (text.length > 1) {
+      const digits = text.replace(/\D/g, '').slice(0, CODE_LENGTH).split('');
+      const newCode = [...code];
+      digits.forEach((d, i) => {
+        if (index + i < CODE_LENGTH) newCode[index + i] = d;
+      });
+      setCode(newCode);
+      const nextIndex = Math.min(index + digits.length, CODE_LENGTH - 1);
+      inputRefs.current[nextIndex]?.focus();
+      if (newCode.every(d => d !== '')) {
+        handleVerify(newCode.join(''));
+      }
+      return;
+    }
+
+    const newCode = [...code];
+    newCode[index] = text.replace(/\D/g, '');
+    setCode(newCode);
+
+    if (text && index < CODE_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    if (newCode.every(d => d !== '')) {
+      handleVerify(newCode.join(''));
+    }
+  };
+
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !code[index] && index > 0) {
+      const newCode = [...code];
+      newCode[index - 1] = '';
+      setCode(newCode);
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleVerify = async (fullCode?: string) => {
+    const codeStr = fullCode || code.join('');
+    if (codeStr.length !== CODE_LENGTH) return;
+
     try {
       setIsVerifying(true);
-      const storedEmail = (await AsyncStorage.getItem('emailForSignIn')) || email;
+      Keyboard.dismiss();
 
-      // Sign in via native Firebase SDK (verifies the email link)
-      await rnfbAuth().signInWithEmailLink(storedEmail, url);
+      // Verify the OTP code
+      const verifyCode = httpsCallable(functions, 'verifyEmailCode');
+      await verifyCode({ email, code: codeStr });
 
-      // Sign out of native SDK (same pattern as phone login)
-      await rnfbAuth().signOut();
-
-      // Bridge to web SDK via temp credentials
+      // Code verified — now sign in via temp credentials
       const generateLogin = httpsCallable(functions, 'generateEmailLoginToken');
-      const result = await generateLogin({ email: storedEmail });
+      const result = await generateLogin({ email });
       const { authEmail, tempPassword } = result.data as { authEmail: string; tempPassword: string };
 
       await signInWithEmailAndPassword(auth, authEmail, tempPassword);
-      await AsyncStorage.removeItem('emailForSignIn');
       // AuthContext detects sign-in via onAuthStateChanged and navigates automatically
     } catch (error: any) {
-      console.error('Email sign-in error:', error);
-      if (error?.message?.includes('No account found')) {
+      console.error('Email verification error:', error);
+      setCode(Array(CODE_LENGTH).fill(''));
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+
+      if (error?.message?.includes('expired')) {
+        Alert.alert('Code Expired', 'Your code has expired. Please request a new one.');
+      } else if (error?.message?.includes('Incorrect')) {
+        Alert.alert('Incorrect Code', 'The code you entered is incorrect. Please try again.');
+      } else if (error?.message?.includes('Too many')) {
+        Alert.alert('Too Many Attempts', 'Too many incorrect attempts. Please request a new code.');
+      } else if (error?.message?.includes('No account found')) {
         Alert.alert(
           'No Account Found',
           'No account is linked to this email. Would you like to sign up?',
@@ -78,7 +121,7 @@ export default function VerifyEmailLogin() {
           ]
         );
       } else {
-        Alert.alert('Error', 'Failed to sign in. Please try again.');
+        Alert.alert('Error', 'Failed to verify. Please try again.');
       }
     } finally {
       setIsVerifying(false);
@@ -88,67 +131,75 @@ export default function VerifyEmailLogin() {
   const handleResend = async () => {
     try {
       setIsResending(true);
-      await rnfbAuth().sendSignInLinkToEmail(email, {
-        handleCodeInApp: true,
-        url: `https://${process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'rankup-a2a8a.firebaseapp.com'}`,
-        iOS: { bundleId: 'com.jininc3.Peakd' },
-        android: { packageName: 'com.jininc3.Peakd', installApp: false },
-      });
-      Alert.alert('Link Sent', 'A new sign-in link has been sent to your email.');
+      const sendCode = httpsCallable(functions, 'sendEmailVerificationCode');
+      await sendCode({ email, skipRegisteredCheck: true });
+      setCode(Array(CODE_LENGTH).fill(''));
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      Alert.alert('Code Sent', 'A new verification code has been sent to your email.');
     } catch (error) {
-      console.error('Error resending link:', error);
-      Alert.alert('Error', 'Failed to resend link. Please try again.');
+      console.error('Error resending code:', error);
+      Alert.alert('Error', 'Failed to resend code. Please try again.');
     } finally {
       setIsResending(false);
     }
   };
 
+  const isFilled = code.every(d => d !== '');
+
   return (
     <ThemedView style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <IconSymbol size={22} name="chevron.left" color="#fff" />
-      </TouchableOpacity>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <IconSymbol size={22} name="chevron.left" color="#fff" />
+        </TouchableOpacity>
 
-      <View style={styles.content}>
-        <ThemedText style={styles.title}>Check your{'\n'}email</ThemedText>
-        <ThemedText style={styles.subtitle}>
-          We sent a sign-in link to {email}
-        </ThemedText>
+        <View style={styles.content}>
+          <ThemedText style={styles.title}>Enter the{'\n'}code</ThemedText>
+          <ThemedText style={styles.subtitle}>
+            We sent a 6-digit code to {email}
+          </ThemedText>
 
-        {isVerifying ? (
-          <View style={styles.statusContainer}>
-            <ActivityIndicator size="large" color="#fff" />
-            <ThemedText style={styles.statusText}>Signing in...</ThemedText>
+          {/* Code Input */}
+          <View style={styles.codeRow}>
+            {code.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={(ref) => { inputRefs.current[index] = ref; }}
+                style={[
+                  styles.codeInput,
+                  digit ? styles.codeInputFilled : {},
+                ]}
+                value={digit}
+                onChangeText={(text) => handleCodeChange(text, index)}
+                onKeyPress={(e) => handleKeyPress(e, index)}
+                keyboardType="number-pad"
+                maxLength={index === 0 ? CODE_LENGTH : 1}
+                editable={!isVerifying}
+                selectTextOnFocus
+              />
+            ))}
           </View>
-        ) : (
-          <View style={styles.statusContainer}>
-            <View style={styles.iconCircle}>
-              <MaterialIcons name="mark-email-unread" size={32} color="#fff" />
-            </View>
-            <ThemedText style={styles.instruction}>
-              Tap the link in your email to sign in. You'll be redirected back to the app automatically.
+
+          <TouchableOpacity onPress={handleResend} disabled={isResending}>
+            <ThemedText style={styles.resendText}>
+              {isResending ? 'Sending...' : "Didn't get a code? Resend"}
             </ThemedText>
-          </View>
-        )}
+          </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity onPress={handleResend} disabled={isResending}>
-          <ThemedText style={styles.resendText}>
-            {isResending ? 'Sending...' : 'Resend link'}
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.bottomSection}>
-        <TouchableOpacity
-          style={[styles.continueButton, isVerifying ? {} : styles.buttonDisabled]}
-          disabled
-          activeOpacity={0.8}
-        >
-          <ThemedText style={styles.continueButtonText}>
-            {isVerifying ? 'Signing in...' : 'Waiting for link...'}
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
+        <View style={[styles.bottomSection, !keyboardVisible && styles.bottomSectionResting]}>
+          <TouchableOpacity
+            style={[styles.continueButton, (!isFilled || isVerifying) && styles.buttonDisabled]}
+            onPress={() => handleVerify()}
+            disabled={!isFilled || isVerifying}
+            activeOpacity={0.8}
+          >
+            <ThemedText style={styles.continueButtonText}>
+              {isVerifying ? 'Verifying...' : 'Continue'}
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 }
@@ -158,22 +209,32 @@ const styles = StyleSheet.create({
   backButton: { position: 'absolute', top: 60, left: 16, zIndex: 10, padding: 8 },
   content: { flex: 1, paddingHorizontal: 28, paddingTop: 120 },
   title: { fontSize: 28, fontWeight: '800', color: '#fff', lineHeight: 36, marginBottom: 8 },
-  subtitle: { fontSize: 15, color: '#555', marginBottom: 40 },
-  statusContainer: { alignItems: 'center', gap: 16, marginBottom: 32 },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  subtitle: { fontSize: 15, color: '#555', marginBottom: 32 },
+  codeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 24,
+  },
+  codeInput: {
+    flex: 1,
+    height: 56,
+    borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
   },
-  statusText: { fontSize: 15, color: '#888' },
-  instruction: { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 20 },
-  resendText: { fontSize: 13, fontWeight: '600', color: '#1a73e8', textAlign: 'center' },
-  bottomSection: { paddingHorizontal: 28, paddingBottom: 40 },
+  codeInputFilled: {
+    borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  resendText: { fontSize: 13, fontWeight: '600', color: '#888' },
+  bottomSection: { paddingHorizontal: 28, paddingBottom: 10 },
+  bottomSectionResting: { paddingBottom: 40 },
   continueButton: { backgroundColor: '#fff', borderRadius: 28, paddingVertical: 16, alignItems: 'center' },
   continueButtonText: { color: '#0f0f0f', fontSize: 16, fontWeight: '700' },
   buttonDisabled: { opacity: 0.4 },

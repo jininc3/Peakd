@@ -80,7 +80,7 @@ export const sendEmailVerificationCodeFunction = onCall(
     const resend = new Resend(resendApiKey.value());
 
     const {data, error} = await resend.emails.send({
-      from: "RankdUp <onboarding@resend.dev>",
+      from: "Peakd <noreply@peakd.gg>",
       to: normalizedEmail,
       subject: "Your RankdUp verification code",
       html: `

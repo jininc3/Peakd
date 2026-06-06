@@ -602,7 +602,7 @@ export default function LeaderboardScreen() {
       } else {
         setLobbiesLoading(false);
       }
-    });
+    }, () => {});
 
     return () => unsubscribe();
   }, [user?.id]);
