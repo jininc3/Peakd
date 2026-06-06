@@ -234,11 +234,12 @@ export default function RankCardsScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <IconSymbol size={22} name="chevron.left" color="#fff" />
           </TouchableOpacity>
+          <ThemedText style={styles.title}>Rank Cards</ThemedText>
           <View style={{ flex: 1 }} />
           <TouchableOpacity style={styles.viewToggle} onPress={() => router.push('/profilePages/tierCards')}>
             <IconSymbol size={18} name="sparkles" color="#fff" />
@@ -251,8 +252,6 @@ export default function RankCardsScreen() {
         </View>
 
         <View style={styles.content}>
-          <ThemedText style={styles.step}>{isOwnProfile ? 'Profile' : `@${fetchedUsername}`}</ThemedText>
-          <ThemedText style={styles.title}>Rank Cards</ThemedText>
           {isOwnProfile && (
             <TouchableOpacity
               style={styles.newCardButton}
@@ -473,6 +472,9 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -513,11 +515,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: '800',
     color: '#fff',
-    lineHeight: 36,
-    marginBottom: 12,
   },
   loadingContainer: {
     paddingVertical: 100,
@@ -526,8 +526,9 @@ const styles = StyleSheet.create({
   },
   // Stacked rank cards (matches profile.tsx)
   verticalRankCardsContainer: {
+    flex: 1,
+    justifyContent: 'center',
     paddingHorizontal: 16,
-    paddingTop: 18,
     paddingBottom: 20,
     gap: 16,
   },

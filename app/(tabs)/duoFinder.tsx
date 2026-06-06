@@ -112,6 +112,7 @@ export default function DuoFinderScreen() {
 
   // Pulse animation for live search banner
   const pulseAnim = useRef(new Animated.Value(0.4)).current;
+  const bannerScale = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -1005,10 +1006,16 @@ export default function DuoFinderScreen() {
                 <View style={styles.liveSearchBannerOuter}>
                   <TouchableOpacity
                     style={styles.liveSearchBannerCard}
-                    activeOpacity={0.85}
+                    activeOpacity={1}
                     onPress={() => router.push('/partyPages/liveSearch')}
+                    onPressIn={() => {
+                      Animated.spring(bannerScale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+                    }}
+                    onPressOut={() => {
+                      Animated.spring(bannerScale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+                    }}
                   >
-                    <View style={styles.liveSearchBannerContent}>
+                    <Animated.View style={[styles.liveSearchBannerContent, { transform: [{ scale: bannerScale }] }]}>
                       {/* Top row: Logo + Game Icons */}
                       <View style={styles.liveSearchBannerTopRow}>
                         <Image
@@ -1043,7 +1050,7 @@ export default function DuoFinderScreen() {
                           <IconSymbol size={14} name="chevron.right" color="#fff" />
                         </TouchableOpacity>
                       </View>
-                    </View>
+                    </Animated.View>
 
                   </TouchableOpacity>
                 </View>
@@ -1694,6 +1701,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#161618',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.7,

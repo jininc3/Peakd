@@ -414,7 +414,6 @@ const styles = StyleSheet.create({
   infoSection: {
     alignItems: 'center',
     gap: 4,
-    marginTop: -8,
   },
   rankName: {
     fontSize: 28,
@@ -422,6 +421,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
+    lineHeight: 34,
   },
   ignText: {
     fontSize: 15,
@@ -488,11 +488,13 @@ const styles = StyleSheet.create({
 
   // Find Match button
   findMatchBtn: {
-    backgroundColor: '#fff',
+    backgroundColor: '#0f0f0f',
     borderRadius: 28,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 184, 120, 0.3)',
   },
   findMatchBtnDisabled: {
     opacity: 0.4,
@@ -500,6 +502,6 @@ const styles = StyleSheet.create({
   findMatchText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f0f0f',
+    color: '#F0D6A2',
   },
 });

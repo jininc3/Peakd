@@ -9,6 +9,7 @@ import { StyleSheet, TouchableOpacity, View, Dimensions } from 'react-native';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useRouter } from '@/hooks/useRouter';
+import { useNavigation } from '@react-navigation/native';
 import { DuoCardData } from '@/app/(tabs)/duoFinder';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -122,6 +123,13 @@ export default function LiveSearchScreen() {
 
     loadCards();
   }, [user?.id]);
+
+  // Disable swipe-back gesture when searching or accepting
+  const navigation = useNavigation();
+  useEffect(() => {
+    const isSearching = liveMatchState === 'searching' || liveMatchState === 'accepting';
+    navigation.setOptions({ gestureEnabled: !isSearching });
+  }, [navigation, liveMatchState]);
 
   return (
     <ThemedView style={styles.container}>

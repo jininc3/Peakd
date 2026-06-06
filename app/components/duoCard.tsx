@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { formatRankDisplay } from '@/utils/formatRankDisplay';
 import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 import CachedImage from '@/components/ui/CachedImage';
@@ -237,10 +237,18 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePo
 
   const positionIcon = roleIcon || laneIcon;
   const characterIcon = agentIcon || championIconSrc;
+  const cardScale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(cardScale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(cardScale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+  };
 
   return (
-    <View>
-    <TouchableOpacity style={[styles.card, duo.isOwnPost && styles.ownCard, { borderColor: tierColor }]} onPress={onPress} activeOpacity={0.8}>
+    <Animated.View style={{ transform: [{ scale: cardScale }] }}>
+    <TouchableOpacity style={[styles.card, duo.isOwnPost && styles.ownCard, { borderColor: tierColor }]} onPress={onPress} activeOpacity={1} onPressIn={handlePressIn} onPressOut={handlePressOut}>
       {/* Tier accent bar */}
       <View style={[styles.tierAccent, { backgroundColor: tierColor }]} />
       {/* Top section */}
@@ -274,6 +282,12 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePo
               <ThemedText style={styles.time}>{formatTimeAgo(duo.createdAt)}</ThemedText>
             )}
           </TouchableOpacity>
+          {!duo.isOwnPost && onMessage && (
+            <TouchableOpacity style={styles.messageButton} onPress={onMessage} activeOpacity={0.7}>
+              <ThemedText style={styles.messageButtonText}>Message</ThemedText>
+            </TouchableOpacity>
+          )}
+          <View style={{ flex: 1 }} />
           {gameLogo && (
             <Image
               source={gameLogo}
@@ -282,6 +296,17 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePo
             />
           )}
         </View>
+
+        {/* Message caption */}
+        {duo.message && (
+          <ThemedText
+            style={styles.message}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {duo.message}
+          </ThemedText>
+        )}
 
         {/* Stats panel: row 1 — rank | role/agent icons; row 2 — win rate + games */}
         <View style={styles.statsPanel}>
@@ -330,26 +355,6 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePo
             )}
           </View>
         </View>
-
-        {/* Message with inline message button */}
-        {(duo.message || (!duo.isOwnPost && onMessage)) && (
-          <View style={styles.messageRow}>
-            {duo.message && (
-              <ThemedText
-                style={styles.message}
-                numberOfLines={2}
-                ellipsizeMode="tail"
-              >
-                {duo.message}
-              </ThemedText>
-            )}
-            {!duo.isOwnPost && onMessage && (
-              <TouchableOpacity style={styles.messageButton} onPress={onMessage} activeOpacity={0.7}>
-                <ThemedText style={styles.messageButtonText}>Message</ThemedText>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
       </View>
 
       {/* Bottom section — remove from feed */}
@@ -361,7 +366,7 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePo
         </View>
       )}
     </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -417,7 +422,7 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   nameCol: {
-    flex: 1,
+    flexShrink: 1,
     gap: 2,
   },
   name: {
@@ -542,7 +547,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   message: {
-    flex: 1,
     fontSize: 13,
     color: '#888',
     lineHeight: 18,

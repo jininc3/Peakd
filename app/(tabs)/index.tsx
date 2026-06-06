@@ -510,11 +510,6 @@ export default function HomeScreen() {
     if (isLoadMore) {
       setLoadingMore(true);
     } else {
-      // Only show skeleton if we have no cached posts for this filter
-      const cacheKey = selectedGameFilter || '_all';
-      if (!followingCacheRef.current[cacheKey]?.length) {
-        setLoading(true);
-      }
       setLastDoc(null);
       setHasMore(true);
     }
@@ -666,11 +661,6 @@ export default function HomeScreen() {
     if (isLoadMore) {
       setForYouLoadingMore(true);
     } else {
-      // Only show skeleton if we have no cached posts for this filter
-      const cacheKey = selectedGameFilter || '_all';
-      if (!forYouCacheRef.current[cacheKey]?.length) {
-        setForYouLoading(true);
-      }
       setForYouLastDoc(null);
       setForYouHasMore(true);
     }
@@ -812,11 +802,23 @@ export default function HomeScreen() {
 
       const filterChanged = prevFollowingFilterRef.current !== selectedGameFilter;
       if (filterChanged) {
-        // Instantly show cached posts for this filter (no skeleton flash)
+        // Instantly show cached posts for this filter, or client-side filter
         const cacheKey = selectedGameFilter || '_all';
         const cached = followingCacheRef.current[cacheKey];
         if (cached && cached.length > 0) {
           setFollowingPosts(cached);
+        } else if (selectedGameFilter) {
+          const allCached = followingCacheRef.current['_all'];
+          if (allCached && allCached.length > 0) {
+            const filtered = allCached.filter(p => p.taggedGame === selectedGameFilter);
+            setFollowingPosts(filtered);
+            followingCacheRef.current[cacheKey] = filtered;
+          }
+        } else {
+          const allCached = followingCacheRef.current['_all'];
+          if (allCached && allCached.length > 0) {
+            setFollowingPosts(allCached);
+          }
         }
         scrollViewRef.current?.scrollTo({ y: 0, animated: false });
         prevFollowingFilterRef.current = selectedGameFilter;
@@ -834,11 +836,25 @@ export default function HomeScreen() {
       // Fetch For You on first switch or when the game filter actually changes
       const filterChanged = prevForYouFilterRef.current !== selectedGameFilter;
       if (filterChanged) {
-        // Instantly show cached posts for this filter (no skeleton flash)
+        // Instantly show cached posts for this filter, or client-side filter current posts
         const cacheKey = selectedGameFilter || '_all';
         const cached = forYouCacheRef.current[cacheKey];
         if (cached && cached.length > 0) {
           setForYouPosts(cached);
+        } else if (selectedGameFilter) {
+          // Client-side filter from the '_all' cache for instant display
+          const allCached = forYouCacheRef.current['_all'];
+          if (allCached && allCached.length > 0) {
+            const filtered = allCached.filter(p => p.taggedGame === selectedGameFilter);
+            setForYouPosts(filtered);
+            forYouCacheRef.current[cacheKey] = filtered;
+          }
+        } else {
+          // Switching back to "All" — use the _all cache
+          const allCached = forYouCacheRef.current['_all'];
+          if (allCached && allCached.length > 0) {
+            setForYouPosts(allCached);
+          }
         }
         scrollViewRef.current?.scrollTo({ y: 0, animated: false });
       }
@@ -1527,7 +1543,7 @@ export default function HomeScreen() {
           </ScalePress>
         )}
 
-        {(activeTab === 'following' ? loading : forYouLoading) ? (
+        {(activeTab === 'following' ? loading : forYouLoading) && currentPosts.length === 0 ? (
           <FeedSkeleton count={3} />
         ) : currentPosts.length > 0 ? (
           <>
@@ -1921,7 +1937,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 16,
-    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     flexShrink: 0,
@@ -1931,10 +1946,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  gameFilterPillActive: {
-    backgroundColor: 'rgba(212, 184, 120, 0.1)',
-    borderColor: 'rgba(212, 184, 120, 0.3)',
-  },
+  gameFilterPillActive: {},
   gameFilterIcon: {
     width: 18,
     height: 18,
