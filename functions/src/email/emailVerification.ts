@@ -82,7 +82,7 @@ export const sendEmailVerificationCodeFunction = onCall(
     const {data, error} = await resend.emails.send({
       from: "Peakd <noreply@peakd.gg>",
       to: normalizedEmail,
-      subject: "Your RankdUp verification code",
+      subject: "Your Peakd verification code",
       html: `
         <div style="font-family: -apple-system, sans-serif; max-width: 400px; margin: 0 auto; padding: 32px;">
           <h2 style="color: #fff; background: #0f0f0f; padding: 24px; border-radius: 12px; text-align: center;">

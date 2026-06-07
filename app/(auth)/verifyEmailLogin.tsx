@@ -15,7 +15,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
 import { auth, functions } from '@/config/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithCustomToken } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 
 const CODE_LENGTH = 6;
@@ -30,6 +30,7 @@ export default function VerifyEmailLogin() {
   const [isResending, setIsResending] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  const verifyingRef = useRef(false);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
@@ -84,6 +85,8 @@ export default function VerifyEmailLogin() {
   const handleVerify = async (fullCode?: string) => {
     const codeStr = fullCode || code.join('');
     if (codeStr.length !== CODE_LENGTH) return;
+    if (verifyingRef.current) return;
+    verifyingRef.current = true;
 
     try {
       setIsVerifying(true);
@@ -93,17 +96,18 @@ export default function VerifyEmailLogin() {
       const verifyCode = httpsCallable(functions, 'verifyEmailCode');
       await verifyCode({ email, code: codeStr });
 
-      // Code verified — now sign in via temp credentials
-      const generateLogin = httpsCallable(functions, 'generateEmailLoginToken');
+      // Code verified — now sign in via custom token
+      const generateLogin = httpsCallable<{ email: string }, { customToken: string }>(functions, 'generateEmailLoginToken');
       const result = await generateLogin({ email });
-      const { authEmail, tempPassword } = result.data as { authEmail: string; tempPassword: string };
-
-      await signInWithEmailAndPassword(auth, authEmail, tempPassword);
+      await signInWithCustomToken(auth, result.data.customToken);
       // AuthContext detects sign-in via onAuthStateChanged and navigates automatically
     } catch (error: any) {
       console.error('Email verification error:', error);
       setCode(Array(CODE_LENGTH).fill(''));
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      // Only reset on error so user can retry; on success, stay locked until AuthContext navigates
+      verifyingRef.current = false;
+      setIsVerifying(false);
 
       if (error?.message?.includes('expired')) {
         Alert.alert('Code Expired', 'Your code has expired. Please request a new one.');
@@ -117,14 +121,16 @@ export default function VerifyEmailLogin() {
           'No account is linked to this email. Would you like to sign up?',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign Up', onPress: () => router.replace('/(auth)/signUp') },
+            { text: 'Sign Up', onPress: () => router.replace({ pathname: '/(auth)/signUpBirthday', params: { signupMethod: 'email' } }) },
           ]
         );
+      } else if (error?.message?.includes('No verification code found')) {
+        Alert.alert('Code Not Found', 'Your verification code was not found. Please request a new one.', [
+          { text: 'Resend Code', onPress: handleResend },
+        ]);
       } else {
         Alert.alert('Error', 'Failed to verify. Please try again.');
       }
-    } finally {
-      setIsVerifying(false);
     }
   };
 

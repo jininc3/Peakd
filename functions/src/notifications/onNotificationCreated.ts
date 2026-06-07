@@ -76,7 +76,7 @@ export const onNotificationCreated = onDocumentCreated(
       }
 
       // Build notification title and body based on type
-      const title = 'RankdUp';
+      const title = 'Peakd';
       let body = '';
 
       switch (notification.type) {

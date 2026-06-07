@@ -50,7 +50,7 @@ export default function LoginEmail() {
           'No account found with this email. Would you like to sign up?',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign Up', onPress: () => router.replace('/(auth)/signUp') },
+            { text: 'Sign Up', onPress: () => router.replace({ pathname: '/(auth)/signUpBirthday', params: { signupMethod: 'email' } }) },
           ]
         );
       } else {

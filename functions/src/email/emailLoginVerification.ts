@@ -72,25 +72,9 @@ export const generateEmailLoginTokenFunction = onCall(
     const userId = usersQuery.docs[0].id;
 
     try {
-      const authUser = await admin.auth().getUser(userId);
-      const authEmail = authUser.email;
-
-      if (!authEmail) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Account has no auth email."
-        );
-      }
-
-      const tempPassword = Array.from({length: 32}, () =>
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-          .charAt(Math.floor(Math.random() * 62))
-      ).join("");
-
-      await admin.auth().updateUser(userId, {password: tempPassword});
-
+      const customToken = await admin.auth().createCustomToken(userId);
       logger.info(`Email login token generated for ${normalizedEmail}`);
-      return {authEmail, tempPassword};
+      return {customToken};
     } catch (error: any) {
       if (error instanceof HttpsError) throw error;
       logger.error("Error generating email login token:", error);

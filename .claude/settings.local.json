@@ -22,7 +22,8 @@
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
       "Bash(cd:*)",
-      "Bash(ls \"C:/Users/jinha/Desktop/Peakd/app/\\(auth\\)/\")"
+      "Bash(ls \"C:/Users/jinha/Desktop/Peakd/app/\\(auth\\)/\")",
+      "Bash(xargs grep:*)"
     ],
     "deny": [],
     "ask": []

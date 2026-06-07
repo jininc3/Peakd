@@ -112,7 +112,7 @@ export const linkValorantAccountFunction = onCall(
           logger.warn(`Account ${accountId} already linked to user ${linkedData.userId}`);
           throw new HttpsError(
             "already-exists",
-            "This Valorant account is already linked to another RankdUp profile. Please unlink it from the other profile first, or contact support if you believe this is an error."
+            "This Valorant account is already linked to another Peakd profile. Please unlink it from the other profile first, or contact support if you believe this is an error."
           );
         }
         logger.info(`Account ${accountId} already linked to current user, allowing re-link`);

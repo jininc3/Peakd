@@ -16,7 +16,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
 import { auth, functions } from '@/config/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithCustomToken } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 
 const CODE_LENGTH = 6;
@@ -135,21 +135,14 @@ export default function ResetPasswordEmail() {
 
     try {
       setIsResetting(true);
-      // Generate temp credentials, sign in, then set the new password
-      const generateLogin = httpsCallable(functions, 'generateEmailLoginToken');
+      // Generate custom token, sign in, then set the new password
+      const generateLogin = httpsCallable<{ email: string }, { customToken: string }>(functions, 'generateEmailLoginToken');
       const result = await generateLogin({ email });
-      const { authEmail, tempPassword } = result.data as { authEmail: string; tempPassword: string };
-
-      // Sign in with temp password first (to authenticate)
-      await signInWithEmailAndPassword(auth, authEmail, tempPassword);
+      await signInWithCustomToken(auth, result.data.customToken);
 
       // Now set the real password (user is authenticated)
       const setPasswordFn = httpsCallable(functions, 'setUserPassword');
       await setPasswordFn({ password: newPassword });
-
-      // Sign out and sign back in with the new password
-      await auth.signOut();
-      await signInWithEmailAndPassword(auth, authEmail, newPassword);
       // AuthContext detects sign-in and navigates automatically
     } catch (error: any) {
       console.error('Error resetting password:', error);
