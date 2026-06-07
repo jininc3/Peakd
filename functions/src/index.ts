@@ -48,6 +48,7 @@ export {refreshPartyStatsFunction as refreshPartyStats} from "./parties/refreshP
 export {updateUsernameFunction as updateUsername} from "./users/updateUsername";
 export {resetPhonePasswordFunction as resetPhonePassword} from "./users/resetPhonePassword";
 export {generateLoginTokenFunction as generateLoginToken} from "./users/generateLoginToken";
+export {loginWithUsernameFunction as loginWithUsername} from "./users/loginWithUsername";
 export {setUserPasswordFunction as setUserPassword} from "./users/setUserPassword";
 export {deleteAllAccountsFunction as deleteAllAccounts} from "./users/deleteAllAccounts";
 

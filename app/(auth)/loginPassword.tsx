@@ -2,9 +2,10 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { signInWithEmail, resetPassword } from '@/services/authService';
-import { db } from '@/config/firebase';
+import { auth, db, functions } from '@/config/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import { signInWithCustomToken } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useState, useEffect } from 'react';
@@ -59,7 +60,7 @@ export default function LoginPassword() {
         email = resolved;
       }
 
-      // Phone users: send OTP instead of email reset link
+      // Phone users: send Twilio OTP
       if (isPhoneEmail(email)) {
         const phone = await getPhoneFromEmail(email);
         if (!phone) {
@@ -73,10 +74,15 @@ export default function LoginPassword() {
         return;
       }
 
-      await resetPassword(email);
-      Alert.alert('Password Reset', `We sent a reset link to ${email}. Check your email.`);
+      // Email users: send Resend OTP code
+      const sendCode = httpsCallable(functions, 'sendEmailVerificationCode');
+      await sendCode({ email, skipRegisteredCheck: true });
+      router.push({
+        pathname: '/(auth)/resetPasswordEmail',
+        params: { email },
+      });
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to send reset email. Please try again.');
+      Alert.alert('Error', 'Failed to send reset code. Please try again.');
     }
   };
 
@@ -102,22 +108,22 @@ export default function LoginPassword() {
 
     try {
       setIsLoading(true);
-      let email = usernameOrEmail;
-
-      if (!isEmailInput(usernameOrEmail)) {
-        const resolved = await getEmailFromUsername(usernameOrEmail);
-        if (!resolved) {
-          Alert.alert('Sign In Failed', 'No account found with this username.');
-          setIsLoading(false);
-          return;
-        }
-        email = resolved;
-      }
-
-      await signInWithEmail(email, password);
+      const login = httpsCallable<
+        { username: string; password: string },
+        { customToken: string }
+      >(functions, 'loginWithUsername');
+      const result = await login({ username: usernameOrEmail, password });
+      await signInWithCustomToken(auth, result.data.customToken);
       // Navigation handled by AuthContext
     } catch (error: any) {
-      Alert.alert('Sign In Failed', 'Incorrect username or password.');
+      const msg = error?.message || '';
+      if (msg.includes('No account found')) {
+        Alert.alert('Sign In Failed', 'No account found with this username.');
+      } else if (msg.includes('Incorrect password')) {
+        Alert.alert('Sign In Failed', 'Incorrect password.');
+      } else {
+        Alert.alert('Sign In Failed', 'Incorrect username or password.');
+      }
       console.error(error);
     } finally {
       setIsLoading(false);

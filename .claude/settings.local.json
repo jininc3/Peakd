@@ -21,7 +21,8 @@
       "Bash(ls -la C:/Users/jinha/Desktop/Peakd/app/\\\\\\(tabs\\\\\\)/)",
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(ls \"C:/Users/jinha/Desktop/Peakd/app/\\(auth\\)/\")"
     ],
     "deny": [],
     "ask": []

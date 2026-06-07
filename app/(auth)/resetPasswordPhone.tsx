@@ -17,7 +17,6 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from '@/hooks/useRouter';
 import { useLocalSearchParams } from 'expo-router';
-import rnfbAuth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { signInWithEmail } from '@/services/authService';
 import { functions } from '@/config/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -35,7 +34,6 @@ export default function ResetPasswordPhone() {
   const [code, setCode] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [confirmation, setConfirmation] = useState<FirebaseAuthTypes.ConfirmationResult | null>(null);
   const [codeSent, setCodeSent] = useState(false);
   const hiddenInputRef = useRef<TextInput | null>(null);
 
@@ -59,8 +57,8 @@ export default function ResetPasswordPhone() {
   const sendVerificationCode = async () => {
     try {
       setIsSending(true);
-      const confirm = await rnfbAuth().signInWithPhoneNumber(phoneNumber);
-      setConfirmation(confirm);
+      const sendCode = httpsCallable(functions, 'sendPhoneVerificationCode');
+      await sendCode({ phoneNumber });
       setCodeSent(true);
     } catch (error: any) {
       console.error('Error sending verification code:', error);
@@ -79,17 +77,27 @@ export default function ResetPasswordPhone() {
   };
 
   const handleVerifyOtp = async () => {
-    if (code.length !== 6 || !confirmation) return;
+    if (code.length !== 6) return;
 
     try {
       setIsVerifying(true);
-      await confirmation.confirm(code);
-      await rnfbAuth().signOut();
+      const verifyCode = httpsCallable(functions, 'verifyPhoneCode');
+      const result = await verifyCode({ phoneNumber, code });
+      const data = result.data as { verified: boolean };
+
+      if (!data.verified) {
+        Alert.alert('Error', 'Incorrect verification code. Please try again.');
+        return;
+      }
+
       setStep('password');
     } catch (error: any) {
       console.error('Verification error:', error);
-      if (error.code === 'auth/invalid-verification-code') {
-        Alert.alert('Error', 'Invalid verification code. Please try again.');
+      const msg = error?.message || '';
+      if (msg.includes('Incorrect')) {
+        Alert.alert('Error', 'Incorrect verification code. Please try again.');
+      } else if (msg.includes('expired')) {
+        Alert.alert('Error', 'Code expired. Please request a new one.');
       } else {
         Alert.alert('Error', 'Failed to verify code. Please try again.');
       }
@@ -118,13 +126,10 @@ export default function ResetPasswordPhone() {
     try {
       setIsResetting(true);
 
-      // Call Cloud Function to reset the password (uses Admin SDK, no old password needed)
-      console.log('Resetting password for phone:', JSON.stringify(phoneNumber));
       const resetFn = httpsCallable(functions, 'resetPhonePassword');
       const result = await resetFn({ phoneNumber, newPassword });
       const { email } = result.data as { email: string };
 
-      // Sign in with the new password via web SDK
       await signInWithEmail(email, newPassword);
       // AuthContext detects sign-in and navigates automatically
     } catch (error: any) {
@@ -221,45 +226,37 @@ export default function ResetPasswordPhone() {
         </TouchableOpacity>
 
         <View style={styles.content}>
-          <ThemedText style={styles.title}>Set a new{'\n'}password</ThemedText>
-          <ThemedText style={styles.subtitle}>
-            Choose a new password for your account
-          </ThemedText>
+          <ThemedText style={styles.title}>Set new{'\n'}password</ThemedText>
+          <ThemedText style={styles.subtitle}>Enter your new password below.</ThemedText>
 
-          <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
-              <MaterialIcons name="lock" size={20} color="#555" style={{ marginRight: 10 }} />
-              <TextInput
-                style={styles.input}
-                placeholder="New password"
-                placeholderTextColor="#555"
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry={!showPassword}
-                autoFocus
-                editable={!isResetting}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                <IconSymbol size={20} name={showPassword ? 'eye.slash.fill' : 'eye.fill'} color="#555" />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.inputWrapper}>
+            <MaterialIcons name="lock" size={20} color="#555" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="New password"
+              placeholderTextColor="#555"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry={!showPassword}
+              autoFocus
+              editable={!isResetting}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <IconSymbol size={20} name={showPassword ? 'eye.slash.fill' : 'eye.fill'} color="#555" />
+            </TouchableOpacity>
           </View>
 
-          <View style={[styles.inputContainer, { marginTop: 12 }]}>
-            <View style={styles.inputWrapper}>
-              <MaterialIcons name="lock" size={20} color="#555" style={{ marginRight: 10 }} />
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm password"
-                placeholderTextColor="#555"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry={!showPassword}
-                editable={!isResetting}
-                returnKeyType="done"
-                onSubmitEditing={handleResetPassword}
-              />
-            </View>
+          <View style={[styles.inputWrapper, { marginTop: 12 }]}>
+            <MaterialIcons name="lock" size={20} color="#555" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm password"
+              placeholderTextColor="#555"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showPassword}
+              editable={!isResetting}
+            />
           </View>
         </View>
 
@@ -312,14 +309,14 @@ const styles = StyleSheet.create({
   },
   otpInputFilled: { borderColor: '#fff' },
   otpDigit: { fontSize: 22, fontWeight: '700', color: '#fff' },
-  resendText: { fontSize: 13, fontWeight: '600', color: '#1a73e8' },
-  inputContainer: {},
+  resendText: { fontSize: 13, fontWeight: '600', color: '#888' },
   inputWrapper: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 12, paddingHorizontal: 18,
     borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
   },
+  inputIcon: { marginRight: 10 },
   input: { flex: 1, paddingVertical: 16, fontSize: 16, color: '#fff' },
   bottomSection: { paddingHorizontal: 28, paddingBottom: 10 },
   bottomSectionResting: { paddingBottom: 40 },
