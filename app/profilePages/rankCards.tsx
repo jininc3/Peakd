@@ -129,6 +129,21 @@ export default function RankCardsScreen() {
     await fetchData();
   }, [fetchData, fetchValorantStats, isOwnProfile]);
 
+  const handleRankCardFlip = useCallback(async (gameName: string) => {
+    if (!targetUserId) return;
+    const key = `${targetUserId}:${gameName}`;
+    if (revealedCards.has(key)) return;
+    setRevealedCards(prev => new Set(prev).add(key));
+    try {
+      const data = await AsyncStorage.getItem('revealedRankCards');
+      const revealed: string[] = data ? JSON.parse(data) : [];
+      if (!revealed.includes(key)) {
+        revealed.push(key);
+        await AsyncStorage.setItem('revealedRankCards', JSON.stringify(revealed));
+      }
+    } catch {}
+  }, [targetUserId, revealedCards]);
+
   // Derive userGames — identical mapping to profile.tsx (userGamesBase)
   // For own profile, prefer context stats (fetched fresh) over Firestore cache
   const effectiveValorantStats = isOwnProfile ? (contextValorantStats || valorantStats) : valorantStats;
@@ -332,7 +347,7 @@ export default function RankCardsScreen() {
 
               return (
                 <View key={game.id} style={styles.verticalCardWrapper}>
-                  <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} onRefresh={handleRankCardRefresh} initialFlipped={revealedCards.has(`${targetUserId}:${game.name}`)} />
+                  <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} onRefresh={handleRankCardRefresh} initialFlipped={revealedCards.has(`${targetUserId}:${game.name}`)} flipOnly={true} onFlip={() => handleRankCardFlip(game.name)} />
                 </View>
               );
             })()}
@@ -375,7 +390,7 @@ export default function RankCardsScreen() {
                       ]}
                     >
                       <View style={{ width: '100%' }}>
-                        <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} isBackOfStack={index < totalCards - 1} onRefresh={handleRankCardRefresh} initialFlipped={revealedCards.has(`${targetUserId}:${game.name}`)} />
+                        <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} isBackOfStack={index < totalCards - 1} onRefresh={handleRankCardRefresh} initialFlipped={revealedCards.has(`${targetUserId}:${game.name}`)} flipOnly={true} onFlip={() => handleRankCardFlip(game.name)} />
                       </View>
                     </View>
                   );
@@ -408,7 +423,7 @@ export default function RankCardsScreen() {
                 }
                 return (
                   <View style={styles.swipeCard}>
-                    <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} onRefresh={handleRankCardRefresh} />
+                    <RankCard game={game} username={displayUsername} viewOnly={false} userId={viewingUserId || undefined} isFocused={true} onRefresh={handleRankCardRefresh} initialFlipped={revealedCards.has(`${targetUserId}:${game.name}`)} flipOnly={true} onFlip={() => handleRankCardFlip(game.name)} />
                   </View>
                 );
               }}

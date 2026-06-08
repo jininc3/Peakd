@@ -112,7 +112,7 @@ export const deleteAllAccountsFunction = onCall(
 
 // --- Helper functions ---
 
-async function deleteSubcollection(
+export async function deleteSubcollection(
   db: admin.firestore.Firestore,
   path: string
 ): Promise<void> {
@@ -135,7 +135,7 @@ async function deleteSubcollection(
   if (count > 0) await batch.commit();
 }
 
-async function deleteByQuery(
+export async function deleteByQuery(
   db: admin.firestore.Firestore,
   collectionName: string,
   field: string,
@@ -152,7 +152,7 @@ async function deleteByQuery(
   await batch.commit();
 }
 
-async function deleteUserPosts(
+export async function deleteUserPosts(
   db: admin.firestore.Firestore,
   bucket: any,
   userId: string
@@ -180,7 +180,7 @@ async function deleteUserPosts(
   }
 }
 
-async function deleteStorageFileByUrl(
+export async function deleteStorageFileByUrl(
   bucket: any,
   url: string
 ): Promise<void> {
@@ -199,7 +199,7 @@ async function deleteStorageFileByUrl(
   }
 }
 
-async function deleteStorageFolder(
+export async function deleteStorageFolder(
   bucket: any,
   prefix: string
 ): Promise<void> {
@@ -211,7 +211,7 @@ async function deleteStorageFolder(
   }
 }
 
-async function deleteFollowRelationships(
+export async function deleteFollowRelationships(
   db: admin.firestore.Firestore,
   userId: string
 ): Promise<void> {
@@ -248,7 +248,7 @@ async function deleteFollowRelationships(
   }
 }
 
-async function deleteNotificationsAboutUser(
+export async function deleteNotificationsAboutUser(
   db: admin.firestore.Firestore,
   userId: string
 ): Promise<void> {
@@ -277,7 +277,7 @@ async function deleteNotificationsAboutUser(
   }
 }
 
-async function deleteUserChats(
+export async function deleteUserChats(
   db: admin.firestore.Firestore,
   userId: string
 ): Promise<void> {
@@ -292,7 +292,7 @@ async function deleteUserChats(
   }
 }
 
-async function deleteUserFromParties(
+export async function deleteUserFromParties(
   db: admin.firestore.Firestore,
   userId: string
 ): Promise<void> {
@@ -330,7 +330,7 @@ async function deleteUserFromParties(
   }
 }
 
-async function deleteUserDuoData(
+export async function deleteUserDuoData(
   db: admin.firestore.Firestore,
   userId: string
 ): Promise<void> {

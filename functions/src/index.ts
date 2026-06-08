@@ -51,6 +51,7 @@ export {generateLoginTokenFunction as generateLoginToken} from "./users/generate
 export {loginWithUsernameFunction as loginWithUsername} from "./users/loginWithUsername";
 export {setUserPasswordFunction as setUserPassword} from "./users/setUserPassword";
 export {deleteAllAccountsFunction as deleteAllAccounts} from "./users/deleteAllAccounts";
+export {deleteAccountFunction as deleteAccount} from "./users/deleteAccount";
 
 // Export Email Verification functions
 export {sendEmailVerificationCodeFunction as sendEmailVerificationCode} from "./email/emailVerification";
