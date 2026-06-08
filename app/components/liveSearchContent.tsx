@@ -115,7 +115,7 @@ export default function LiveSearchContent({
     const inGameName = game === 'valorant' ? valorantInGameName : leagueInGameName;
 
     const queueCardData = {
-      username: cardData.username,
+      username: user.username || cardData.username,
       avatar: user.avatar || undefined,
       inGameIcon,
       inGameName,

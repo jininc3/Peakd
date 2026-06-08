@@ -149,9 +149,12 @@ export default function DuoAcceptScreen({
       {/* Title */}
       <ThemedText style={styles.matchFoundText}>MATCH FOUND</ThemedText>
 
-      {/* Username + rank */}
+      {/* Username + IGN + rank */}
       <View style={styles.infoSection}>
         <ThemedText style={styles.username}>{matchedUser.username}</ThemedText>
+        {matchedUser.inGameName ? (
+          <ThemedText style={styles.inGameName}>{matchedUser.inGameName}</ThemedText>
+        ) : null}
         <View style={styles.rankPill}>
           <Image
             source={getRankIcon(matchedUser.currentRank || 'Unranked', game)}
@@ -271,6 +274,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#fff',
+  },
+  inGameName: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#F0D6A2',
   },
   rankPill: {
     flexDirection: 'row',

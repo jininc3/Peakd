@@ -106,6 +106,7 @@ export default function DuoMatchResult({
         <CompactDuoCard
           game={game}
           username={matchedUser.username}
+          avatar={matchedUser.avatar || undefined}
           inGameName={matchedUser.inGameName || matchedUser.username}
           inGameIcon={matchedUser.inGameIcon || undefined}
           currentRank={matchedUser.currentRank || undefined}

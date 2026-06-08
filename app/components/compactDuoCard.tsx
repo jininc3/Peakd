@@ -176,9 +176,16 @@ export default function CompactDuoCard({
           />
         </View>
 
-        {/* Large In-Game Icon */}
+        {/* Large Icon — avatar, in-game icon, or placeholder */}
         <View style={styles.iconContainer}>
-          {inGameIcon && inGameIcon.startsWith('http') ? (
+          {avatar && avatar.startsWith('http') ? (
+            <Image
+              source={{ uri: avatar }}
+              style={styles.inGameIcon}
+              onLoad={() => setAvatarLoaded(true)}
+              onError={() => setAvatarLoaded(true)}
+            />
+          ) : inGameIcon && inGameIcon.startsWith('http') ? (
             <Image
               source={{ uri: inGameIcon }}
               style={styles.inGameIcon}

@@ -399,9 +399,9 @@ export default function ChatScreen() {
       );
     }
 
-    // Game username card
-    if (item.type === 'game_username' && item.gameUsername) {
-      const gu = item.gameUsername;
+    // Game username card (supports both mobile format: gameUsername.{}, and web format: top-level game/inGameName)
+    if (item.type === 'game_username' && (item.gameUsername || (item as any).inGameName)) {
+      const gu = item.gameUsername || { game: (item as any).game, inGameName: (item as any).inGameName };
       const gameIcon = gu.game === 'valorant'
         ? require('@/assets/images/valorant-red.png')
         : require('@/assets/images/lol-icon.png');
@@ -710,8 +710,8 @@ const styles = StyleSheet.create({
   },
   gameUsernameCardReceived: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(212, 184, 120, 0.1)',
-    borderColor: 'rgba(212, 184, 120, 0.25)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   gameUsernameHeader: {
     flexDirection: 'row',
