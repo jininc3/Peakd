@@ -66,6 +66,9 @@ export {verifyPhoneCodeFunction as verifyPhoneCode} from "./phone/phoneVerificat
 // Export Rank History functions
 export {dailyRankSnapshotScheduled} from "./rankHistory/dailyRankSnapshot";
 
+// Export Presence Cleanup functions
+export {cleanupPresenceScheduled} from "./presence/cleanupPresence";
+
 // Export Duo Matching functions
 export {onDuoQueueCreated} from "./duo/onDuoQueueCreated";
 export {onDuoMatchUpdated} from "./duo/onMatchUpdated";
