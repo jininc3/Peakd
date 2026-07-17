@@ -33,14 +33,6 @@ export interface RiotStats {
     losses: number;
     winRate: number;
   };
-  rankedFlex?: {
-    tier: string;
-    rank: string;
-    leaguePoints: number;
-    wins: number;
-    losses: number;
-    winRate: number;
-  };
   topChampions: Array<{
     championId: number;
     championLevel: number;

@@ -178,9 +178,8 @@ export const getLeagueStatsFunction = onCall(
         getTotalMasteryScore(puuid, region),
       ]);
 
-      // Process ranked stats
+      // Process ranked stats — solo/duo only (flex queue intentionally ignored)
       const soloQueue = rankedStats.find((q) => q.queueType === "RANKED_SOLO_5x5");
-      const flexQueue = rankedStats.find((q) => q.queueType === "RANKED_FLEX_SR");
 
       // Initialize peak rank - if no cached peak and we have solo queue data, use current rank
       let initialPeakRank = cachedStats?.peakRank;
@@ -211,21 +210,6 @@ export const getLeagueStatsFunction = onCall(
           wins: soloQueue.wins,
           losses: soloQueue.losses,
           winRate: calculateWinRate(soloQueue.wins, soloQueue.losses),
-        } : {
-          tier: "UNRANKED",
-          rank: "",
-          leaguePoints: 0,
-          wins: 0,
-          losses: 0,
-          winRate: 0,
-        },
-        rankedFlex: flexQueue ? {
-          tier: flexQueue.tier,
-          rank: flexQueue.rank,
-          leaguePoints: flexQueue.leaguePoints,
-          wins: flexQueue.wins,
-          losses: flexQueue.losses,
-          winRate: calculateWinRate(flexQueue.wins, flexQueue.losses),
         } : {
           tier: "UNRANKED",
           rank: "",

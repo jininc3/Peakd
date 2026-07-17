@@ -150,6 +150,16 @@ service cloud.firestore {
         allow read: if true;
         // Writes handled by cloud functions via Admin SDK
       }
+
+      // Season peaks subcollection - per-season peak rank cards (web + mobile)
+      match /seasonPeaks/{peakId} {
+        // Anyone can read (public card collections on profiles)
+        allow read: if true;
+
+        // Only the user can write their own season peaks
+        // (the Valorant act-history cloud function writes via Admin SDK)
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // Posts collection
@@ -324,9 +334,8 @@ service cloud.firestore {
     }
 
     // Duo Posts collection - time-limited duo card posts in the feed
-    match /duoPosts/{postId} {
-      // Any authenticated user can read duo posts
-      allow read: if request.auth != null;
+    match /duoPosts/{postId} {                                                                                                // Anyone can read duo posts
+    allow read: if true;
 
       // Only the post owner can create (postId must match userId_game pattern)
       allow create: if request.auth != null
@@ -384,6 +393,12 @@ service cloud.firestore {
       allow update: if request.auth != null
                     && request.auth.uid == 'VljkZhdkF3gCQI0clVkbQ0XCIxp1';
     }
+    
+    // Presence collection - online status tracking
+      match /presence/{userId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
 
     // Default: deny all other access
     match /{document=**} {
