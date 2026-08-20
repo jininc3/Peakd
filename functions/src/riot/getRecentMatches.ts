@@ -31,6 +31,7 @@ export interface RecentMatchResult {
 export interface GetRecentMatchesRequest {
   targetUserId: string;
   game: "league" | "valorant";
+  count?: number;
 }
 
 export interface GetRecentMatchesResponse {
@@ -45,7 +46,7 @@ export const getRecentMatchesFunction = onCall(
     secrets: ["RIOT_API_KEY", "HENRIK_API_KEY"],
   },
   async (request): Promise<GetRecentMatchesResponse> => {
-    const {targetUserId, game} = request.data as GetRecentMatchesRequest;
+    const {targetUserId, game, count} = request.data as GetRecentMatchesRequest;
 
     if (!targetUserId || !game) {
       throw new HttpsError(
@@ -53,6 +54,8 @@ export const getRecentMatchesFunction = onCall(
         "targetUserId and game are required"
       );
     }
+
+    const matchCount = count && count > 0 ? Math.min(count, 20) : 5;
 
     try {
       const db = admin.firestore();
@@ -69,9 +72,9 @@ export const getRecentMatchesFunction = onCall(
       const userData = userDoc.data();
 
       if (game === "league") {
-        return await getLeagueRecentMatches(userData);
+        return await getLeagueRecentMatches(userData, matchCount);
       } else {
-        return await getValorantRecentMatches(userData);
+        return await getValorantRecentMatches(userData, matchCount);
       }
     } catch (error) {
       logger.error("Error fetching recent matches:", error);
@@ -90,7 +93,7 @@ export const getRecentMatchesFunction = onCall(
   }
 );
 
-async function getLeagueRecentMatches(userData: any): Promise<GetRecentMatchesResponse> {
+async function getLeagueRecentMatches(userData: any, count: number): Promise<GetRecentMatchesResponse> {
   const riotAccount = userData?.riotAccount;
 
   if (!riotAccount?.puuid) {
@@ -103,8 +106,8 @@ async function getLeagueRecentMatches(userData: any): Promise<GetRecentMatchesRe
 
   const {puuid, region} = riotAccount;
 
-  // Step 1: Get last 5 ranked match IDs
-  const matchIds = await getRecentMatchIds(puuid, region, 5);
+  // Step 1: Get last N ranked match IDs
+  const matchIds = await getRecentMatchIds(puuid, region, count);
 
   if (!matchIds || matchIds.length === 0) {
     return {
@@ -125,7 +128,15 @@ async function getLeagueRecentMatches(userData: any): Promise<GetRecentMatchesRe
       );
 
       if (participant) {
-        matches.push({won: participant.win === true});
+        matches.push({
+          won: participant.win === true,
+          champion: participant.championName,
+          championId: participant.championId,
+          kills: participant.kills,
+          deaths: participant.deaths,
+          assists: participant.assists,
+          playedAt: matchData?.info?.gameEndTimestamp ?? matchData?.info?.gameCreation,
+        });
       }
     } catch (err) {
       logger.warn(`Failed to fetch match ${matchId}:`, err);
@@ -139,7 +150,7 @@ async function getLeagueRecentMatches(userData: any): Promise<GetRecentMatchesRe
   };
 }
 
-async function getValorantRecentMatches(userData: any): Promise<GetRecentMatchesResponse> {
+async function getValorantRecentMatches(userData: any, count: number): Promise<GetRecentMatchesResponse> {
   const valorantAccount = userData?.valorantAccount;
 
   if (!valorantAccount) {
@@ -153,7 +164,7 @@ async function getValorantRecentMatches(userData: any): Promise<GetRecentMatches
   const {gameName, tag, region} = valorantAccount;
 
   // Henrik API returns matches with team win/loss info
-  const henrikMatches = await getValorantMatches(region, gameName, tag, 5);
+  const henrikMatches = await getValorantMatches(region, gameName, tag, count);
 
   if (!henrikMatches || henrikMatches.length === 0) {
     return {

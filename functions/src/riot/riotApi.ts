@@ -227,7 +227,7 @@ export async function getRecentMatchIds(
 ): Promise<string[]> {
   const apiKey = getRiotApiKey();
   const routing = getRegionalRouting(region);
-  const url = `https://${routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}?queue=420&type=ranked&count=${count}`;
+  const url = `https://${routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?queue=420&type=ranked&count=${count}`;
 
   try {
     const response = await axios.get<string[]>(url, {
