@@ -26,6 +26,22 @@ export interface RecentMatchResult {
   // League-specific fields
   champion?: string;
   championId?: number;
+  /** Riot queue id — 420 = Ranked Solo/Duo, 440 = Flex. */
+  queueId?: number;
+  /** Match length in seconds. */
+  gameDuration?: number;
+  champLevel?: number;
+  /** Summoner spell ids (D / F). */
+  summonerSpells?: [number, number];
+  /** Keystone perk id and the secondary rune tree (style) id. */
+  runes?: { keystone: number; secondaryStyle: number; primaryStyle: number };
+  /** Final build: item0..item5 then item6 (trinket). 0 = empty slot. */
+  items?: number[];
+  cs?: number;
+  visionScore?: number;
+  damageToChampions?: number;
+  goldEarned?: number;
+  role?: string;
 }
 
 export interface GetRecentMatchesRequest {
@@ -128,6 +144,9 @@ async function getLeagueRecentMatches(userData: any, count: number): Promise<Get
       );
 
       if (participant) {
+        const styles = participant.perks?.styles ?? [];
+        const primary = styles.find((st: any) => st.description === "primaryStyle") ?? styles[0];
+        const secondary = styles.find((st: any) => st.description === "subStyle") ?? styles[1];
         matches.push({
           won: participant.win === true,
           champion: participant.championName,
@@ -136,6 +155,21 @@ async function getLeagueRecentMatches(userData: any, count: number): Promise<Get
           deaths: participant.deaths,
           assists: participant.assists,
           playedAt: matchData?.info?.gameEndTimestamp ?? matchData?.info?.gameCreation,
+          queueId: matchData?.info?.queueId,
+          gameDuration: matchData?.info?.gameDuration,
+          champLevel: participant.champLevel,
+          summonerSpells: [participant.summoner1Id ?? 0, participant.summoner2Id ?? 0],
+          runes: primary?.selections?.[0]?.perk != null ? {
+            keystone: primary.selections[0].perk,
+            primaryStyle: primary.style,
+            secondaryStyle: secondary?.style ?? 0,
+          } : undefined,
+          items: [0, 1, 2, 3, 4, 5, 6].map((i) => participant[`item${i}`] ?? 0),
+          cs: (participant.totalMinionsKilled ?? 0) + (participant.neutralMinionsKilled ?? 0),
+          visionScore: participant.visionScore,
+          damageToChampions: participant.totalDamageDealtToChampions,
+          goldEarned: participant.goldEarned,
+          role: participant.teamPosition || participant.individualPosition,
         });
       }
     } catch (err) {

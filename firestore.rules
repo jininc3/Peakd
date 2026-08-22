@@ -286,9 +286,11 @@ service cloud.firestore {
 
     // Parties collection - leaderboard parties
     match /parties/{partyId} {
-      // Allow any authenticated user to read parties
-      // (needed for accepting invites, viewing leaderboards, joining via code)
-      allow read: if request.auth != null;
+      // Any authenticated user can read parties (invites, leaderboards, join
+      // by code). Open lobbies are also readable signed-out so the home page
+      // can surface them to new visitors; list queries must filter on
+      // visibility == "public" to satisfy this.
+      allow read: if request.auth != null || resource.data.visibility == "public";
 
       // Allow creating if authenticated and user is the creator
       allow create: if request.auth != null &&
