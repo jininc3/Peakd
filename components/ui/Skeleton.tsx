@@ -493,7 +493,9 @@ export const LeaderboardCardSkeleton: React.FC = () => {
 
 // Mutual leaderboard skeleton - matches the leaderboards tab table structure
 // Renders a game section with header, column headers, and player rows with shimmer
-export const MutualLeaderboardSkeleton: React.FC<{ rowCount?: number; showDropdownChevron?: boolean }> = ({ rowCount = 4, showDropdownChevron = false }) => {
+// Leaderboard table skeleton - podium + column headers + rows.
+// Shared by the leaderboards tab and leaderboardDetail so both loading states match the table layout.
+export const LeaderboardTableSkeleton: React.FC<{ rowCount?: number }> = ({ rowCount = 4 }) => {
   const nameWidths = React.useMemo(
     () => Array.from({ length: rowCount }, () => 70 + Math.floor(Math.random() * 50)),
     [rowCount]
@@ -515,14 +517,7 @@ export const MutualLeaderboardSkeleton: React.FC<{ rowCount?: number; showDropdo
   );
 
   return (
-    <View style={mutualSkeletonStyles.section}>
-      {/* Game header */}
-      <View style={mutualSkeletonStyles.sectionHeader}>
-        <Skeleton width={160} height={40} borderRadius={20} />
-        <View style={{ flex: 1 }} />
-        <Skeleton width={90} height={36} borderRadius={10} />
-      </View>
-
+    <View>
       {/* Top 3 Podium */}
       <View style={{ borderRadius: 14, paddingVertical: 16, marginBottom: 16 }}>
         {/* TOP 3 header */}
@@ -590,6 +585,21 @@ export const MutualLeaderboardSkeleton: React.FC<{ rowCount?: number; showDropdo
   );
 };
 
+export const MutualLeaderboardSkeleton: React.FC<{ rowCount?: number; showDropdownChevron?: boolean }> = ({ rowCount = 4 }) => {
+  return (
+    <View style={mutualSkeletonStyles.section}>
+      {/* Game header */}
+      <View style={mutualSkeletonStyles.sectionHeader}>
+        <Skeleton width={160} height={40} borderRadius={20} />
+        <View style={{ flex: 1 }} />
+        <Skeleton width={90} height={36} borderRadius={10} />
+      </View>
+
+      <LeaderboardTableSkeleton rowCount={rowCount} />
+    </View>
+  );
+};
+
 // Full leaderboards tab skeleton - single game section with dropdown indicator
 export const LeaderboardsTabSkeleton: React.FC = () => {
   return (
@@ -597,6 +607,11 @@ export const LeaderboardsTabSkeleton: React.FC = () => {
       <MutualLeaderboardSkeleton rowCount={5} showDropdownChevron />
     </View>
   );
+};
+
+// Leaderboard detail (lobby) skeleton - same table structure as the leaderboards tab, no game header
+export const LeaderboardDetailSkeleton: React.FC<{ rowCount?: number }> = ({ rowCount = 5 }) => {
+  return <LeaderboardTableSkeleton rowCount={rowCount} />;
 };
 
 const mutualSkeletonStyles = StyleSheet.create({

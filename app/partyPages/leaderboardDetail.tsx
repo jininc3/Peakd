@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { uploadPartyIcon, uploadPartyCoverPhoto } from '@/services/storageService';
 import { useAuth } from '@/contexts/AuthContext';
 import CachedImage from '@/components/ui/CachedImage';
+import { LeaderboardDetailSkeleton } from '@/components/ui/Skeleton';
 import { isRemoteAvatar, getDefaultAvatarSource } from '@/utils/resolveAvatar';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -200,6 +201,7 @@ export default function LeaderboardDetail() {
 
   const [partyData, setPartyData] = useState<any>(null);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [playersLoading, setPlayersLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [inviteCode, setInviteCode] = useState<string>('');
   const [partyDocId, setPartyDocId] = useState<string>('');
@@ -931,6 +933,7 @@ export default function LeaderboardDetail() {
 
           if (!partyDoc.memberDetails || partyDoc.memberDetails.length === 0) {
             setPlayers([]);
+            setPlayersLoading(false);
             setRefreshing(false);
             return;
           }
@@ -1007,9 +1010,11 @@ export default function LeaderboardDetail() {
           });
           setPlayers(fetchedPlayers);
           setSpectators([]);
+          setPlayersLoading(false);
           setRefreshing(false);
         }, (error) => {
           console.error('Error in real-time listener:', error);
+          setPlayersLoading(false);
           setRefreshing(false);
         });
       } catch (error) {
@@ -1243,6 +1248,10 @@ export default function LeaderboardDetail() {
           </View>
         </View>
 
+        {playersLoading ? (
+          <LeaderboardDetailSkeleton />
+        ) : (
+        <>
         {/* Top 3 Podium */}
         {players.length >= 3 && (() => {
           const top3 = players.slice(0, Math.min(3, players.length));
@@ -1405,6 +1414,8 @@ export default function LeaderboardDetail() {
             );
           })}
         </View>
+        </>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>

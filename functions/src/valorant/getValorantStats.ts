@@ -7,6 +7,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
+import {recordRankSnapshotIfChanged} from "../rankHistory/recordRankSnapshot";
 import {
   getValorantMMR,
   getValorantAccountByRiotId,
@@ -323,6 +324,16 @@ export const getValorantStatsFunction = onCall(
       await userRef.update({
         valorantStats: stats,
       });
+
+      // Fresh data from Henrik: append to the rank progression graph if RR or
+      // rank moved since the last snapshot (best-effort).
+      if (stats.currentRank && stats.currentRank !== "Unranked") {
+        await recordRankSnapshotIfChanged(userId, {
+          game: "valorant",
+          value: stats.rankRating,
+          rank: stats.currentRank,
+        }).catch((err) => logger.warn("Valorant rank snapshot failed:", err));
+      }
 
       // Also update gameStats subcollection for leaderboard access
       const gameStatsRef = userRef.collection("gameStats").doc("valorant");

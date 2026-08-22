@@ -7,7 +7,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
-import {getAccountByRiotId} from "./riotApi";
+import {getAccountByRiotId, getRankedStats} from "./riotApi";
 import {LinkAccountRequest, LinkAccountResponse} from "../types/riot";
 
 /**
@@ -105,6 +105,33 @@ export const linkRiotAccountFunction = onCall(
       // Store in Firestore
       const userRef = db.collection("users").doc(userId);
 
+      // Switching to a different Riot account: the League LP graph must not
+      // carry on from the previous account's snapshots, so clear them (and
+      // release the old account's claim) before linking the new one.
+      const existingDoc = await userRef.get();
+      const previousAccount = existingDoc.data()?.riotAccount;
+      const isSwitchingAccount =
+        !!previousAccount?.puuid && previousAccount.puuid !== riotAccount.puuid;
+      if (isSwitchingAccount) {
+        logger.info(
+          `User ${userId} switching Riot account ${previousAccount.puuid} -> ${riotAccount.puuid}; resetting League rank history`
+        );
+        const oldClaimId = `riot:${previousAccount.gameName}#${previousAccount.tagLine}`;
+        if (oldClaimId !== accountId) {
+          await db.collection("linkedAccounts").doc(oldClaimId).delete().catch(() => undefined);
+        }
+        const historyRef = userRef.collection("rankHistory");
+        // Loop in pages — a batch tops out at 500 writes.
+        for (;;) {
+          const page = await historyRef.where("game", "==", "league").limit(400).get();
+          if (page.empty) break;
+          const batch = db.batch();
+          page.docs.forEach((d) => batch.delete(d.ref));
+          await batch.commit();
+          if (page.size < 400) break;
+        }
+      }
+
       const accountData = {
         puuid: riotAccount.puuid,
         gameName: riotAccount.gameName,
@@ -125,7 +152,30 @@ export const linkRiotAccountFunction = onCall(
 
       await userRef.set({
         riotAccount: accountData,
-      }, { merge: true });
+        // Stale stats belong to the previous account; getLeagueStats refills them.
+        ...(isSwitchingAccount ? {riotStats: admin.firestore.FieldValue.delete()} : {}),
+      }, {merge: true});
+
+      // Seed the graph with the new account's current LP so it doesn't sit
+      // empty until the next daily snapshot. Best-effort: a failure here must
+      // not fail the link itself.
+      if (isSwitchingAccount || !previousAccount?.puuid) {
+        try {
+          const ranked = await getRankedStats(riotAccount.puuid, region.toLowerCase());
+          const solo = ranked.find((q) => q.queueType === "RANKED_SOLO_5x5");
+          if (solo) {
+            await userRef.collection("rankHistory").add({
+              game: "league",
+              puuid: riotAccount.puuid,
+              value: solo.leaguePoints,
+              rank: `${solo.tier} ${solo.rank}`,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        } catch (err) {
+          logger.warn(`Initial LP snapshot failed for user ${userId}:`, err);
+        }
+      }
 
       logger.info(`Successfully linked Riot account for user ${userId}`);
 

@@ -1082,10 +1082,14 @@ export default function LeaderboardScreen() {
         {/* Active Lobbies Section */}
         <View style={styles.activeLobbiesSection}>
           <View style={styles.activeLobbiesHeader}>
-            <View style={styles.activeLobbiesHeaderLeft}>
+            <TouchableOpacity
+              style={styles.activeLobbiesHeaderLeft}
+              onPress={() => router.push('/partyPages/lobbies')}
+              activeOpacity={0.7}
+            >
               <IconSymbol size={20} name="person.2.fill" color="#fff" />
               <ThemedText style={styles.activeLobbiesTitle}>Active Lobbies</ThemedText>
-            </View>
+            </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <TouchableOpacity
                 onPress={() => router.push('/partyPages/joinParty')}

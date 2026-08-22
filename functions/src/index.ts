@@ -27,6 +27,9 @@ export {linkValorantAccountFunction as linkValorantAccount} from "./valorant/lin
 export {getValorantStatsFunction as getValorantStats} from "./valorant/getValorantStats";
 export {unlinkValorantAccountFunction as unlinkValorantAccount} from "./valorant/unlinkValorantAccount";
 
+// Export public showcase stats (logged-out homepage)
+export {getShowcaseStatsFunction as getShowcaseStats} from "./showcase/getShowcaseStats";
+
 // Export Push Notification functions
 export {onNotificationCreated} from "./notifications/onNotificationCreated";
 export {onMessageCreated} from "./notifications/onMessageCreated";

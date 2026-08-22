@@ -8,6 +8,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
+import {recordRankSnapshotIfChanged} from "../rankHistory/recordRankSnapshot";
 import {
   getSummonerByPuuid,
   getRankedStats,
@@ -243,6 +244,17 @@ export const getLeagueStatsFunction = onCall(
       await userRef.update({
         riotStats: stats,
       });
+
+      // Fresh data from Riot: append to the rank progression graph if LP or
+      // rank moved since the last snapshot (best-effort).
+      if (soloQueue) {
+        await recordRankSnapshotIfChanged(userId, {
+          game: "league",
+          puuid,
+          value: soloQueue.leaguePoints,
+          rank: `${soloQueue.tier} ${soloQueue.rank}`,
+        }).catch((err) => logger.warn("League rank snapshot failed:", err));
+      }
 
       // Also update gameStats subcollection for leaderboard access
       const gameStatsRef = userRef.collection("gameStats").doc("league");
