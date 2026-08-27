@@ -13,7 +13,12 @@ import {ValorantStats} from "./getValorantStats";
 export interface LinkValorantAccountRequest {
   gameName: string;
   tag: string;
-  region: string;
+  /**
+   * Deprecated — the account lookup is region-agnostic and Henrik's API
+   * returns the real region, which is what we store. Still accepted so older
+   * app builds keep working, but it is only used as a fallback.
+   */
+  region?: string;
 }
 
 export interface LinkValorantAccountResponse {
@@ -57,7 +62,7 @@ export const linkValorantAccountFunction = onCall(
     const userId = request.auth.uid;
     logger.info("Authenticated user:", userId);
     const data = request.data as LinkValorantAccountRequest;
-    const {gameName, tag, region = "na"} = data;
+    const {gameName, tag, region: requestedRegion} = data;
 
     // Validate input
     if (!gameName || !tag) {
@@ -85,22 +90,34 @@ export const linkValorantAccountFunction = onCall(
       );
     }
 
-    // Validate region
-    const validRegions = ["na", "eu", "ap", "kr", "latam", "br"];
-    if (!validRegions.includes(region.toLowerCase())) {
-      throw new HttpsError(
-        "invalid-argument",
-        `Invalid region. Must be one of: ${validRegions.join(", ")}`
-      );
-    }
-
     try {
-      logger.info(`User ${userId} is linking Valorant account: ${cleanGameName}#${cleanTag} (${region})`);
+      logger.info(`User ${userId} is linking Valorant account: ${cleanGameName}#${cleanTag}`);
 
       const db = admin.firestore();
 
-      // Create account identifier for claim checking (includes region for Valorant)
-      const accountId = `valorant:${cleanGameName}#${cleanTag}#${region.toLowerCase()}`;
+      // Verify the account and learn its region. The lookup endpoint is
+      // region-agnostic, and the response carries the account's real region —
+      // so we no longer ask the user for it (a wrong pick used to link fine
+      // but then fetch MMR from the wrong region and return no rank).
+      const valorantAccount = await getValorantAccountByRiotId(
+        cleanGameName,
+        cleanTag
+      );
+
+      const validRegions = ["na", "eu", "ap", "kr", "latam", "br"];
+      const apiRegion = (valorantAccount.region || "").toLowerCase();
+      const region = validRegions.includes(apiRegion)
+        ? apiRegion
+        // Fall back to whatever the caller sent (older app builds), then "na".
+        : (requestedRegion || "na").toLowerCase();
+
+      logger.info(
+        `Valorant account verified: ${valorantAccount.name}#${valorantAccount.tag} (region: ${region})`
+      );
+
+      // Account identifier for claim checking — region is part of the key, so
+      // it must be resolved before this lookup.
+      const accountId = `valorant:${cleanGameName}#${cleanTag}#${region}`;
 
       // Check if account is already claimed by another user
       const linkedAccountRef = db.collection("linkedAccounts").doc(accountId);
@@ -118,21 +135,13 @@ export const linkValorantAccountFunction = onCall(
         logger.info(`Account ${accountId} already linked to current user, allowing re-link`);
       }
 
-      // Verify account exists via Henrik's API
-      const valorantAccount = await getValorantAccountByRiotId(
-        cleanGameName,
-        cleanTag
-      );
-
-      logger.info(`Valorant account verified: ${valorantAccount.name}#${valorantAccount.tag}`);
-
       // Store in Firestore
       const userRef = db.collection("users").doc(userId);
 
       const accountData = {
         gameName: valorantAccount.name,
         tag: valorantAccount.tag,
-        region: region.toLowerCase(),
+        region: region,
         accountLevel: valorantAccount.account_level,
         cardUrl: valorantAccount.card?.small || null,
         linkedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -144,7 +153,7 @@ export const linkValorantAccountFunction = onCall(
         accountType: "valorant",
         gameName: valorantAccount.name,
         tag: valorantAccount.tag,
-        region: region.toLowerCase(),
+        region: region,
         linkedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -160,7 +169,7 @@ export const linkValorantAccountFunction = onCall(
 
         const [accountDataFull, mmrData] = await Promise.all([
           getValorantAccountByRiotId(gameName, tag),
-          getValorantMMR(region.toLowerCase(), gameName, tag),
+          getValorantMMR(region, gameName, tag),
         ]);
 
         // Calculate wins/losses from season data
@@ -208,7 +217,7 @@ export const linkValorantAccountFunction = onCall(
         const stats: ValorantStats = {
           gameName: accountDataFull.name,
           tag: accountDataFull.tag,
-          region: region.toLowerCase(),
+          region: region,
           accountLevel: accountDataFull.account_level,
           card: accountDataFull.card,
           currentRank: mmrData.current_data.currenttierpatched,

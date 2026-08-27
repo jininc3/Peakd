@@ -30,6 +30,9 @@ export {unlinkValorantAccountFunction as unlinkValorantAccount} from "./valorant
 // Export public showcase stats (logged-out homepage)
 export {getShowcaseStatsFunction as getShowcaseStats} from "./showcase/getShowcaseStats";
 
+// Public, unauthenticated rank preview for the logged-out card builder (web /create).
+export {lookupRankFunction as lookupRank} from "./lookup/lookupRank";
+
 // Export Push Notification functions
 export {onNotificationCreated} from "./notifications/onNotificationCreated";
 export {onMessageCreated} from "./notifications/onMessageCreated";
