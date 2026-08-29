@@ -109,6 +109,17 @@ export const linkRiotAccountFunction = onCall(
       // carry on from the previous account's snapshots, so clear them (and
       // release the old account's claim) before linking the new one.
       const existingDoc = await userRef.get();
+      // Linking legitimately happens BEFORE the account exists: building a rank
+      // card is the first step of signup, and OAuth users are authenticated
+      // from the start of the wizard. So we create the doc when missing — but
+      // flag it `signupComplete: false`, because a bare set({merge:true}) used
+      // to leave a doc holding only riotAccount (no username, no createdAt)
+      // that the app then treated as a real account. commitSignup flips the
+      // flag; anything still false is an abandoned signup, not a user.
+      const isNewProfile = !existingDoc.exists;
+      if (isNewProfile) {
+        logger.info(`Creating placeholder profile for ${userId} (rank card built pre-signup)`);
+      }
       const previousAccount = existingDoc.data()?.riotAccount;
       const isSwitchingAccount =
         !!previousAccount?.puuid && previousAccount.puuid !== riotAccount.puuid;
@@ -154,6 +165,13 @@ export const linkRiotAccountFunction = onCall(
         riotAccount: accountData,
         // Stale stats belong to the previous account; getLeagueStats refills them.
         ...(isSwitchingAccount ? {riotStats: admin.firestore.FieldValue.delete()} : {}),
+        // Only stamped when creating: never downgrade a completed account.
+        ...(isNewProfile
+          ? {
+            signupComplete: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          }
+          : {}),
       }, {merge: true});
 
       // Seed the graph with the new account's current LP so it doesn't sit

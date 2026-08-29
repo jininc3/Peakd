@@ -138,6 +138,16 @@ export const linkValorantAccountFunction = onCall(
       // Store in Firestore
       const userRef = db.collection("users").doc(userId);
 
+      // Linking legitimately happens BEFORE the account exists (building a rank
+      // card is step one of signup) — see linkRiotAccount for the full
+      // reasoning. Create the doc when missing, flagged incomplete so an
+      // abandoned wizard is identifiable rather than looking like a real user.
+      const existingDoc = await userRef.get();
+      const isNewProfile = !existingDoc.exists;
+      if (isNewProfile) {
+        logger.info(`Creating placeholder profile for ${userId} (rank card built pre-signup)`);
+      }
+
       const accountData = {
         gameName: valorantAccount.name,
         tag: valorantAccount.tag,
@@ -159,7 +169,14 @@ export const linkValorantAccountFunction = onCall(
 
       await userRef.set({
         valorantAccount: accountData,
-      }, { merge: true });
+        // Only stamped when creating: never downgrade a completed account.
+        ...(isNewProfile
+          ? {
+            signupComplete: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          }
+          : {}),
+      }, {merge: true});
 
       logger.info(`Successfully linked Valorant account for user ${userId}`);
 

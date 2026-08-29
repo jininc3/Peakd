@@ -80,3 +80,13 @@ export {onDuoQueueCreated} from "./duo/onDuoQueueCreated";
 export {onDuoMatchUpdated} from "./duo/onMatchUpdated";
 export {cleanupDuoQueueScheduled} from "./duo/cleanupDuoQueue";
 export {cleanupExpiredMatchesScheduled} from "./duo/cleanupExpiredMatches";
+
+// Badge + profile triggers, merged in from the web repo (previously deployed
+// as the separate "badges" codebase from Peakd-web/functions).
+export {onRankChange} from "./badges/onRankChange";
+export {onLeaderboardChange} from "./badges/onLeaderboardChange";
+export {onLobbyComplete} from "./badges/onLobbyComplete";
+export {onProfileView} from "./badges/onProfileView";
+
+// Discord OAuth -> Firebase custom token exchange (web login/signup).
+export {discordLogin} from "./discord/discordLogin";
