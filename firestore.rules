@@ -297,10 +297,23 @@ service cloud.firestore {
                        request.auth.uid == request.resource.data.createdBy &&
                        request.auth.uid in request.resource.data.members;
 
-      // Allow updating if user is already a member OR joining via invite (adding self to members)
+      // Allow updating if user is already a member OR joining via invite
+      // (adding self to members).
+      //
+      // Lobby identity — name, icon, cover, visibility — is owner-only: the
+      // settings UI already hides those controls from non-owners, but without
+      // this any member could rename a lobby or replace its icon straight
+      // through the API. Every other field stays member-writable so joins,
+      // leaves, kicks, invites and challenge flows are unaffected.
       allow update: if request.auth != null &&
                        (request.auth.uid in resource.data.members ||
-                        request.auth.uid in request.resource.data.members);
+                        request.auth.uid in request.resource.data.members) &&
+                       (
+                         !request.resource.data.diff(resource.data)
+                           .affectedKeys()
+                           .hasAny(['partyName', 'partyIcon', 'coverPhoto', 'visibility']) ||
+                         request.auth.uid == resource.data.createdBy
+                       );
 
       // Allow deleting if user is the creator
       allow delete: if request.auth != null &&

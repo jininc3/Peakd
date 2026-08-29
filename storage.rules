@@ -66,8 +66,9 @@ service firebase.storage {
                     && request.auth.uid == userId;
     }
 
-    // Party cover photos: authenticated users can upload party covers
-    match /party-covers/{fileName} {
+    // Party cover photos: authenticated users can upload party covers.
+    // `**` for the same client path mismatch described under party-icons.
+    match /party-covers/{allPaths=**} {
       allow read: if true;
 
       // Limit party covers to 10MB and only images
@@ -79,8 +80,15 @@ service firebase.storage {
       allow delete: if request.auth != null;
     }
 
-    // Party icons: authenticated users can upload party icons
-    match /party-icons/{fileName} {
+    // Party icons: authenticated users can upload party icons.
+    //
+    // `**` because the two clients use different layouts: mobile writes
+    // party-icons/{partyId}.jpg (one segment) while web writes
+    // party-icons/{partyId}/icon.{ext} (two). A single-segment match silently
+    // sent every web upload to the default-deny rule at the bottom of this
+    // file, and createLobbyService swallows the error — so custom icons
+    // appeared to "work" while always falling back to a default.
+    match /party-icons/{allPaths=**} {
       allow read: if true;
 
       // Limit party icons to 5MB and only images
