@@ -16,6 +16,55 @@ import {
 import { RANK_TIER_LADDER } from "./badgeLadder";
 import * as admin from "firebase-admin";
 
+/**
+ * Mirror the baseline onto the public users/{uid} doc.
+ *
+ * The authoritative copy at users/{uid}/badgeMeta/baseline_{game} has no
+ * Firestore rules match, so the client cannot read it — that doc is this
+ * function's grant gate and nothing else. The client needs the same numbers to
+ * render the earned/verified split (including on logged-out profiles), and
+ * users/{uid} is already `allow read: if true`, so it goes there too.
+ *
+ * That copy is display-only and user-writable: never gate a grant on it.
+ */
+async function writeBaselineMirror(
+  uid: string,
+  game: "valorant" | "league",
+  tierValueNum: number,
+  rank: string,
+  score: number
+): Promise<void> {
+  await db.doc(`users/${uid}`).set(
+    {
+      badgeBaselines: {
+        [game]: {
+          tierValue: tierValueNum,
+          rank,
+          rankScore: score,
+          at: admin.firestore.Timestamp.now(),
+        },
+      },
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Highest baseline tier across every game, for gating the shared ladder.
+ *
+ * Tier badges are one-per-user rather than per-game, so the bar for "did they
+ * climb this here" has to be the best rank they arrived with in ANY game.
+ */
+async function highestBaselineTier(uid: string, fallback: number): Promise<number> {
+  let best = fallback;
+  for (const g of ["valorant", "league"] as const) {
+    const snap = await db.doc(`users/${uid}/badgeMeta/baseline_${g}`).get();
+    const tv: number = snap.exists ? (snap.data()?.tierValue ?? -1) : -1;
+    if (tv > best) best = tv;
+  }
+  return best;
+}
+
 export const onRankChange = onDocumentWritten(
   "users/{uid}/gameStats/{game}",
   async (event) => {
@@ -36,7 +85,7 @@ export const onRankChange = onDocumentWritten(
 
     // ── first_blood: first ranked win after linking ──
     if (wins > 0 && prevWins === 0) {
-      await grantBadge(uid, "first_blood", game);
+      await grantBadge(uid, "first_blood", game, game);
     }
 
     // ── win_streak / loss_streak: 5 consecutive wins or losses ──
@@ -66,10 +115,10 @@ export const onRankChange = onDocumentWritten(
     await streakRef.set({ winStreak, lossStreak }, { merge: true });
 
     if (winStreak >= 5) {
-      await grantBadge(uid, "win_streak", game);
+      await grantBadge(uid, "win_streak", game, game);
     }
     if (lossStreak >= 5) {
-      await grantBadge(uid, "loss_streak", game);
+      await grantBadge(uid, "loss_streak", game, game);
     }
 
     if (!currentRank) return;
@@ -86,7 +135,7 @@ export const onRankChange = onDocumentWritten(
       await peakRef.set({ peakScore: currentScore, peakRank: currentRank });
       // Only grant if this isn't the first time we've recorded a rank
       if (prevPeak > 0) {
-        await grantBadge(uid, "new_heights", game);
+        await grantBadge(uid, "new_heights", game, game);
       }
     }
 
@@ -95,20 +144,52 @@ export const onRankChange = onDocumentWritten(
       const prevTier = parseTier(prevRank);
       const currentTier = parseTier(currentRank);
       if (prevTier && currentTier && prevTier !== currentTier && currentScore > prevScore) {
-        await grantBadge(uid, "tier_breaker", game);
+        await grantBadge(uid, "tier_breaker", game, game);
       }
     }
 
-    // ── Rank-tier ladder: grant every tier badge at or below the current
-    //    tier. grantBadge() is idempotent, so this is safe to re-run on
-    //    every rank change (including the very first write on link) —
-    //    a Challenger linking for the first time gets the Challenger-level
-    //    badge (top_1_percent) plus every lower tier they've genuinely
-    //    already surpassed, all in one pass. ──
+    // ── Rank-tier ladder, gated on the baseline ──
+    //
+    // Previously this granted every tier at or below the current one on the
+    // first write, so a Radiant linking for the first time instantly "earned"
+    // Bronze through Immortal. Nothing was achieved: the badges described a
+    // state they already had. A badge for state is a label; a badge for a
+    // transition we witnessed is an achievement.
+    //
+    // So: the first rank we ever see for a game is recorded as the baseline
+    // and grants nothing. After that, a tier badge is granted only when the
+    // player climbs ABOVE that baseline — something they did here. Tiers at or
+    // below it are rendered client-side as "verified standing" from this same
+    // baseline, so they stay visible on the profile without being claimed as
+    // achievements, and no badge doc is written for them.
+    //
+    // This generalises the guard new_heights already uses above (prevPeak > 0).
     const currentTierValue = tierValue(game, currentRank);
-    for (const { badgeId, minTierValue } of RANK_TIER_LADDER) {
-      if (currentTierValue >= minTierValue) {
-        await grantBadge(uid, badgeId, game);
+    const baselineRef = db.doc(`users/${uid}/badgeMeta/baseline_${game}`);
+    const baselineSnap = await baselineRef.get();
+
+    if (!baselineSnap.exists) {
+      // First rank on record for this game — imported standing, not a climb.
+      await baselineRef.set({
+        tierValue: currentTierValue,
+        rankScore: currentScore,
+        rank: currentRank,
+        at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      await writeBaselineMirror(uid, game, currentTierValue, currentRank, currentScore);
+    } else {
+      const stored = baselineSnap.data() ?? {};
+      const storedTier: number = stored.tierValue ?? -1;
+
+      // Ladder badges are shared across games, so gate on the HIGHEST baseline
+      // of any game. Otherwise a League Gold player who later links Valorant
+      // Diamond would retro-earn Platinum as if they had climbed it here.
+      const baseTier = await highestBaselineTier(uid, storedTier);
+
+      for (const { badgeId, minTierValue } of RANK_TIER_LADDER) {
+        if (currentTierValue >= minTierValue && minTierValue > baseTier) {
+          await grantBadge(uid, badgeId, game, game);
+        }
       }
     }
 
@@ -130,9 +211,12 @@ export const onRankChange = onDocumentWritten(
       if (oldestRank && currentRank) {
         const oldScore = rankScore(game, oldestRank, 0);
         const newScore = rankScore(game, currentRank, 0);
-        // 2 full rank divisions = 2000 in our scoring (each div = 1000)
-        if (newScore - oldScore >= 2000) {
-          await grantBadge(uid, "hot_streak", game);
+        // rankScore packs as tier*10000 + division*1000 + points, so 2000 is
+        // two DIVISIONS, not the two full ranks the badge promises ("climb 2+
+        // ranks in a single week"). A division jump is common in a week; a
+        // two-tier jump is the achievement. 2 tiers = 20000.
+        if (newScore - oldScore >= 20000) {
+          await grantBadge(uid, "hot_streak", game, game);
         }
       }
     }

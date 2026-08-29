@@ -100,7 +100,7 @@ export const onLeaderboardChange = onDocumentWritten(
       const belowMe = board.slice(myIndex + 1);
       const overtook = belowMe.some((e) => e.score < currScore && e.score >= prevScore);
       if (overtook) {
-        await grantBadge(uid, "rival", game);
+        await grantBadge(uid, "rival", game, game);
       }
     }
 
@@ -110,7 +110,7 @@ export const onLeaderboardChange = onDocumentWritten(
       // If our previous score was less than whoever is now #2, we just took #1
       const secondPlace = board[1];
       if (prevScore <= secondPlace.score) {
-        await grantBadge(uid, "dethrone", game);
+        await grantBadge(uid, "dethrone", game, game);
       }
     }
 
@@ -125,7 +125,7 @@ export const onLeaderboardChange = onDocumentWritten(
         const firstAt: number = data.firstAtTopMs ?? now;
         const daysDiff = (now - firstAt) / (1000 * 60 * 60 * 24);
         if (daysDiff >= 7) {
-          await grantBadge(uid, "untouchable", game);
+          await grantBadge(uid, "untouchable", game, game);
         }
         // Update last checked timestamp
         await metaRef.update({ lastCheckedMs: now });

@@ -7,19 +7,42 @@ type BadgeId = string;
 
 /**
  * Grant a badge idempotently — skips if already earned.
+ *
+ * Returns true only on a FIRST grant, so callers can treat it as "this is new"
+ * (notifications, etc). Re-granting an existing badge in a different game is
+ * not new: it adds that game to `games` and still returns false.
+ *
+ * `games` exists so a badge earned in a second game stays visible. Badge docs
+ * are keyed by badgeId alone, so Valorant Gold and League Gold share one doc;
+ * without this the second climb would be silently swallowed. The client renders
+ * the array as game pips, falling back to `context` for docs written before
+ * this field existed.
  */
 export async function grantBadge(
   userId: string,
   badgeId: BadgeId,
-  context?: string
+  context?: string,
+  game?: "valorant" | "league"
 ): Promise<boolean> {
   const ref = db.doc(`users/${userId}/badges/${badgeId}`);
   const snap = await ref.get();
-  if (snap.exists) return false;
+
+  if (snap.exists) {
+    // Already held — record the additional game, but this is not a new badge.
+    if (game && !(snap.data()?.games ?? []).includes(game)) {
+      await ref.set(
+        { games: admin.firestore.FieldValue.arrayUnion(game) },
+        { merge: true }
+      );
+    }
+    return false;
+  }
+
   await ref.set({
     badgeId,
     earnedAt: admin.firestore.FieldValue.serverTimestamp(),
     ...(context ? { context } : {}),
+    ...(game ? { games: [game] } : {}),
   });
   return true;
 }

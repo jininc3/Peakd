@@ -7,6 +7,16 @@
  * Master, Grandmaster, Challenger vs Valorant: Diamond, Ascendant,
  * Immortal, Radiant). minTierValue matches tierValue()/rankScore() in
  * helpers.ts.
+ *
+ * KNOWN NAMING MISMATCH: because the scales diverge, one minTierValue means
+ * different real tiers per game. minTierValue 5 is Valorant DIAMOND but League
+ * EMERALD, so a League player earns "Diamond in the Rough" at Emerald, and
+ * League Diamond grants "Ascendant". The grant LOGIC is correct — rung 5 is
+ * genuinely the 5th tier in both games — but the badge copy reads wrong for
+ * League. Left as-is deliberately: renaming a shared badge only moves the
+ * problem to the other game. The web app works around it for progress copy via
+ * LADDER_TIER_NAME in lib/badgeProgress.ts, which names the target per game.
+ * A real fix means per-game badge names, which is a catalog change.
  */
 export const RANK_TIER_LADDER: { badgeId: string; minTierValue: number }[] = [
   { badgeId: "bronze_tier", minTierValue: 1 },
