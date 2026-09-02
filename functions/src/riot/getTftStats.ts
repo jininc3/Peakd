@@ -93,31 +93,33 @@ export const getTftStatsFunction = onCall(
 
       logger.info('Fetching fresh TFT stats from Riot API for user ' + userId);
 
-      // KEY FIX: Get summoner ID from LoL API (works for TFT too!)
-      // The summoner ID is account-wide, not game-specific
-      logger.info('Fetching summoner ID from LoL API (works for TFT)...');
-      const lolSummonerData = await getSummonerByPuuid(puuid, region);
+      // The TFT league endpoint is legacy: it wants a summoner ID, not a PUUID.
+      // The TFT summoner response usually carries that id, so prefer it and
+      // only fall back to the LoL summoner endpoint (the id is account-wide)
+      // when Riot omits it — saving a round trip in the common case.
+      const tftSummonerData = await getTftSummonerByPuuid(puuid, region);
 
-      if (!lolSummonerData.id) {
-        logger.error('LoL Summoner API did not return summoner ID!');
+      let summonerId = tftSummonerData.id;
+      if (!summonerId) {
+        logger.info("TFT summoner response carried no id; falling back to LoL summoner");
+        const lolSummonerData = await getSummonerByPuuid(puuid, region);
+        summonerId = lolSummonerData.id;
+      }
+
+      if (!summonerId) {
+        logger.error("Neither TFT nor LoL summoner endpoint returned a summoner ID");
         throw new HttpsError(
           "internal",
           "Unable to fetch summoner ID from Riot API"
         );
       }
 
-      logger.info('SUCCESS! Got summoner ID from LoL API: ' + lolSummonerData.id.substring(0, 10) + '...');
-
-      // Fetch TFT summoner data for profile info (level, icon)
-      const tftSummonerData = await getTftSummonerByPuuid(puuid, region);
-
-      // Fetch TFT ranked stats using the summoner ID from LoL API
+      // Fetch TFT ranked stats using the resolved summoner ID
       let rankedTft = null;
       let rankedDoubleUp = null;
 
       try {
-        logger.info('Fetching TFT ranked stats with summoner ID from LoL...');
-        const rankedStats = await getTftRankedStats(lolSummonerData.id, region);
+        const rankedStats = await getTftRankedStats(summonerId, region);
         rankedTft = rankedStats.find((q) => q.queueType === "RANKED_TFT");
         rankedDoubleUp = rankedStats.find((q) => q.queueType === "RANKED_TFT_DOUBLE_UP");
         logger.info('Successfully fetched TFT ranked stats!');

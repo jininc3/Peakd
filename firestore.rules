@@ -436,6 +436,36 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // Match caches - written only by the getRecentMatches function via the
+    // Admin SDK (which bypasses these rules). Denied to clients: they hold
+    // other players' PUUIDs and identities, and clients read match history
+    // through the callable, never directly.
+    //
+    // riotMatchCache holds immutable match-v5 payloads (no TTL - a finished
+    // match never changes). The two id/list caches carry a short TTL, since
+    // which matches a player has played does change.
+    match /riotMatchCache/{matchId} {
+      allow read, write: if false;
+    }
+
+    match /riotMatchIdCache/{key} {
+      allow read, write: if false;
+    }
+
+    match /valorantMatchCache/{key} {
+      allow read, write: if false;
+    }
+
+    // Rate-limit state for getRecentMatches. Server-owned: a client that could
+    // write here could lift its own limit.
+    match /matchRefreshThrottle/{key} {
+      allow read, write: if false;
+    }
+
+    match /matchHistoryAnonRate/{ip} {
+      allow read, write: if false;
+    }
+
     // Default: deny all other access
     match /{document=**} {
       allow read, write: if false;

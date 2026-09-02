@@ -116,8 +116,6 @@ export async function getValorantAccountByRiotId(
   try {
     const url = `${HENRIK_API_BASE}/v1/account/${encodeURIComponent(gameName)}/${tag}`;
 
-    logger.info(`Fetching Valorant account: ${url}`);
-
     const headers: any = {};
     const apiKey = henrikApiKey.value();
     if (apiKey) {
@@ -183,8 +181,6 @@ export async function getValorantMMR(
   try {
     const url = `${HENRIK_API_BASE}/v2/mmr/${region}/${encodeURIComponent(gameName)}/${tag}`;
 
-    logger.info(`Fetching Valorant MMR: ${url}`);
-
     const headers: any = {};
     const apiKey = henrikApiKey.value();
     if (apiKey) {
@@ -246,8 +242,6 @@ export async function getValorantMatches(
 ): Promise<HenrikMatch[]> {
   try {
     const url = `${HENRIK_API_BASE}/v3/matches/${region}/${encodeURIComponent(gameName)}/${tag}?mode=competitive&size=${size}`;
-
-    logger.info(`Fetching Valorant matches: ${url}`);
 
     const headers: any = {};
     const apiKey = henrikApiKey.value();

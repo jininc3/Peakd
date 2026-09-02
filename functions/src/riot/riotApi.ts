@@ -133,10 +133,6 @@ export async function getSummonerByPuuid(
       },
     });
 
-    logger.info('LoL Summoner API - Response data: ' + JSON.stringify(response.data));
-    logger.info('LoL Summoner API - Has id field?: ' + ('id' in response.data));
-    logger.info('LoL Summoner API - id value: ' + (response.data.id || 'UNDEFINED'));
-
     return response.data;
   } catch (error) {
     handleRiotError(error as AxiosError, "getSummonerByPuuid");
@@ -280,19 +276,11 @@ export async function getTftSummonerByPuuid(
   const url = 'https://' + region + '.api.riotgames.com/tft/summoner/v1/summoners/by-puuid/' + puuid;
 
   try {
-    logger.info('TFT API URL (PLATFORM ROUTING): ' + url.replace(puuid, puuid.substring(0, 15) + '...'));
-    logger.info('Region parameter: ' + region);
-
     const response = await axios.get<TftSummonerData>(url, {
       headers: {
         "X-Riot-Token": apiKey,
       },
     });
-
-    logger.info('TFT Summoner API - Response status: ' + response.status);
-    logger.info('TFT Summoner API - Response data (raw JSON): ' + JSON.stringify(response.data));
-    logger.info('TFT Summoner API - Has id field?: ' + ('id' in response.data));
-    logger.info('TFT Summoner API - id value: ' + (response.data.id || 'UNDEFINED'));
 
     return response.data;
   } catch (error) {

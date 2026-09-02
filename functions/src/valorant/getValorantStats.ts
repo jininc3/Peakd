@@ -285,9 +285,6 @@ export const getValorantStatsFunction = onCall(
       const matchHistory = allMatches.slice(0, 10);
 
       logger.info(`Processed match history length: ${matchHistory.length}`);
-      if (matchHistory.length > 0) {
-        logger.info(`First match: ${JSON.stringify(matchHistory[0])}`);
-      }
 
       // Build stats object - ensure no undefined values for Firestore
       const stats: ValorantStats = {
