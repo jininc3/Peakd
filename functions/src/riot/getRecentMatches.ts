@@ -244,6 +244,12 @@ async function getLeagueRecentMatches(
   );
 
   const matches: RecentMatchResult[] = [];
+  // A cached match that doesn't contain this player was stored under a previous
+  // PUUID: match documents are keyed by match id alone, but the PUUIDs inside
+  // them are encrypted per API key, so a key rotation makes every cached match
+  // unreadable for that player. Those entries never expire, so without this
+  // re-fetch the history stays permanently short.
+  const retry: {index: number; matchId: string}[] = [];
   settled.forEach((outcome, i) => {
     if (outcome.status === "rejected") {
       logger.warn(`Failed to fetch match ${matchIds[i]}:`, outcome.reason);
@@ -251,12 +257,29 @@ async function getLeagueRecentMatches(
     }
     const entry = extractParticipant(outcome.value, puuid);
     if (entry) matches.push(entry);
+    else retry.push({index: i, matchId: matchIds[i]});
   });
+
+  if (retry.length > 0) {
+    logger.info(`Re-fetching ${retry.length} match(es) cached under a previous PUUID`);
+    const refetched = await Promise.allSettled(
+      retry.map((r) => getCachedMatch(r.matchId, region, true))
+    );
+    refetched.forEach((outcome, i) => {
+      if (outcome.status === "rejected") {
+        logger.warn(`Re-fetch failed for ${retry[i].matchId}:`, outcome.reason);
+        return;
+      }
+      const entry = extractParticipant(outcome.value, puuid);
+      if (entry) matches.push(entry);
+    });
+  }
 
   // Riot returns ids newest-first and allSettled preserves input order, so this
   // is normally a no-op — it's here so the UI's recency assumption holds even if
   // that ever stops being true.
   matches.sort((a, b) => (b.playedAt ?? 0) - (a.playedAt ?? 0));
+
 
   return {
     success: true,
@@ -399,16 +422,22 @@ async function getCachedMatchIds(
  * Match data never changes once the game ends, so entries have no TTL. The
  * cache write is best-effort: a failure costs a future Riot call, not this one.
  */
-async function getCachedMatch(matchId: string, region: string): Promise<any> {
+async function getCachedMatch(
+  matchId: string,
+  region: string,
+  skipCache = false
+): Promise<any> {
   const db = admin.firestore();
   const ref = db.collection(MATCH_CACHE_COLLECTION).doc(matchId);
 
-  try {
-    const snap = await ref.get();
-    const cached = snap.data() as {info?: unknown} | undefined;
-    if (cached?.info) return cached;
-  } catch (error) {
-    logger.warn(`Match cache read failed for ${matchId}:`, error);
+  if (!skipCache) {
+    try {
+      const snap = await ref.get();
+      const cached = snap.data() as {info?: unknown} | undefined;
+      if (cached?.info) return cached;
+    } catch (error) {
+      logger.warn(`Match cache read failed for ${matchId}:`, error);
+    }
   }
 
   const matchData = await getMatchById(matchId, region);
