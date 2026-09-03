@@ -27,7 +27,11 @@ import * as logger from "firebase-functions/logger";
 import {getRankedStats, getAccountRegion} from "./riotApi";
 import {remintRiotAccount} from "./repairAccount";
 
+// Matches the web panel's allowlist (lib/server/adminAuth.ts). Email is checked
+// as well as uid so the panel's own session — which signs in through a separate
+// named Firebase app — is accepted without hardcoding a second uid here.
 const ADMIN_IDS = ["VljkZhdkF3gCQI0clVkbQ0XCIxp1"];
+const ADMIN_EMAILS = ["jininc3@gmail.com"];
 
 // Same pacing as the daily snapshot, to stay inside Riot's rate limit.
 const BATCH_SIZE = 10;
@@ -63,7 +67,10 @@ export const repairRiotRegionsFunction = onCall(
     maxInstances: 1,
   },
   async (request): Promise<RepairRiotRegionsResponse> => {
-    if (!request.auth || !ADMIN_IDS.includes(request.auth.uid)) {
+    const callerEmail = (request.auth?.token?.email ?? "").trim().toLowerCase();
+    const isAdmin = !!request.auth &&
+      (ADMIN_IDS.includes(request.auth.uid) || ADMIN_EMAILS.includes(callerEmail));
+    if (!isAdmin) {
       throw new HttpsError("permission-denied", "Admin only");
     }
 
