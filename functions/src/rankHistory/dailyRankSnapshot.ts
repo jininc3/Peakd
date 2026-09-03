@@ -12,7 +12,8 @@
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
-import {getRankedStats} from "../riot/riotApi";
+import {HttpsError} from "firebase-functions/v2/https";
+import {getRankedStats, getAccountRegion} from "../riot/riotApi";
 import {getValorantMMR} from "../valorant/valorantApi";
 import {recordRankSnapshotIfChanged} from "./recordRankSnapshot";
 
@@ -63,6 +64,7 @@ export const dailyRankSnapshotScheduled = onSchedule(
     let leagueRefreshed = 0;
     let valorantRefreshed = 0;
     let errorCount = 0;
+    let regionsRepaired = 0;
 
     const users = usersSnapshot.docs.map((doc) => ({
       id: doc.id,
@@ -78,10 +80,31 @@ export const dailyRankSnapshotScheduled = onSchedule(
         const riotAccount = user.data?.riotAccount;
         if (riotAccount?.puuid && riotAccount?.region) {
           try {
+            // A wrong stored region makes this fail with the same 400 on every
+            // run, forever. Re-resolve it from Riot, persist the fix, and retry
+            // once, so a broken account heals on the next scheduled pass rather
+            // than needing a manual backfill.
             const rankedStats = await getRankedStats(
               riotAccount.puuid,
               riotAccount.region
-            );
+            ).catch(async (error) => {
+              const mismatch =
+                error instanceof HttpsError && error.message === "REGION_MISMATCH";
+              if (!mismatch) throw error;
+
+              const corrected = await getAccountRegion(
+                riotAccount.puuid, "lol", riotAccount.region
+              );
+              if (!corrected || corrected === riotAccount.region) throw error;
+
+              logger.info(
+                `Repairing region for user ${user.id}: ${riotAccount.region} -> ${corrected}`
+              );
+              await db.collection("users").doc(user.id)
+                .update({"riotAccount.region": corrected});
+              regionsRepaired++;
+              return getRankedStats(riotAccount.puuid, corrected);
+            });
             const soloQueue = rankedStats.find(
               (q) => q.queueType === "RANKED_SOLO_5x5"
             );
@@ -225,7 +248,8 @@ export const dailyRankSnapshotScheduled = onSchedule(
     logger.info(
       `Rank snapshot complete: ${leagueCount} League, ` +
       `${valorantCount} Valorant changes saved; ` +
-      `${leagueRefreshed} League, ${valorantRefreshed} Valorant profiles refreshed. ` +
+      `${leagueRefreshed} League, ${valorantRefreshed} Valorant profiles refreshed; ` +
+      `${regionsRepaired} regions repaired. ` +
       `${errorCount} errors.`
     );
   }

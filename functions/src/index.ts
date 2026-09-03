@@ -22,6 +22,9 @@ export {unlinkRiotAccountFunction as unlinkRiotAccount} from "./riot/unlinkRiotA
 
 export {getRecentMatchesFunction as getRecentMatches} from "./riot/getRecentMatches";
 
+// One-shot admin repair for Riot accounts stored against the wrong platform.
+export {repairRiotRegionsFunction as repairRiotRegions} from "./riot/repairRiotRegions";
+
 // Export Valorant API functions (Henrik's API)
 export {linkValorantAccountFunction as linkValorantAccount} from "./valorant/linkValorantAccount";
 export {getValorantStatsFunction as getValorantStats} from "./valorant/getValorantStats";

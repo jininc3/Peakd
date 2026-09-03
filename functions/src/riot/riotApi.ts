@@ -77,6 +77,13 @@ function handleRiotError(error: AxiosError, context: string): never {
         "resource-exhausted",
         "Rate limit exceeded. Please try again in a moment."
       );
+    } else if (status === 400 && isRegionMismatchError(error)) {
+      // Surfaced distinctly so callers can re-resolve the region and retry,
+      // rather than treating a routing mistake as a permanent failure.
+      throw new HttpsError(
+        "failed-precondition",
+        "REGION_MISMATCH"
+      );
     } else {
       throw new HttpsError(
         "internal",
@@ -113,6 +120,57 @@ export async function getAccountByRiotId(
     return response.data;
   } catch (error) {
     handleRiotError(error as AxiosError, "getAccountByRiotId");
+  }
+}
+
+/**
+ * True when a Riot error is the region-mismatch 400 — a PUUID sent to a
+ * platform host that can't decrypt it. Distinguishing this from other 400s is
+ * what lets callers repair the stored region instead of failing forever.
+ */
+export function isRegionMismatchError(error: unknown): boolean {
+  const err = error as {response?: {status?: number; data?: {status?: {message?: string}}}};
+  if (err?.response?.status !== 400) return false;
+  const message = err.response?.data?.status?.message ?? "";
+  return message.toLowerCase().includes("exception decrypting");
+}
+
+/**
+ * Resolve the platform a player's LoL/TFT account actually lives on.
+ *
+ * PUUIDs are region-scoped ciphertext: one minted under a given platform only
+ * decrypts on that platform's host. Asking euw1 about a kr PUUID returns
+ * "Bad Request - Exception decrypting ...", a 400 that looks like malformed
+ * input but is really a routing mismatch.
+ *
+ * account-v1 carries no region field, so the platform cannot be derived from
+ * the link-time account lookup — hence this second, regionally-routed call.
+ * Its answer is authoritative; a region picked from a dropdown is not.
+ *
+ * Returns null when the region can't be resolved, so callers can fall back to
+ * whatever they already had rather than failing the whole operation.
+ */
+export async function getAccountRegion(
+  puuid: string,
+  game: "lol" | "tft" = "lol",
+  routingHint: string = "euw1"
+): Promise<string | null> {
+  const apiKey = getRiotApiKey();
+  const routing = getRegionalRouting(routingHint);
+  const url = `https://${routing}.api.riotgames.com/riot/account/v1/region/by-game/${game}/by-puuid/${puuid}`;
+
+  try {
+    const response = await axios.get<{puuid: string; game: string; region: string}>(
+      url,
+      {headers: {"X-Riot-Token": apiKey}}
+    );
+    const region = response.data?.region?.toLowerCase();
+    // Only trust a platform this codebase knows how to route.
+    return region && REGIONAL_ROUTING[region] ? region : null;
+  } catch (error) {
+    const status = (error as AxiosError).response?.status;
+    logger.warn(`Could not resolve account region (${status ?? "no status"}) for game ${game}`);
+    return null;
   }
 }
 

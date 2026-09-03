@@ -7,7 +7,9 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
-import {getAccountByRiotId, getRankedStats} from "./riotApi";
+import {getAccountByRiotId, getRankedStats,
+  getAccountRegion,
+} from "./riotApi";
 import {LinkAccountRequest, LinkAccountResponse} from "../types/riot";
 
 /**
@@ -143,11 +145,28 @@ export const linkRiotAccountFunction = onCall(
         }
       }
 
+      // The region the user picked is a hint, not a fact. PUUIDs are
+      // region-scoped ciphertext, so storing a wrong pick permanently pairs the
+      // PUUID with a platform that cannot decrypt it — every later
+      // summoner/league/mastery call then fails with a 400 "Exception
+      // decrypting", while linking itself still succeeds (account-v1 is
+      // regionally routed and never sees the mismatch). Ask Riot where the
+      // account actually lives and store that instead; fall back to the pick
+      // only if the lookup fails.
+      const resolvedRegion =
+        (await getAccountRegion(riotAccount.puuid, "lol", region)) ??
+        region.toLowerCase();
+      if (resolvedRegion !== region.toLowerCase()) {
+        logger.info(
+          `Region corrected for user ${userId}: picked ${region.toLowerCase()}, actual ${resolvedRegion}`
+        );
+      }
+
       const accountData = {
         puuid: riotAccount.puuid,
         gameName: riotAccount.gameName,
         tagLine: riotAccount.tagLine,
-        region: region.toLowerCase(),
+        region: resolvedRegion,
         linkedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
@@ -179,7 +198,7 @@ export const linkRiotAccountFunction = onCall(
       // not fail the link itself.
       if (isSwitchingAccount || !previousAccount?.puuid) {
         try {
-          const ranked = await getRankedStats(riotAccount.puuid, region.toLowerCase());
+          const ranked = await getRankedStats(riotAccount.puuid, resolvedRegion);
           const solo = ranked.find((q) => q.queueType === "RANKED_SOLO_5x5");
           if (solo) {
             await userRef.collection("rankHistory").add({

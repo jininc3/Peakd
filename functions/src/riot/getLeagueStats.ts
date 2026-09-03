@@ -14,6 +14,7 @@ import {
   getRankedStats,
   getChampionMastery,
   getTotalMasteryScore,
+  getAccountRegion,
 } from "./riotApi";
 import {GetStatsResponse, UserRiotStats} from "../types/riot";
 
@@ -171,13 +172,35 @@ export const getLeagueStatsFunction = onCall(
 
       logger.info(`Fetching fresh League stats from Riot API for user ${userId}`);
 
-      // Fetch fresh data from Riot API
-      const [summonerData, rankedStats, topChampions, masteryScore] = await Promise.all([
-        getSummonerByPuuid(puuid, region),
-        getRankedStats(puuid, region),
-        getChampionMastery(puuid, region, 3),
-        getTotalMasteryScore(puuid, region),
+      // Fetch fresh data from Riot API.
+      //
+      // A stored region can be wrong (it used to come from a dropdown, and a
+      // PUUID only decrypts on its own platform), which makes every call here
+      // fail with a 400 forever. On that specific error, ask Riot for the real
+      // region, persist the correction, and retry once — so an account repairs
+      // itself the first time anyone loads it.
+      const fetchAll = (r: string) => Promise.all([
+        getSummonerByPuuid(puuid, r),
+        getRankedStats(puuid, r),
+        getChampionMastery(puuid, r, 3),
+        getTotalMasteryScore(puuid, r),
       ]);
+
+      const [summonerData, rankedStats, topChampions, masteryScore] =
+        await fetchAll(region).catch(async (error) => {
+          const mismatch =
+            error instanceof HttpsError && error.message === "REGION_MISMATCH";
+          if (!mismatch) throw error;
+
+          const corrected = await getAccountRegion(puuid, "lol", region);
+          if (!corrected || corrected === region) throw error;
+
+          logger.info(
+            `Repairing region for user ${userId}: ${region} -> ${corrected}`
+          );
+          await userRef.update({"riotAccount.region": corrected});
+          return fetchAll(corrected);
+        });
 
       // Process ranked stats — solo/duo only (flex queue intentionally ignored)
       const soloQueue = rankedStats.find((q) => q.queueType === "RANKED_SOLO_5x5");
