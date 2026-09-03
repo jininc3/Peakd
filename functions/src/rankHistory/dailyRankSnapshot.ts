@@ -14,6 +14,7 @@ import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {HttpsError} from "firebase-functions/v2/https";
 import {getRankedStats, getAccountRegion} from "../riot/riotApi";
+import {remintRiotAccount} from "../riot/repairAccount";
 import {getValorantMMR} from "../valorant/valorantApi";
 import {recordRankSnapshotIfChanged} from "./recordRankSnapshot";
 import {updateDailyDelta, dailyDeltaFields, dailyDeltaUserFields} from "./dailyDelta";
@@ -66,6 +67,7 @@ export const dailyRankSnapshotScheduled = onSchedule(
     let valorantRefreshed = 0;
     let errorCount = 0;
     let regionsRepaired = 0;
+    let puuidsReminted = 0;
 
     const users = usersSnapshot.docs.map((doc) => ({
       id: doc.id,
@@ -93,18 +95,25 @@ export const dailyRankSnapshotScheduled = onSchedule(
                 error instanceof HttpsError && error.message === "REGION_MISMATCH";
               if (!mismatch) throw error;
 
+              // Two possible causes, same error: a wrong platform, or a PUUID
+              // minted under a rotated API key. Cheap fix first, then re-mint.
               const corrected = await getAccountRegion(
                 riotAccount.puuid, "lol", riotAccount.region
               );
-              if (!corrected || corrected === riotAccount.region) throw error;
+              if (corrected && corrected !== riotAccount.region) {
+                logger.info(
+                  `Repairing region for user ${user.id}: ${riotAccount.region} -> ${corrected}`
+                );
+                await db.collection("users").doc(user.id)
+                  .update({"riotAccount.region": corrected});
+                regionsRepaired++;
+                return getRankedStats(riotAccount.puuid, corrected);
+              }
 
-              logger.info(
-                `Repairing region for user ${user.id}: ${riotAccount.region} -> ${corrected}`
-              );
-              await db.collection("users").doc(user.id)
-                .update({"riotAccount.region": corrected});
-              regionsRepaired++;
-              return getRankedStats(riotAccount.puuid, corrected);
+              const repaired = await remintRiotAccount(user.id, riotAccount);
+              if (!repaired) throw error;
+              puuidsReminted++;
+              return getRankedStats(repaired.puuid, repaired.region);
             });
             const soloQueue = rankedStats.find(
               (q) => q.queueType === "RANKED_SOLO_5x5"
@@ -262,7 +271,7 @@ export const dailyRankSnapshotScheduled = onSchedule(
       `Rank snapshot complete: ${leagueCount} League, ` +
       `${valorantCount} Valorant changes saved; ` +
       `${leagueRefreshed} League, ${valorantRefreshed} Valorant profiles refreshed; ` +
-      `${regionsRepaired} regions repaired. ` +
+      `${regionsRepaired} regions repaired, ${puuidsReminted} PUUIDs re-minted. ` +
       `${errorCount} errors.`
     );
   }

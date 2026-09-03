@@ -10,6 +10,7 @@ import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {recordRankSnapshotIfChanged} from "../rankHistory/recordRankSnapshot";
 import {updateDailyDelta, dailyDeltaFields, dailyDeltaUserFields} from "../rankHistory/dailyDelta";
+import {remintRiotAccount} from "./repairAccount";
 import {
   getSummonerByPuuid,
   getRankedStats,
@@ -155,7 +156,9 @@ export const getLeagueStatsFunction = onCall(
         );
       }
 
-      const {puuid, region} = userData.riotAccount;
+      // puuid is reassigned if a rotated API key forces a re-mint below.
+      let {puuid} = userData.riotAccount as {puuid: string};
+      const {region} = userData.riotAccount;
 
       // Check if we have cached stats and they're fresh
       const cachedStats = userData.riotStats as UserRiotStats | undefined;
@@ -193,14 +196,24 @@ export const getLeagueStatsFunction = onCall(
             error instanceof HttpsError && error.message === "REGION_MISMATCH";
           if (!mismatch) throw error;
 
+          // "Exception decrypting" has two causes, indistinguishable from the
+          // error alone: a wrong platform, or a PUUID minted under a rotated
+          // API key. Try the cheap fix first (re-resolve the region), then the
+          // thorough one (re-mint the PUUID from the stored Riot ID, which
+          // isn't key-encrypted and so survives a rotation).
           const corrected = await getAccountRegion(puuid, "lol", region);
-          if (!corrected || corrected === region) throw error;
+          if (corrected && corrected !== region) {
+            logger.info(
+              `Repairing region for user ${userId}: ${region} -> ${corrected}`
+            );
+            await userRef.update({"riotAccount.region": corrected});
+            return fetchAll(corrected);
+          }
 
-          logger.info(
-            `Repairing region for user ${userId}: ${region} -> ${corrected}`
-          );
-          await userRef.update({"riotAccount.region": corrected});
-          return fetchAll(corrected);
+          const repaired = await remintRiotAccount(userId, userData.riotAccount);
+          if (!repaired) throw error;
+          puuid = repaired.puuid;
+          return fetchAll(repaired.region);
         });
 
       // Process ranked stats — solo/duo only (flex queue intentionally ignored)

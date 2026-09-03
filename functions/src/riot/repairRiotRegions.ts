@@ -8,9 +8,14 @@
  * succeeded, because account-v1 is regionally routed and never sees the
  * mismatch — which is why this went unnoticed.
  *
+ * The same 400 also appears after an API key rotation: PUUIDs are encrypted per
+ * key, so every stored PUUID becomes unreadable when the key changes. That case
+ * is repaired by re-minting the PUUID from the stored Riot ID, which is not
+ * encrypted and survives rotation.
+ *
  * linkRiotAccount now resolves the real region up front, and both getLeagueStats
  * and the daily snapshot repair themselves on the mismatch error. This exists to
- * fix the accounts already broken, without waiting for each user to open the app.
+ * fix every broken account at once, without waiting for each user to open the app.
  *
  * Admin-only and idempotent: accounts already on the right platform are counted
  * and skipped, so it is safe to re-run.
@@ -20,6 +25,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {getRankedStats, getAccountRegion} from "./riotApi";
+import {remintRiotAccount} from "./repairAccount";
 
 const ADMIN_IDS = ["VljkZhdkF3gCQI0clVkbQ0XCIxp1"];
 
@@ -31,6 +37,8 @@ interface RepairRow {
   userId: string;
   from: string;
   to: string;
+  /** Which repair was applied: a wrong platform, or a key-orphaned PUUID. */
+  fix: "region" | "puuid";
 }
 
 export interface RepairRiotRegionsResponse {
@@ -95,17 +103,31 @@ export const repairRiotRegionsFunction = onCall(
           }
 
           const corrected = await getAccountRegion(puuid, "lol", region);
-          if (!corrected || corrected === region) {
-            logger.warn(`Could not resolve a corrected region for user ${user.id}`);
-            unresolved++;
+          if (corrected && corrected !== region) {
+            changes.push({userId: user.id, from: region, to: corrected, fix: "region"});
+            if (!dryRun) {
+              await db.collection("users").doc(user.id)
+                .update({"riotAccount.region": corrected});
+            }
+            repaired++;
             return;
           }
 
-          changes.push({userId: user.id, from: region, to: corrected});
-          if (!dryRun) {
-            await db.collection("users").doc(user.id)
-              .update({"riotAccount.region": corrected});
+          // Region is already right, so the PUUID itself is unreadable — it was
+          // minted under a different API key. Re-mint it from the Riot ID.
+          if (dryRun) {
+            changes.push({userId: user.id, from: "stale puuid", to: "re-mint", fix: "puuid"});
+            repaired++;
+            return;
           }
+
+          const remade = await remintRiotAccount(user.id, user.riotAccount);
+          if (!remade) {
+            logger.warn(`Could not repair user ${user.id}`);
+            unresolved++;
+            return;
+          }
+          changes.push({userId: user.id, from: "stale puuid", to: remade.region, fix: "puuid"});
           repaired++;
         }
       }));
