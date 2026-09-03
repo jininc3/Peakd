@@ -16,6 +16,7 @@ import {HttpsError} from "firebase-functions/v2/https";
 import {getRankedStats, getAccountRegion} from "../riot/riotApi";
 import {getValorantMMR} from "../valorant/valorantApi";
 import {recordRankSnapshotIfChanged} from "./recordRankSnapshot";
+import {updateDailyDelta, dailyDeltaFields, dailyDeltaUserFields} from "./dailyDelta";
 
 const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 2000;
@@ -152,11 +153,17 @@ export const dailyRankSnapshotScheduled = onSchedule(
                   },
                 }, {merge: true});
               }
+              const leagueRank = `${soloQueue.tier} ${soloQueue.rank}`;
+              const leagueDelta = await updateDailyDelta(
+                user.id, "league", leagueRank, soloQueue.leaguePoints
+              );
               await userRef.collection("gameStats").doc("league").set({
-                currentRank: `${soloQueue.tier} ${soloQueue.rank}`,
+                currentRank: leagueRank,
                 lp: soloQueue.leaguePoints,
+                ...dailyDeltaFields("league", leagueRank, soloQueue.leaguePoints, leagueDelta),
                 lastUpdated: admin.firestore.Timestamp.now(),
               }, {merge: true});
+              await userRef.update(dailyDeltaUserFields("league", leagueDelta));
               leagueRefreshed++;
             }
           } catch (err) {
@@ -222,11 +229,17 @@ export const dailyRankSnapshotScheduled = onSchedule(
                   },
                 }, {merge: true});
               }
+              const valRR = mmrData.current_data.ranking_in_tier ?? 0;
+              const valDelta = await updateDailyDelta(
+                user.id, "valorant", currentRank, valRR
+              );
               await userRef.collection("gameStats").doc("valorant").set({
                 currentRank,
-                rr: mmrData.current_data.ranking_in_tier ?? 0,
+                rr: valRR,
+                ...dailyDeltaFields("valorant", currentRank, valRR, valDelta),
                 lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
               }, {merge: true});
+              await userRef.update(dailyDeltaUserFields("valorant", valDelta));
               valorantRefreshed++;
             }
           } catch (err) {

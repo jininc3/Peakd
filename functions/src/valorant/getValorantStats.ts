@@ -8,6 +8,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {recordRankSnapshotIfChanged} from "../rankHistory/recordRankSnapshot";
+import {updateDailyDelta, dailyDeltaFields, dailyDeltaUserFields} from "../rankHistory/dailyDelta";
 import {
   getValorantMMR,
   getValorantAccountByRiotId,
@@ -334,12 +335,16 @@ export const getValorantStatsFunction = onCall(
 
       // Also update gameStats subcollection for leaderboard access
       const gameStatsRef = userRef.collection("gameStats").doc("valorant");
+      const valDelta = await updateDailyDelta(
+        userId, "valorant", stats.currentRank, stats.rankRating
+      );
       await gameStatsRef.set({
         currentRank: stats.currentRank,
         rr: stats.rankRating,
-        dailyGain: 0, // Can be calculated based on previous data if needed
+        ...dailyDeltaFields("valorant", stats.currentRank, stats.rankRating, valDelta),
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       }, {merge: true});
+      await userRef.update(dailyDeltaUserFields("valorant", valDelta));
 
       logger.info(`Successfully fetched Valorant stats for user ${userId}`);
 

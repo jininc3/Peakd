@@ -9,6 +9,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {recordRankSnapshotIfChanged} from "../rankHistory/recordRankSnapshot";
+import {updateDailyDelta, dailyDeltaFields, dailyDeltaUserFields} from "../rankHistory/dailyDelta";
 import {
   getSummonerByPuuid,
   getRankedStats,
@@ -284,12 +285,14 @@ export const getLeagueStatsFunction = onCall(
       const currentRank = soloQueue ? `${soloQueue.tier} ${soloQueue.rank}` : "Unranked";
       const lp = soloQueue ? soloQueue.leaguePoints : 0;
 
+      const leagueDelta = await updateDailyDelta(userId, "league", currentRank, lp);
       await gameStatsRef.set({
         currentRank,
         lp,
-        dailyGain: 0, // Can be calculated based on previous data if needed
+        ...dailyDeltaFields("league", currentRank, lp, leagueDelta),
         lastUpdated: admin.firestore.Timestamp.now(),
       }, {merge: true});
+      await userRef.update(dailyDeltaUserFields("league", leagueDelta));
 
       logger.info(`Successfully updated Riot stats for user ${userId}`);
 
