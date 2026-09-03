@@ -11,6 +11,7 @@ import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {getRecentMatchIds, getMatchById} from "./riotApi";
 import {getValorantMatches, HenrikMatch} from "../valorant/valorantApi";
+import {remintRiotAccount} from "./repairAccount";
 
 // Immutable per-match cache. Riot match data never changes once the game
 // ends, so these documents have no TTL.
@@ -150,7 +151,7 @@ export const getRecentMatchesFunction = onCall(
       const fresh = forceRefresh === true && (await allowForceRefresh(throttleKey));
 
       if (game === "league") {
-        return await getLeagueRecentMatches(userData, matchCount, fresh);
+        return await getLeagueRecentMatches(targetUserId, userData, matchCount, fresh);
       } else {
         return await getValorantRecentMatches(userData, matchCount, fresh);
       }
@@ -179,6 +180,7 @@ export const getRecentMatchesFunction = onCall(
 );
 
 async function getLeagueRecentMatches(
+  userId: string,
   userData: any,
   count: number,
   forceRefresh = false
@@ -193,13 +195,37 @@ async function getLeagueRecentMatches(
     };
   }
 
-  const {puuid, region} = riotAccount;
+  let {puuid, region} = riotAccount as {puuid: string; region: string};
 
   // Step 1: Get last N ranked match IDs. Unlike the matches themselves this
   // list DOES change — it's how a newly played game is discovered — so it gets
   // a short TTL rather than the permanent cache below. Within the window a warm
   // card costs zero Riot calls; past it, one.
-  const matchIds = await getCachedMatchIds(puuid, region, count, forceRefresh);
+  //
+  // Same self-heal as getLeagueStats: a PUUID minted under a rotated API key
+  // can't be decrypted, and without this the card silently keeps serving
+  // whatever short list was cached while the key was broken.
+  let matchIds = await getCachedMatchIds(puuid, region, count, forceRefresh)
+    .catch(async (error) => {
+      const mismatch =
+        error instanceof HttpsError && error.message === "REGION_MISMATCH";
+      if (!mismatch) throw error;
+
+      const repaired = await remintRiotAccount(userId, riotAccount);
+      if (!repaired) throw error;
+      puuid = repaired.puuid;
+      region = repaired.region;
+      // Bypass the cache: the entry under the old PUUID is not this account's.
+      return getCachedMatchIds(puuid, region, count, true);
+    });
+
+  // A list cached while the account was broken can be short or empty. If we got
+  // fewer than asked for and weren't already forcing, re-check Riot once rather
+  // than trusting a cache written during an outage.
+  if (!forceRefresh && matchIds.length < count) {
+    const fresh = await getCachedMatchIds(puuid, region, count, true).catch(() => matchIds);
+    if (fresh.length > matchIds.length) matchIds = fresh;
+  }
 
   if (!matchIds || matchIds.length === 0) {
     return {
@@ -347,7 +373,13 @@ async function getCachedMatchIds(
     ids = await getRecentMatchIds(puuid, region, count);
   } catch (error) {
     // Riot is unavailable. A slightly old list beats no history at all.
-    if (stale) {
+    // Stale ids beat an empty card during a brief Riot blip, but not
+    // indefinitely — a decrypt error means this list belongs to an account
+    // identity that no longer resolves, so the caller must see the failure and
+    // repair rather than be handed stale data forever.
+    const mismatch =
+      error instanceof HttpsError && error.message === "REGION_MISMATCH";
+    if (stale && !mismatch) {
       logger.warn("Riot match-id fetch failed; serving stale ids:", error);
       return stale;
     }
