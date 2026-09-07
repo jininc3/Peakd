@@ -6,9 +6,16 @@
  * user's own numbers. The baseline is stored per user per game instead, and the
  * delta is computed server-side wherever fresh stats are written.
  *
- * A "day" is UTC, matching the scheduled snapshot (06:00/18:00 UTC). The first
- * write of a new day becomes that day's baseline and reports a delta of 0; every
- * later write that day measures against it.
+ * A "day" is UTC, matching the scheduled snapshot (06:00/18:00 UTC). Each write
+ * measures against a baseline held on gameStats/{game}: within a day that is the
+ * figure the day opened on, and when the day rolls over the previous day's
+ * closing figure carries forward. Every write also stores `lastPoints`, which is
+ * what makes that carry-forward possible.
+ *
+ * The carry-forward matters because the job only runs twice a day: resetting the
+ * baseline to the current value each morning made the first reading of every day
+ * a mandatory 0, so the whole column read as "no movement" from 06:00 until
+ * 18:00 UTC. Only a genuinely first-ever write reports 0 now.
  *
  * Tier changes are handled by comparing total ladder position rather than raw
  * LP, so promoting GOLD I 90 -> PLATINUM IV 10 reads as a gain, not -80.
@@ -61,9 +68,17 @@ export function ladderPoints(game: DeltaGame, rank: string | undefined, points: 
 }
 
 export interface DailyDeltaResult {
-  /** LP/RR moved today. 0 on the first write of a new day. */
+  /** LP/RR moved since the start of the UTC day. */
   dailyGain: number;
   baselineDay: string;
+  /**
+   * The value today is measured from, written back by dailyDeltaFields.
+   *
+   * On a day roll-over this is the previous day's *closing* figure, not the
+   * current one — that is what makes the first reading of a day report real
+   * overnight movement instead of a mandatory zero.
+   */
+  baselinePoints: number;
 }
 
 /**
@@ -88,18 +103,34 @@ export async function updateDailyDelta(
 
     const snap = await ref.get();
     const data = snap.data() as
-      | {baselineDay?: string; baselinePoints?: number}
+      | {baselineDay?: string; baselinePoints?: number; lastPoints?: number}
       | undefined;
 
-    // New day, or no baseline yet: today starts here.
-    if (data?.baselineDay !== today || typeof data?.baselinePoints !== "number") {
-      return {dailyGain: 0, baselineDay: today};
+    // Same day: measure against the baseline already set this morning.
+    if (data?.baselineDay === today && typeof data?.baselinePoints === "number") {
+      return {
+        dailyGain: current - data.baselinePoints,
+        baselineDay: today,
+        baselinePoints: data.baselinePoints,
+      };
     }
 
-    return {dailyGain: current - data.baselinePoints, baselineDay: today};
+    // A new day. Yesterday's closing figure becomes today's baseline, so the
+    // first reading of the day reports what actually changed overnight rather
+    // than resetting to zero and leaving the column blank until the next run.
+    if (typeof data?.lastPoints === "number") {
+      return {
+        dailyGain: current - data.lastPoints,
+        baselineDay: today,
+        baselinePoints: data.lastPoints,
+      };
+    }
+
+    // Nothing to compare against — a first-ever write for this user and game.
+    return {dailyGain: 0, baselineDay: today, baselinePoints: current};
   } catch (error) {
     logger.warn(`Daily delta lookup failed for ${userId}/${game}:`, error);
-    return {dailyGain: 0, baselineDay: today};
+    return {dailyGain: 0, baselineDay: today, baselinePoints: current};
   }
 }
 
@@ -134,10 +165,11 @@ export function dailyDeltaFields(
   return {
     dailyGain: delta.dailyGain,
     baselineDay: delta.baselineDay,
-    // Re-stamped only when the day rolls over, so the rest of the day measures
-    // against this morning's number.
-    ...(delta.dailyGain === 0
-      ? {baselinePoints: ladderPoints(game, rank, points)}
-      : {}),
+    // Decided in updateDailyDelta: today's own baseline while the day runs,
+    // yesterday's closing figure on the first write of a new one.
+    baselinePoints: delta.baselinePoints,
+    // Every write records where the day currently stands, so tomorrow's first
+    // reading has something to measure against.
+    lastPoints: ladderPoints(game, rank, points),
   };
 }
