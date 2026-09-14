@@ -52,6 +52,32 @@ interface PublicRankResult {
   losses?: number;
   leaguePoints?: number;
   rankRating?: number;
+  /**
+   * Whether this Riot ID is already claimed by a Peakd profile.
+   *
+   * Lets the logged-out builder send an existing owner to log in instead of
+   * offering a signup that would fail at the link step. Deliberately carries
+   * no user id or username — the caller is anonymous, and who owns an account
+   * is not theirs to learn.
+   *
+   * NOT part of the cached payload: a claim can appear at any time, and a
+   * stale "false" would invite exactly the failed signup this prevents.
+   */
+  alreadyLinked?: boolean;
+}
+
+/**
+ * A lookup result plus the Riot-canonical identity it resolved to.
+ *
+ * The claim id in linkedAccounts is built from what Riot returned, not from
+ * what the visitor typed — the link functions store it that way, and casing
+ * differs often enough ("Prevail#ROZI" vs "prevail#rozi") that matching on the
+ * typed form would miss real claims.
+ */
+interface LookupOutcome {
+  result: PublicRankResult;
+  /** Claim document id in linkedAccounts, or undefined when unresolvable. */
+  claimId?: string;
 }
 
 // Mirrors validRegions in linkValorantAccount / linkRiotAccount. A region that
@@ -109,7 +135,7 @@ async function checkRateLimit(ip: string): Promise<void> {
 async function lookupValorant(
   gameName: string,
   tagLine: string
-): Promise<PublicRankResult> {
+): Promise<LookupOutcome> {
   // Region is NOT taken from the caller. The account lookup is region-agnostic
   // and its response carries the account's real region — asking the visitor
   // instead lets a wrong pick fetch MMR from the wrong region and come back
@@ -124,9 +150,14 @@ async function lookupValorant(
   const peak = mmr.highest_rank?.patched_tier;
 
   return {
-    rank: current && current.toUpperCase() !== "UNRANKED" ? current : undefined,
-    peakRank: peak,
-    rankRating: mmr.current_data?.ranking_in_tier,
+    result: {
+      rank: current && current.toUpperCase() !== "UNRANKED" ? current : undefined,
+      peakRank: peak,
+      rankRating: mmr.current_data?.ranking_in_tier,
+    },
+    // Mirrors linkValorantAccount's accountId exactly, region included — the
+    // same Riot ID on two regions is two separate claims there.
+    claimId: `valorant:${account.name ?? gameName}#${account.tag ?? tagLine}#${region}`,
   };
 }
 
@@ -134,29 +165,57 @@ async function lookupLeague(
   gameName: string,
   tagLine: string,
   region: string
-): Promise<PublicRankResult> {
+): Promise<LookupOutcome> {
   const account = await getAccountByRiotId(gameName, tagLine, region);
   if (!account?.puuid) {
     throw new HttpsError("not-found", "Account not found. Please check the Game Name and Tag.");
   }
 
+  // Mirrors linkRiotAccount's accountId. No region: a Riot account is one
+  // claim across platforms there.
+  const claimId = `riot:${account.gameName ?? gameName}#${account.tagLine ?? tagLine}`;
+
   const entries = await getRankedStats(account.puuid, region);
   const solo = entries.find((e) => e.queueType === "RANKED_SOLO_5x5");
 
   // Unranked is a valid outcome, not an error: the card renders "Unranked".
-  if (!solo?.tier) return {};
+  // Still carries the claim id — an unranked account can be linked too.
+  if (!solo?.tier) return {result: {}, claimId};
 
   const wins = solo.wins ?? 0;
   const losses = solo.losses ?? 0;
   const total = wins + losses;
 
   return {
-    rank: formatLeagueRank(solo.tier, solo.rank),
-    wins,
-    losses,
-    winRate: total > 0 ? Math.round((wins / total) * 100) : undefined,
-    leaguePoints: solo.leaguePoints,
+    result: {
+      rank: formatLeagueRank(solo.tier, solo.rank),
+      wins,
+      losses,
+      winRate: total > 0 ? Math.round((wins / total) * 100) : undefined,
+      leaguePoints: solo.leaguePoints,
+    },
+    claimId,
   };
+}
+
+/**
+ * Whether a claim document exists for this account.
+ *
+ * Best-effort by design: an infrastructure failure here must not fail an
+ * otherwise good lookup, so a read error reports "not linked" and the visitor
+ * gets the normal signup path. The authenticated link is still the real
+ * gate — it rejects a taken account with already-exists regardless of what
+ * this preview said.
+ */
+async function isAlreadyLinked(claimId: string | undefined): Promise<boolean> {
+  if (!claimId) return false;
+  try {
+    const snap = await admin.firestore().collection("linkedAccounts").doc(claimId).get();
+    return snap.exists;
+  } catch (error) {
+    logger.warn("Linked-account check failed, treating as unlinked:", error);
+    return false;
+  }
 }
 
 export const lookupRankFunction = onCall(
@@ -194,9 +253,16 @@ export const lookupRankFunction = onCall(
     // costs nothing upstream, so throttling it would only penalise sharing.
     try {
       const cached = await cacheRef.get();
-      const data = cached.data() as {result?: PublicRankResult; cachedAt?: number} | undefined;
+      const data = cached.data() as {
+        result?: PublicRankResult;
+        claimId?: string;
+        cachedAt?: number;
+      } | undefined;
       if (data?.result && data.cachedAt && Date.now() - data.cachedAt < CACHE_TTL_MS) {
-        return data.result;
+        // The claim is re-read even on a hit: someone can link the account
+        // within the cache window, and a stale "not linked" would send them
+        // into a signup that fails at the link step.
+        return {...data.result, alreadyLinked: await isAlreadyLinked(data.claimId)};
       }
     } catch (error) {
       logger.warn("Rank cache read failed, falling through to Riot:", error);
@@ -205,19 +271,23 @@ export const lookupRankFunction = onCall(
     // Miss: this call will hit Riot, so it counts against the limit.
     await checkRateLimit(request.rawRequest.ip ?? "");
 
-    const result = game === "valorant" ?
+    const outcome = game === "valorant" ?
       await lookupValorant(cleanName, cleanTag) :
       await lookupLeague(cleanName, cleanTag, region!);
 
     // Best-effort: a cache write failure must not fail a successful lookup.
+    // Only the rank payload and the resolved claim id are stored —
+    // alreadyLinked is deliberately excluded, since it can change inside the
+    // TTL and is re-read on every hit.
     cacheRef
       .set({
-        result,
+        result: outcome.result,
+        ...(outcome.claimId ? {claimId: outcome.claimId} : {}),
         cachedAt: Date.now(),
         expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + CACHE_TTL_MS),
       })
       .catch((error) => logger.warn("Rank cache write failed:", error));
 
-    return result;
+    return {...outcome.result, alreadyLinked: await isAlreadyLinked(outcome.claimId)};
   }
 );
