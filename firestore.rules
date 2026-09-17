@@ -305,6 +305,18 @@ service cloud.firestore {
       // this any member could rename a lobby or replace its icon straight
       // through the API. Every other field stays member-writable so joins,
       // leaves, kicks, invites and challenge flows are unaffected.
+      //
+      // Capacity is enforced here as well as in the client because a 5v5
+      // lobby's limits are structural: ten members, five a side. The client
+      // checks both inside a transaction, but a transaction only constrains
+      // the code that runs it — these conditions hold regardless of what
+      // reaches the API.
+      //
+      // Both are written to allow any write that does NOT grow the thing being
+      // capped, which matters more than the cap itself. Lobbies predating
+      // `maxMembers` have no cap recorded, and any lobby that is already at or
+      // over its limit must stay writable — otherwise leaving, kicking and
+      // renaming would all fail and the lobby would be stuck for good.
       allow update: if request.auth != null &&
                        (request.auth.uid in resource.data.members ||
                         request.auth.uid in request.resource.data.members) &&
@@ -313,6 +325,29 @@ service cloud.firestore {
                            .affectedKeys()
                            .hasAny(['partyName', 'partyIcon', 'coverPhoto', 'visibility']) ||
                          request.auth.uid == resource.data.createdBy
+                       ) &&
+                       // Member count: capped by the lobby's own maxMembers,
+                       // which the client writes at creation (10 for 5v5, 20
+                       // otherwise). Absent on lobbies made before it was
+                       // written, so those fall back to 20 as the code does.
+                       (
+                         request.resource.data.members.size() <=
+                           resource.data.members.size() ||
+                         request.resource.data.members.size() <=
+                           ('maxMembers' in resource.data ? resource.data.maxMembers : 20)
+                       ) &&
+                       // Team sizes: five a side. Only 5v5 lobbies carry a
+                       // `teams` map, so a write without one is unaffected —
+                       // which covers every lobby that existed before this.
+                       // No shrink-allowance needed here, unlike `members`
+                       // above: no `teams` data predates this rule, so a side
+                       // can never already be over five.
+                       (
+                         !('teams' in request.resource.data) ||
+                         (
+                           request.resource.data.teams['1'].size() <= 5 &&
+                           request.resource.data.teams['2'].size() <= 5
+                         )
                        );
 
       // Allow deleting if user is the creator
