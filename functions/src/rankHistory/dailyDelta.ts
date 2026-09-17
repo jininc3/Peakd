@@ -26,13 +26,19 @@ import * as logger from "firebase-functions/logger";
 
 export type DeltaGame = "league" | "valorant";
 
+// Each tier's absolute floor in LP/RR, not an index: tiers are not all the same
+// width, so a shared stride cannot place them. Divisioned tiers are as wide as
+// they have divisions (League 4x100, Valorant 3x100); Master and above have no
+// divisions and are 100 wide, since LP there accumulates on a single rung.
+// Getting this wrong inflates every delta that crosses the Master boundary.
 const LEAGUE_TIERS: Record<string, number> = {
-  IRON: 0, BRONZE: 1, SILVER: 2, GOLD: 3, PLATINUM: 4, EMERALD: 5,
-  DIAMOND: 6, MASTER: 7, GRANDMASTER: 8, CHALLENGER: 9,
+  IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600,
+  EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2900,
+  CHALLENGER: 3000,
 };
 const VALORANT_TIERS: Record<string, number> = {
-  IRON: 0, BRONZE: 1, SILVER: 2, GOLD: 3, PLATINUM: 4,
-  DIAMOND: 5, ASCENDANT: 6, IMMORTAL: 7, RADIANT: 8,
+  IRON: 0, BRONZE: 300, SILVER: 600, GOLD: 900, PLATINUM: 1200,
+  DIAMOND: 1500, ASCENDANT: 1800, IMMORTAL: 2100, RADIANT: 2400,
 };
 // Division ordering differs by game and must not share a table: League counts
 // DOWN in Roman numerals (IV lowest -> I highest), Valorant counts UP in Arabic
@@ -40,6 +46,15 @@ const VALORANT_TIERS: Record<string, number> = {
 // collide, which silently mis-scores every Valorant promotion.
 const LEAGUE_DIVISIONS: Record<string, number> = {IV: 0, III: 1, II: 2, I: 3};
 const VALORANT_DIVISIONS: Record<string, number> = {"1": 0, "2": 1, "3": 2};
+// Tiers with no divisions, where LP/RR simply accumulates. league-v4 still
+// reports rank "I" for all three, so without this they score as division I and
+// pick up a phantom +300 — a Master player demoting to DIAMOND I read as -377
+// instead of the ~-25 they actually lost. Valorant's apex tier arrives with no
+// division at all and already falls through to 0, but is named here so the
+// ladder doesn't depend on that happening to be true. Immortal is NOT apex:
+// current acts split it into Immortal 1/2/3.
+const LEAGUE_APEX_TIERS = new Set(["MASTER", "GRANDMASTER", "CHALLENGER"]);
+const VALORANT_APEX_TIERS = new Set(["RADIANT"]);
 
 /** UTC day key, e.g. "2026-09-03". */
 export function utcDayKey(date: Date = new Date()): string {
@@ -48,23 +63,25 @@ export function utcDayKey(date: Date = new Date()): string {
 
 /**
  * Absolute ladder position, so deltas stay meaningful across promotions.
- * Each division is treated as 100 LP wide, which is exact below Master and a
- * reasonable approximation above it (where divisions don't exist and LP simply
- * accumulates).
+ *
+ * A rank scores as its tier floor plus its division (100 LP wide) plus LP. The
+ * floors come from LEAGUE_TIERS/VALORANT_TIERS and already account for each
+ * tier's real width, so crossing a tier boundary costs exactly the LP it
+ * should: DIAMOND I 100 -> MASTER 0 is a promotion worth 0, not 300.
  */
 export function ladderPoints(game: DeltaGame, rank: string | undefined, points: number): number {
   if (!rank) return points;
   const [tierRaw, divRaw] = rank.split(" ");
   const isLeague = game === "league";
   const tiers = isLeague ? LEAGUE_TIERS : VALORANT_TIERS;
-  const tier = tiers[(tierRaw ?? "").toUpperCase()];
-  if (tier === undefined) return points;
+  const tierFloor = tiers[(tierRaw ?? "").toUpperCase()];
+  if (tierFloor === undefined) return points;
   const divisions = isLeague ? LEAGUE_DIVISIONS : VALORANT_DIVISIONS;
-  const div = divisions[(divRaw ?? "").toUpperCase()] ?? 0;
-  // League has 4 divisions per tier, Valorant 3 — using one stride for both
-  // would leave a phantom gap in Valorant's ladder.
-  const perTier = isLeague ? 4 : 3;
-  return (tier * perTier + div) * 100 + points;
+  const apex = isLeague ? LEAGUE_APEX_TIERS : VALORANT_APEX_TIERS;
+  const div = apex.has((tierRaw ?? "").toUpperCase())
+    ? 0
+    : divisions[(divRaw ?? "").toUpperCase()] ?? 0;
+  return tierFloor + div * 100 + points;
 }
 
 export interface DailyDeltaResult {
