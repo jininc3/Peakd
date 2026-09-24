@@ -18,30 +18,10 @@
  * link. It is only ever touched by this function (Admin SDK bypasses rules);
  * client Firestore rules should not grant access to it.
  */
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { defineSecret, defineString } from "firebase-functions/params";
+import { onCall } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { db } from "../badges/db";
-
-const discordClientId = defineString("DISCORD_CLIENT_ID");
-const discordClientSecret = defineSecret("DISCORD_CLIENT_SECRET");
-
-// Token-exchange redirect_uri must exactly match the one used in the
-// authorize step, and only these are legitimate callers.
-const ALLOWED_REDIRECT_URIS = [
-  "http://localhost:3000/auth/discord/callback",
-  "https://peakd.gg/auth/discord/callback",
-  "https://www.peakd.gg/auth/discord/callback",
-];
-
-interface DiscordUser {
-  id: string;
-  username: string;
-  global_name: string | null;
-  email: string | null;
-  verified: boolean;
-  avatar: string | null;
-}
+import { discordClientSecret, fetchDiscordUser } from "./oauth";
 
 export const discordLogin = onCall(
   { secrets: [discordClientSecret], cors: true },
@@ -50,41 +30,9 @@ export const discordLogin = onCall(
       code?: string;
       redirectUri?: string;
     };
-    if (!code || typeof code !== "string") {
-      throw new HttpsError("invalid-argument", "Missing OAuth code.");
-    }
-    if (!redirectUri || !ALLOWED_REDIRECT_URIS.includes(redirectUri)) {
-      throw new HttpsError("invalid-argument", "Unrecognized redirect URI.");
-    }
 
-    // 1. Code → access token.
-    const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: discordClientId.value(),
-        client_secret: discordClientSecret.value(),
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: redirectUri,
-      }),
-    });
-    if (!tokenRes.ok) {
-      // Expired/reused codes land here — a normal occurrence on page refresh.
-      throw new HttpsError("unauthenticated", "Discord code exchange failed.");
-    }
-    const { access_token: accessToken } = (await tokenRes.json()) as {
-      access_token: string;
-    };
-
-    // 2. Who is this?
-    const userRes = await fetch("https://discord.com/api/users/@me", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!userRes.ok) {
-      throw new HttpsError("internal", "Failed to fetch Discord profile.");
-    }
-    const discordUser = (await userRes.json()) as DiscordUser;
+    // 1–2. Code → the Discord user it belongs to.
+    const discordUser = await fetchDiscordUser(code, redirectUri);
 
     // Empty when the account has no custom picture. Discord's own generic
     // defaults aren't worth importing — the signup wizard falls back to a
@@ -109,6 +57,14 @@ export const discordLogin = onCall(
       const profileSnap = await db.doc(`users/${uid}`).get();
       const signupFinished =
         profileSnap.exists && profileSnap.data()?.signupComplete !== false;
+      // Show their Discord on their profile if it isn't already. Accounts made
+      // before the Connected section read Discord from here never got it.
+      // discordHidden: they disconnected it from their profile — respect that.
+      if (signupFinished && !profileSnap.get("discordLink") && !profileSnap.get("discordHidden")) {
+        await profileSnap.ref
+          .update({ discordLink: discordUser.username, discordId: discordUser.id })
+          .catch(() => {});
+      }
       return {
         token,
         isNewUser: !signupFinished,
@@ -128,6 +84,13 @@ export const discordLogin = onCall(
           discordUsername: discordUser.username,
           linkedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+        // Now linked, so their Discord belongs on their profile too.
+        const existingProfile = await db.doc(`users/${existing.uid}`).get();
+        if (existingProfile.exists && !existingProfile.get("discordLink") && !existingProfile.get("discordHidden")) {
+          await existingProfile.ref
+            .update({ discordLink: discordUser.username, discordId: discordUser.id })
+            .catch(() => {});
+        }
         const token = await admin.auth().createCustomToken(existing.uid);
         return {
           token,

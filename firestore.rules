@@ -431,6 +431,22 @@ service cloud.firestore {
       }
     }
 
+    // Feedback - sent from the web's Settings > Send feedback, read only in
+    // the admin panel (Admin SDK). Players can file it but never read it back.
+    match /feedback/{feedbackId} {
+      allow read, update, delete: if false;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() > 0
+                    && request.resource.data.message.size() <= 4000
+                    && request.resource.data.category in ['bug', 'idea', 'other']
+                    && request.resource.data.imageUrls is list
+                    && request.resource.data.imageUrls.size() <= 4
+                    && request.resource.data.status == 'new'
+                    && request.resource.data.createdAt == request.time;
+    }
+
     // Duo Posts collection - time-limited duo card posts in the feed
     match /duoPosts/{postId} {                                                                                                // Anyone can read duo posts
     allow read: if true;

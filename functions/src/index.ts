@@ -102,3 +102,5 @@ export {onProfileView} from "./badges/onProfileView";
 
 // Discord OAuth -> Firebase custom token exchange (web login/signup).
 export {discordLogin} from "./discord/discordLogin";
+// Connect Discord to an existing account (web profile's Connected section).
+export {linkDiscord} from "./discord/linkDiscord";
