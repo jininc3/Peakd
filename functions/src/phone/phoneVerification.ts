@@ -14,6 +14,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {defineSecret} from "firebase-functions/params";
 import {logger} from "firebase-functions/v2";
 import * as admin from "firebase-admin";
+import {markVerified} from "../auth/verifiedIdentity";
 
 const twilioAccountSid = defineSecret("TWILIO_ACCOUNT_SID");
 const twilioAuthToken = defineSecret("TWILIO_AUTH_TOKEN");
@@ -86,6 +87,9 @@ export const verifyPhoneCodeFunction = onCall(
       }
 
       logger.info(`Phone verified: ${cleaned}`);
+      // Recorded for resetPhonePassword / generateLoginToken, which act on a
+      // phone number and must only do so once its code has been verified.
+      await markVerified("phone", cleaned);
 
       // Check if an account exists with this phone number
       const db = admin.firestore();

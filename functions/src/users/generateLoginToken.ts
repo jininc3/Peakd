@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {logger} from "firebase-functions/v2";
+import {consumeVerified} from "../auth/verifiedIdentity";
 
 /**
  * Passwordless login helper.
@@ -18,6 +19,16 @@ export const generateLoginTokenFunction = onCall(
         "invalid-argument",
         "Phone number is required."
       );
+    }
+
+    // The caller must have proven the number: signed in with Firebase phone
+    // auth for it, or just verified its code (verifyPhoneCode). It used to
+    // return a sign-in token for any number, readable from public profiles.
+    const cleaned = String(phoneNumber).replace(/[\s\-()]/g, "");
+    const authedPhone = (request.auth?.token as {phone_number?: string} | undefined)?.phone_number;
+    const proven = authedPhone === cleaned || (await consumeVerified("phone", cleaned));
+    if (!proven) {
+      throw new HttpsError("permission-denied", "Verify the code sent to your phone first.");
     }
 
     const db = admin.firestore();

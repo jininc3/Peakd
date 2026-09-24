@@ -121,6 +121,10 @@ export default function LoginPassword() {
         Alert.alert('Sign In Failed', 'No account found with this username.');
       } else if (msg.includes('Incorrect password')) {
         Alert.alert('Sign In Failed', 'Incorrect password.');
+      } else if (msg.includes("doesn't have a password yet")) {
+        // A Google/Apple/Discord account with no password: the server names
+        // how they do sign in (it no longer sets a password here).
+        Alert.alert('Sign In Failed', msg);
       } else {
         Alert.alert('Sign In Failed', 'Incorrect username or password.');
       }

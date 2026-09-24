@@ -6,8 +6,10 @@
  * sign-up methods (email, phone, Google, Apple) as long as the user
  * has set a password.
  *
- * For accounts that never set a password (e.g. Google-only), the
- * function sets the provided password first, then signs them in.
+ * Accounts that never set a password (e.g. Google-only) are refused with a
+ * message pointing them to their usual sign-in. The password is never set
+ * here: this endpoint is unauthenticated, so setting it would hand the
+ * account to anyone who knew the username.
  */
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
@@ -99,9 +101,22 @@ export const loginWithUsernameFunction = onCall(
           );
         }
       } else {
-        // No password set (Google/Apple/phone signup) — set it now
-        await admin.auth().updateUser(userId, {password});
-        logger.info(`Password set for ${normalizedInput} (first username login)`);
+        // No password on this account. It used to be SET here from whatever
+        // the caller typed, then signed in — which let anyone who knew a
+        // Google/Apple/Discord user's username take the account over. A
+        // password is only ever set by the signed-in owner (the signup
+        // username step, or Settings > Password).
+        const provider = authUser.providerData.find((p) => p.providerId !== "password")?.providerId ?? "";
+        const via =
+          provider === "google.com" ? "Google" :
+          provider === "apple.com" ? "Apple" :
+          authUser.uid.startsWith("discord:") ? "Discord" :
+          "your usual sign-in";
+        logger.warn(`Username login refused for ${normalizedInput}: no password set`);
+        throw new HttpsError(
+          "failed-precondition",
+          `This account doesn't have a password yet. Sign in with ${via}, then set one in Settings.`
+        );
       }
 
       // Password verified — generate custom token

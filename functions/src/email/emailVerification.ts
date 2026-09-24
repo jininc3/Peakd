@@ -15,6 +15,7 @@ import {defineSecret} from "firebase-functions/params";
 import * as admin from "firebase-admin";
 import {logger} from "firebase-functions/v2";
 import {Resend} from "resend";
+import {markVerified} from "../auth/verifiedIdentity";
 
 const resendApiKey = defineSecret("RESEND_API_KEY");
 
@@ -164,8 +165,10 @@ export const verifyEmailCodeFunction = onCall(
       );
     }
 
-    // Code is correct — delete it and return success
+    // Code is correct — delete it, and record the verification so the
+    // follow-up sign-in (generateEmailLoginToken) can require it.
     await docRef.delete();
+    await markVerified("email", normalizedEmail);
     logger.info(`Email verified: ${normalizedEmail}`);
     return {success: true, verified: true};
   }

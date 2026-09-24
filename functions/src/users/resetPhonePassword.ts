@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {logger} from "firebase-functions/v2";
+import {consumeVerified} from "../auth/verifiedIdentity";
 
 /**
  * Cloud Function: Reset password for phone-based accounts.
@@ -27,6 +28,12 @@ export const resetPhonePasswordFunction = onCall(
         "invalid-argument",
         "New password must be at least 6 characters."
       );
+    }
+
+    // Only after this number's code was verified (verifyPhoneCode). Without
+    // this, anyone could set a phone user's password from the number alone.
+    if (!(await consumeVerified("phone", phoneNumber))) {
+      throw new HttpsError("permission-denied", "Verify the code sent to your phone first.");
     }
 
     try {

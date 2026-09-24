@@ -12,6 +12,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {logger} from "firebase-functions/v2";
+import {consumeVerified} from "../auth/verifiedIdentity";
 
 export const checkEmailAccountExistsFunction = onCall(
   {invoker: "public"},
@@ -58,6 +59,13 @@ export const generateEmailLoginTokenFunction = onCall(
 
     const normalizedEmail = email.toLowerCase().trim();
     const db = admin.firestore();
+
+    // Only after this email's code was verified (verifyEmailCode). Without
+    // this, any address — readable from public profiles — got a sign-in
+    // token for its account.
+    if (!(await consumeVerified("email", normalizedEmail))) {
+      throw new HttpsError("permission-denied", "Verify the code sent to your email first.");
+    }
 
     const usersQuery = await db
       .collection("users")
