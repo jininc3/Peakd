@@ -7,6 +7,8 @@
 import * as admin from "firebase-admin";
 import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import {logger} from "firebase-functions/v2";
+import {QUEUE_PROMPT_DELAY_MS} from "../honour/config";
+import {recordDuoPlay} from "../honour/recordDuoPlay";
 
 export const onDuoMatchUpdated = onDocumentUpdated(
   "duoMatches/{matchId}",
@@ -39,6 +41,16 @@ export const onDuoMatchUpdated = onDocumentUpdated(
         queue1Ref.delete().catch(() => {}),
         queue2Ref.delete().catch(() => {}),
       ]);
+
+      // Both accepted, so they may honour each other after playing.
+      // Best-effort: the match itself must never hinge on it.
+      await recordDuoPlay(db, {
+        userA: after.user1Id,
+        userB: after.user2Id,
+        source: "queue",
+        game: after.game,
+        promptAfter: Date.now() + QUEUE_PROMPT_DELAY_MS,
+      }).catch((err) => logger.error(`Recording duo play for ${matchId} failed`, err));
 
       return;
     }

@@ -99,6 +99,8 @@ export default function AdminReportsScreen() {
   };
 
   const handleDeletePost = (report: Report) => {
+    if (!report.postId) return;
+    const postId = report.postId;
     Alert.alert(
       'Delete Post',
       `This will permanently delete the post by ${report.postOwnerUsername}. Continue?`,
@@ -109,7 +111,7 @@ export default function AdminReportsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteReportedPost(report.postId);
+              await deleteReportedPost(postId);
               await updateReportStatus(report.id, 'actioned');
               setReports(prev =>
                 prev.map(r => (r.id === report.id ? { ...r, status: 'actioned' as ReportStatus } : r))
@@ -292,7 +294,8 @@ export default function AdminReportsScreen() {
                     </View>
                     <IconSymbol size={12} name="arrow.right" color="#333" />
                     <View style={styles.userChip}>
-                      <ThemedText style={styles.userChipLabel}>Post</ThemedText>
+                      {/* A duo report is about a player, not a post. */}
+                      <ThemedText style={styles.userChipLabel}>{report.kind === 'duo' ? 'Duo' : 'Post'}</ThemedText>
                       <ThemedText style={styles.userChipName}>{report.postOwnerUsername}</ThemedText>
                     </View>
                     <ThemedText style={styles.dateText}>{formatDate(report.createdAt)}</ThemedText>
@@ -308,14 +311,16 @@ export default function AdminReportsScreen() {
                       >
                         <ThemedText style={styles.dismissText}>Dismiss</ThemedText>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDeletePost(report)}
-                        activeOpacity={0.7}
-                      >
-                        <IconSymbol size={14} name="trash" color="#fff" />
-                        <ThemedText style={styles.deleteText}>Delete Post</ThemedText>
-                      </TouchableOpacity>
+                      {report.postId && (
+                        <TouchableOpacity
+                          style={styles.deleteButton}
+                          onPress={() => handleDeletePost(report)}
+                          activeOpacity={0.7}
+                        >
+                          <IconSymbol size={14} name="trash" color="#fff" />
+                          <ThemedText style={styles.deleteText}>Delete Post</ThemedText>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 </View>

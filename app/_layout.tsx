@@ -170,6 +170,10 @@ function RootLayoutNav() {
         message = 'wants to follow you';
       } else if (data.type === 'party_complete') {
         message = data.winnerUsername ? `${data.winnerUsername} won the leaderboard!` : 'Leaderboard completed!';
+      } else if (data.type === 'honour_prompt') {
+        message = "duo'd with you. Were they a good teammate? Honour them.";
+      } else if (data.type === 'honour_received') {
+        message = 'A teammate honoured you!';
       } else if (data.type === 'party_ranking_change') {
         if (data.newRank) {
           const rankEmoji = data.newRank === 1 ? '🥇' : data.newRank === 2 ? '🥈' : data.newRank === 3 ? '🥉' : '';
@@ -234,6 +238,9 @@ function RootLayoutNav() {
       if (data.partyId && data.game) {
         router.push(`/partyPages/leaderboardDetail?id=${data.partyId}&game=${encodeURIComponent(data.game)}`);
       }
+    } else if (data.type === 'honour_prompt' || data.type === 'honour_received') {
+      // The honour prompt is answered from the notifications page.
+      router.push('/notifications');
     }
   };
 

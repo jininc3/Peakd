@@ -1,4 +1,5 @@
 import rankCard from '@/app/components/rankCard';
+import HonourTag from '@/app/components/honourTag';
 
 // Alias for JSX usage (React components must start with uppercase)
 const RankCard = rankCard;
@@ -1119,6 +1120,7 @@ export default function ProfileScreen() {
               {/* Left side: Username, handle, stats */}
               <View style={styles.usernameStatsGroup}>
                 <ThemedText style={styles.coverPhotoUsername} numberOfLines={1}>{user?.username || 'User'}</ThemedText>
+                <HonourTag userId={user?.id} />
                 {joinedAt && (
                   <ThemedText style={styles.joinedText}>{formatJoinDate(joinedAt)}</ThemedText>
                 )}

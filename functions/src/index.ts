@@ -84,6 +84,15 @@ export {onDuoMatchUpdated} from "./duo/onMatchUpdated";
 export {cleanupDuoQueueScheduled} from "./duo/cleanupDuoQueue";
 export {cleanupExpiredMatchesScheduled} from "./duo/cleanupExpiredMatches";
 
+// Honour system: record duos, prompt both players after they play, and let
+// them honour each other with a positive tag.
+export {
+  onDuoInviteAccepted,
+  onDuoSessionWritten,
+  sendHonourPromptsScheduled,
+} from "./honour/triggers";
+export {honourDuoFunction as honourDuo, onAuthUserDeletedHonour} from "./honour/honourDuo";
+
 // Badge + profile triggers, merged in from the web repo (previously deployed
 // as the separate "badges" codebase from Peakd-web/functions).
 export {onRankChange} from "./badges/onRankChange";

@@ -18,7 +18,9 @@ export type ReportStatus = 'pending' | 'dismissed' | 'actioned';
 
 export interface Report {
   id: string;
-  postId: string;
+  /** Absent on a duo report (`kind: 'duo'`), which is about a player, not a post. */
+  postId?: string;
+  kind?: 'duo';
   postOwnerId: string;
   postOwnerUsername: string;
   reporterId: string;
@@ -65,6 +67,33 @@ export const reportPost = async (
   await setDoc(reportedPostRef, {
     postId,
     createdAt: now,
+  });
+};
+
+/**
+ * Report a duo partner — the private route for a bad teammate, since the
+ * honour system never shows anything negative. Same `reports` collection as
+ * post reports: the reported player rides the postOwner fields so the admin
+ * screen names them, and there is no postId because there is no post.
+ */
+export const reportDuoPartner = async (input: {
+  reporterId: string;
+  reporterUsername: string;
+  reportedUserId: string;
+  reportedUsername: string;
+  playId?: string;
+  reason: ReportReason;
+}): Promise<void> => {
+  await setDoc(doc(collection(db, 'reports')), {
+    kind: 'duo',
+    postOwnerId: input.reportedUserId,
+    postOwnerUsername: input.reportedUsername,
+    reporterId: input.reporterId,
+    reporterUsername: input.reporterUsername,
+    ...(input.playId ? { playId: input.playId } : {}),
+    reason: input.reason,
+    status: 'pending' as ReportStatus,
+    createdAt: Timestamp.now(),
   });
 };
 

@@ -40,6 +40,8 @@ export default function InAppNotification({ notification }: InAppNotificationPro
       if (navigationData.partyId && navigationData.game) {
         router.push(`/partyPages/leaderboardDetail?id=${navigationData.partyId}&game=${encodeURIComponent(navigationData.game)}`);
       }
+    } else if (navigationData.type === 'honour_prompt' || navigationData.type === 'honour_received') {
+      router.push('/notifications');
     }
   };
 

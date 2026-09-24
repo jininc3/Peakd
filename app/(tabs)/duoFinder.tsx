@@ -29,6 +29,7 @@ const GRID_SIZE = 40;
 import { doc, getDoc, setDoc, deleteDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useRouter } from '@/hooks/useRouter';
+import { getHonourTags } from '@/services/honourService';
 
 // Rank icons
 const VALORANT_RANK_ICONS: { [key: string]: any } = {
@@ -150,6 +151,8 @@ export default function DuoFinderScreen() {
   const [displayedPosts, setDisplayedPosts] = useState<DuoPostWithId[]>((cachedDuoPosts || []).slice(0, 10));
   const [loadingDuoPosts, setLoadingDuoPosts] = useState(!cachedDuoPosts);
   const [refreshingPosts, setRefreshingPosts] = useState(false);
+  // Posters' shown honour tags, keyed by userId — loaded in one batch per fetch.
+  const [honourTags, setHonourTags] = useState<Map<string, string>>(new Map());
   const [loadingMore, setLoadingMore] = useState(false);
   const [showPostDuoCard, setShowPostDuoCard] = useState(false);
   const POSTS_PER_PAGE = 10;
@@ -733,6 +736,10 @@ export default function DuoFinderScreen() {
       setDuoPosts(withoutBlocked);
       setDisplayedPosts(withoutBlocked.slice(0, POSTS_PER_PAGE));
       cachedDuoPosts = withoutBlocked;
+      // Not awaited: the cards show now and the tags join them when they land.
+      getHonourTags(withoutBlocked.map((p) => p.userId))
+        .then(setHonourTags)
+        .catch(() => {});
     } catch (error) {
       console.error('Error fetching duo posts:', error);
     } finally {
@@ -1142,6 +1149,7 @@ export default function DuoFinderScreen() {
                       message: post.message || undefined,
                       isOwnPost: isOwn,
                       createdAt: post.createdAt,
+                      honourTag: honourTags.get(post.userId) ?? null,
                     }}
                     onPress={() => !isOwn ? handleFindDuoCardPress({
                       ...post,

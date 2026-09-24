@@ -16,6 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { acceptFollowRequest, declineFollowRequest } from '@/services/followService';
 import { isRemoteAvatar, getDefaultAvatarSource, hasAvatar } from '@/utils/resolveAvatar';
 import CachedImage from '@/components/ui/CachedImage';
+import HonourModal, { HonourPrompt } from '@/app/components/honourModal';
+import { honourLabel, isHonourPromptLive } from '@/services/honourService';
 
 const GAME_LOGOS: { [key: string]: any } = {
   'Valorant': require('@/assets/images/valorant-red.png'),
@@ -26,8 +28,14 @@ const GAME_LOGOS: { [key: string]: any } = {
 
 interface Notification {
   id: string;
-  type: 'follow' | 'like' | 'comment' | 'tag' | 'party_invite' | 'party_complete' | 'party_ranking_change' | 'challenge_invite' | 'follow_request';
-  status?: 'pending' | 'accepted' | 'declined';
+  type: 'follow' | 'like' | 'comment' | 'tag' | 'party_invite' | 'party_complete' | 'party_ranking_change' | 'challenge_invite' | 'follow_request' | 'honour_prompt' | 'honour_received';
+  status?: 'pending' | 'accepted' | 'declined' | 'honoured' | 'dismissed';
+  /** honour_prompt: the duo it asks about. */
+  playId?: string;
+  /** honour_received: the tag given. */
+  tag?: string;
+  /** honour_prompt: when it stops being answerable. */
+  expiresAt?: Timestamp;
   fromUserId?: string; // Optional for system notifications like party_complete
   fromUsername?: string; // Optional for system notifications like party_complete
   fromUserAvatar?: string;
@@ -341,6 +349,7 @@ export default function NotificationsScreen() {
 
   // Accept party invitation
   const [acceptingInvite, setAcceptingInvite] = useState<string | null>(null);
+  const [honouring, setHonouring] = useState<HonourPrompt | null>(null);
 
   const handleAcceptInvite = async (notification: Notification, event: any) => {
     event.stopPropagation();
@@ -617,6 +626,10 @@ export default function NotificationsScreen() {
 
   // Navigate to appropriate page based on notification type
   const handleNotificationPress = async (notification: Notification) => {
+    if (notification.type === 'honour_prompt') {
+      if (isHonourPromptLive(notification)) setHonouring(notification);
+      return;
+    }
     if (notification.type === 'follow_request') {
       if (notification.status === 'accepted' && notification.fromUserId) {
         router.push({
@@ -947,6 +960,21 @@ export default function NotificationsScreen() {
                                 {notification.fromUsername}
                               </ThemedText>
                             ) : null}
+                            {notification.type === 'honour_prompt' && (
+                              notification.status === 'honoured'
+                                ? ' — you honoured them'
+                                : notification.status === 'dismissed'
+                                  ? ' — your duo'
+                                  : isHonourPromptLive(notification)
+                                    ? " duo'd with you. Were they a good teammate?"
+                                    : ' — the time to honour them has passed'
+                            )}
+                            {notification.type === 'honour_received' && (
+                              <>
+                                {'A teammate honoured you: '}
+                                <ThemedText style={styles.honourTagText}>{honourLabel(notification.tag) ?? 'Good teammate'}</ThemedText>
+                              </>
+                            )}
                             {notification.type === 'follow' && ' started following you'}
                             {notification.type === 'like' && ' liked your post'}
                             {notification.type === 'tag' && ' tagged you in a post'}
@@ -1101,6 +1129,17 @@ export default function NotificationsScreen() {
                             </View>
                           </>
                         )
+                      ) : isHonourPromptLive(notification) ? (
+                        <View style={styles.inviteActionRow}>
+                          <TouchableOpacity
+                            style={styles.partyInviteAcceptBtn}
+                            onPress={() => setHonouring(notification)}
+                            activeOpacity={0.7}
+                          >
+                            <ThemedText style={styles.partyInviteAcceptText}>Honour</ThemedText>
+                          </TouchableOpacity>
+                          <ThemedText style={styles.inviteTimeText}>{getTimeAgo(notification.createdAt)}</ThemedText>
+                        </View>
                       ) : (
                         <View style={styles.bottomRow}>
                           <ThemedText style={styles.timeText}>{getTimeAgo(notification.createdAt)}</ThemedText>
@@ -1119,6 +1158,8 @@ export default function NotificationsScreen() {
                 </TouchableOpacity>
         )}
       />
+
+      <HonourModal prompt={honouring} onClose={() => setHonouring(null)} />
 
       {/* Post Viewer Modal */}
       {selectedPost && (
@@ -1266,6 +1307,11 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 11,
     color: '#72767d',
+  },
+  honourTagText: {
+    fontWeight: '700',
+    color: '#CFAF54',
+    fontSize: 13,
   },
   unreadDot: {
     position: 'absolute',

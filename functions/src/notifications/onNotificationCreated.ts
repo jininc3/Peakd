@@ -1,6 +1,7 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { getFirestore } from 'firebase-admin/firestore';
 import { sendPushNotification } from './sendPushNotification';
+import { honourLabel } from '../honour/config';
 
 /**
  * Cloud Function that triggers when a new notification is created
@@ -118,6 +119,14 @@ export const onNotificationCreated = onDocumentCreated(
           }
           break;
 
+        case 'honour_prompt':
+          body = `How was your duo with ${notification.fromUsername}? Honour them if they were a good teammate.`;
+          break;
+
+        case 'honour_received':
+          body = `A teammate honoured you: ${honourLabel(notification.tag)}`;
+          break;
+
         default:
           console.log(`Unknown notification type: ${notification.type}`);
           return;
@@ -141,6 +150,9 @@ export const onNotificationCreated = onDocumentCreated(
       // Add type-specific data
       if (notification.postId) {
         pushData.postId = notification.postId;
+      }
+      if (notification.playId) {
+        pushData.playId = notification.playId;
       }
       if (notification.partyId) {
         pushData.partyId = notification.partyId;

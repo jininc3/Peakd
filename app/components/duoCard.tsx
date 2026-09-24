@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { honourLabel } from '@/services/honourService';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Animated, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -135,6 +136,8 @@ interface Duo {
   isOwnPost?: boolean;
   disabled?: boolean;
   createdAt?: any;
+  /** Shown honour tag id (services/honourService.ts); null or absent for none. */
+  honourTag?: string | null;
 }
 
 const formatTimeAgo = (timestamp: any): string => {
@@ -277,7 +280,15 @@ function DuoCard({ duo, onPress, onMessage, onViewProfile, onDisable, onRemovePo
             activeOpacity={0.7}
             disabled={!onViewProfile}
           >
-            <ThemedText style={styles.name} numberOfLines={1}>{duo.username}</ThemedText>
+            {/* Name and honour tag share the line; the name gives way first. */}
+            <View style={styles.nameTagRow}>
+              <ThemedText style={[styles.name, styles.nameShrink]} numberOfLines={1}>{duo.username}</ThemedText>
+              {honourLabel(duo.honourTag) && (
+                <ThemedText style={styles.honourTag} numberOfLines={1}>
+                  ★ {honourLabel(duo.honourTag)!.toUpperCase()}
+                </ThemedText>
+              )}
+            </View>
             {duo.createdAt && (
               <ThemedText style={styles.time}>{formatTimeAgo(duo.createdAt)}</ThemedText>
             )}
@@ -430,6 +441,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
     letterSpacing: -0.2,
+  },
+  nameTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+  },
+  nameShrink: {
+    flexShrink: 1,
+  },
+  honourTag: {
+    flexShrink: 0,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    color: '#E1C485',
   },
   gameIconCorner: {
     width: 50,
