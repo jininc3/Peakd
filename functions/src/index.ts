@@ -67,6 +67,8 @@ export {sendEmailVerificationCodeFunction as sendEmailVerificationCode} from "./
 export {verifyEmailCodeFunction as verifyEmailCode} from "./email/emailVerification";
 export {checkEmailAccountExistsFunction as checkEmailAccountExists} from "./email/emailLoginVerification";
 export {generateEmailLoginTokenFunction as generateEmailLoginToken} from "./email/emailLoginVerification";
+export {sendWelcomeEmail} from "./email/sendWelcomeEmail";
+export {adminListEmails, adminSendTestEmail} from "./email/adminEmails";
 
 // Phone verification (Twilio)
 export {sendPhoneVerificationCodeFunction as sendPhoneVerificationCode} from "./phone/phoneVerification";

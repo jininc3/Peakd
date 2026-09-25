@@ -11,13 +11,13 @@
  */
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {defineSecret} from "firebase-functions/params";
 import * as admin from "firebase-admin";
 import {logger} from "firebase-functions/v2";
 import {Resend} from "resend";
 import {markVerified} from "../auth/verifiedIdentity";
+import {resendApiKey} from "./sendEmail";
+import {VERIFICATION_SUBJECT, verificationCodeHtml} from "./templates/verificationCode";
 
-const resendApiKey = defineSecret("RESEND_API_KEY");
 
 const CODE_EXPIRY_MINUTES = 10;
 const CODE_LENGTH = 6;
@@ -83,20 +83,8 @@ export const sendEmailVerificationCodeFunction = onCall(
     const {data, error} = await resend.emails.send({
       from: "Peakd <noreply@peakd.gg>",
       to: normalizedEmail,
-      subject: "Your Peakd verification code",
-      html: `
-        <div style="font-family: -apple-system, sans-serif; max-width: 400px; margin: 0 auto; padding: 32px;">
-          <h2 style="color: #fff; background: #0f0f0f; padding: 24px; border-radius: 12px; text-align: center;">
-            Your verification code
-          </h2>
-          <p style="font-size: 36px; font-weight: 800; letter-spacing: 8px; text-align: center; margin: 24px 0;">
-            ${code}
-          </p>
-          <p style="color: #666; font-size: 14px; text-align: center;">
-            This code expires in ${CODE_EXPIRY_MINUTES} minutes.
-          </p>
-        </div>
-      `,
+      subject: VERIFICATION_SUBJECT,
+      html: verificationCodeHtml(code, CODE_EXPIRY_MINUTES),
     });
 
     if (error) {

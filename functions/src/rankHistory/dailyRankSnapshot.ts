@@ -5,7 +5,8 @@
  * Valorant account. Each run:
  *   1. records an LP/RR snapshot for the rank progression graph (on change), and
  *   2. refreshes the rank fields the profile page and rank cards read
- *      (riotStats.rankedSolo / valorantStats + peak rank + gameStats), so
+ *      (riotStats.rankedSolo / valorantStats + peak rank + gameStats, and
+ *      Valorant's match history), so
  *      profiles stay current without the user having to open the app.
  */
 
@@ -15,7 +16,8 @@ import * as logger from "firebase-functions/logger";
 import {HttpsError} from "firebase-functions/v2/https";
 import {getRankedStats, getAccountRegion} from "../riot/riotApi";
 import {remintRiotAccount} from "../riot/repairAccount";
-import {getValorantMMR} from "../valorant/valorantApi";
+import {getValorantMMR, getValorantMatches} from "../valorant/valorantApi";
+import {buildValorantMatchHistory} from "../valorant/getValorantStats";
 import {recordRankSnapshotIfChanged} from "./recordRankSnapshot";
 import {updateDailyDelta, dailyDeltaFields, dailyDeltaUserFields} from "./dailyDelta";
 
@@ -206,9 +208,10 @@ export const dailyRankSnapshotScheduled = onSchedule(
               });
               if (wrote) valorantCount++;
 
-              // Refresh the profile/rank-card fields (rank + RR + MMR + peak).
-              // Wins/losses come from match history, which this job doesn't
-              // pull, so those stay as last fetched.
+              // Refresh the profile/rank-card fields (rank + RR + MMR + peak)
+              // and the match history the rank card modal lists, so both move
+              // together. Wins/losses come from the season record, which this
+              // job doesn't pull, so those stay as last fetched.
               const userRef = db.collection("users").doc(user.id);
               const update: Record<string, unknown> = {
                 "valorantStats.currentRank": currentRank,
@@ -216,6 +219,27 @@ export const dailyRankSnapshotScheduled = onSchedule(
                 "valorantStats.mmr": mmrData.current_data.elo ?? 0,
                 "valorantStats.lastUpdated": admin.firestore.FieldValue.serverTimestamp(),
               };
+              // Best-effort: a failed match pull keeps the last history rather
+              // than holding back the rank update. Same 15 fetched / 10 kept
+              // as getValorantStats. Round-tripped through JSON because
+              // optional fields (placement, currentRank) can be undefined,
+              // which Firestore rejects.
+              try {
+                const {matches, mostPlayedAgent} = buildValorantMatchHistory(
+                  await getValorantMatches(
+                    valorantAccount.region, valorantAccount.gameName, valorantAccount.tag, 15
+                  ),
+                  valorantAccount.gameName,
+                  valorantAccount.tag
+                );
+                if (matches.length > 0) {
+                  update["valorantStats.matchHistory"] =
+                    JSON.parse(JSON.stringify(matches.slice(0, 10)));
+                  if (mostPlayedAgent) update["valorantStats.mostPlayedAgent"] = mostPlayedAgent;
+                }
+              } catch (err) {
+                logger.warn(`Failed to refresh Valorant matches for user ${user.id}:`, err);
+              }
               if (mmrData.highest_rank?.patched_tier && mmrData.highest_rank?.season) {
                 update["valorantStats.peakRank"] = {
                   tier: mmrData.highest_rank.patched_tier,
@@ -234,6 +258,8 @@ export const dailyRankSnapshotScheduled = onSchedule(
                     rankRating: mmrData.current_data.ranking_in_tier ?? 0,
                     mmr: mmrData.current_data.elo ?? 0,
                     ...(update["valorantStats.peakRank"] ? {peakRank: update["valorantStats.peakRank"]} : {}),
+                    ...(update["valorantStats.matchHistory"] ? {matchHistory: update["valorantStats.matchHistory"]} : {}),
+                    ...(update["valorantStats.mostPlayedAgent"] ? {mostPlayedAgent: update["valorantStats.mostPlayedAgent"]} : {}),
                     lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
                   },
                 }, {merge: true});

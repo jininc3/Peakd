@@ -20,6 +20,7 @@
  */
 import { onCall } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import * as logger from "firebase-functions/logger";
 import { db } from "../badges/db";
 import { discordClientSecret, fetchDiscordUser } from "./oauth";
 
@@ -47,8 +48,21 @@ export const discordLogin = onCall(
     // 3a. Returning Discord user?
     const mappingRef = db.doc(`discordAccounts/${discordUser.id}`);
     const mapping = await mappingRef.get();
+    // The mapping can outlive the account it points at (deleted before
+    // deleteAccount cleared mappings). Minting a token for that uid makes
+    // Firebase re-create it as a bare auth user with no email, so a stale
+    // mapping is dropped and the login carries on as a new/auto-linked one.
+    let mappedUser: admin.auth.UserRecord | null = null;
     if (mapping.exists) {
-      const uid = mapping.data()!.uid as string;
+      mappedUser = await admin.auth().getUser(mapping.data()!.uid as string).catch((err) => {
+        if ((err as { code?: string }).code !== "auth/user-not-found") throw err;
+        return null;
+      });
+      if (!mappedUser) await mappingRef.delete();
+    }
+    if (mapping.exists && mappedUser) {
+      const uid = mappedUser.uid;
+      await backfillEmail(mappedUser, email);
       const token = await admin.auth().createCustomToken(uid);
       // The profile may be missing OR a placeholder: building a rank card
       // before finishing signup creates users/{uid} with signupComplete:false.
@@ -137,3 +151,31 @@ export const discordLogin = onCall(
     };
   }
 );
+
+/** Addresses we mint so a password can exist without a real inbox. */
+const INTERNAL_EMAIL = /@peakd-(discord|phone)\.internal$/;
+
+/**
+ * Give a returning Discord user the verified Discord email if their account
+ * has no real one — only a minted internal address, or nothing. Without it,
+ * password reset has nowhere to send a code. Skipped when another account
+ * already owns the address; never overwrites a real email the user has.
+ * Best-effort: a failure here must not fail the login.
+ */
+async function backfillEmail(user: admin.auth.UserRecord, email: string | null): Promise<void> {
+  if (!email) return;
+  if (user.email && !INTERNAL_EMAIL.test(user.email)) return;
+  try {
+    const taken = await admin.auth().getUserByEmail(email).then(() => true, (err) => {
+      if ((err as { code?: string }).code === "auth/user-not-found") return false;
+      throw err;
+    });
+    if (taken) return;
+    await admin.auth().updateUser(user.uid, {email, emailVerified: true});
+    const profile = admin.firestore().doc(`users/${user.uid}`);
+    const snap = await profile.get();
+    if (snap.exists && !snap.get("email")) await profile.update({email});
+  } catch (err) {
+    logger.warn(`Discord email backfill failed for ${user.uid}:`, err);
+  }
+}

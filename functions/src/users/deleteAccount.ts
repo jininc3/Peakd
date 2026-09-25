@@ -62,6 +62,11 @@ export const deleteAccountFunction = onCall(
 
       // 7. Delete linked accounts
       await deleteByQuery(db, "linkedAccounts", "userId", userId);
+      // And the Discord → uid mapping. Left behind, the next Discord login
+      // found it, minted a token for the deleted uid, and Firebase silently
+      // re-created that uid as a bare auth user with no email — so the new
+      // account never got the Discord email and couldn't reset its password.
+      await deleteByQuery(db, "discordAccounts", "uid", userId);
 
       // 8. Delete parties created by user, remove from others
       await deleteUserFromParties(db, userId);

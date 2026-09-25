@@ -70,6 +70,93 @@ export interface GetValorantStatsResponse {
  * @param request - Callable request containing data and auth
  * @returns Response with success status and Valorant stats
  */
+/**
+ * A player's Valorant history from Henrik's match list, newest first, plus
+ * the agent they played most across it. Shared with the twice-daily rank job
+ * so the match history on profiles and rank cards moves with the rank.
+ */
+export function buildValorantMatchHistory(
+  matchesData: any[],
+  gameName: string,
+  tag: string
+): {matches: MatchHistoryEntry[]; mostPlayedAgent?: string} {
+  const matches = (matchesData ?? []).map((match): MatchHistoryEntry | null => {
+    // Validate match has required metadata
+    // Note: API returns 'matchid' (no underscore), not 'match_id'
+    if (!match?.metadata?.matchid || !match?.players?.all_players || !match?.teams) {
+      return null;
+    }
+
+    // Find the player in this match
+    // Convert tags to strings for comparison (API returns string, Firestore might store number)
+    const player = match.players.all_players.find(
+      (p: any) => p.name?.toLowerCase() === gameName.toLowerCase() && String(p.tag).toLowerCase() === tag.toLowerCase()
+    );
+
+    if (!player || !player.stats || !player.team || !player.character) {
+      return null;
+    }
+
+    // Determine if player won
+    const playerTeam = player.team.toLowerCase(); // "red" or "blue"
+    const teamData = playerTeam === "red" ? match.teams.red : match.teams.blue;
+    if (!teamData) {
+      return null;
+    }
+    const won = teamData.has_won ?? false;
+
+    // Build score string
+    const redRounds = match.teams.red?.rounds_won ?? 0;
+    const blueRounds = match.teams.blue?.rounds_won ?? 0;
+    const score = playerTeam === "red"
+      ? `${redRounds}-${blueRounds}`
+      : `${blueRounds}-${redRounds}`;
+
+    // Calculate player's placement (rank out of 10 by combat score)
+    const sortedPlayers = [...match.players.all_players]
+      .sort((a, b) => (b.stats?.score ?? 0) - (a.stats?.score ?? 0));
+    const placement = sortedPlayers.findIndex(
+      (p) => p.name?.toLowerCase() === gameName.toLowerCase() && String(p.tag).toLowerCase() === tag.toLowerCase()
+    ) + 1;
+
+    const gameStart = match.metadata.game_start ?? Math.floor(Date.now() / 1000);
+    return {
+      matchId: match.metadata.matchid,
+      agent: player.character,
+      kills: player.stats.kills ?? 0,
+      deaths: player.stats.deaths ?? 0,
+      assists: player.stats.assists ?? 0,
+      won,
+      map: match.metadata.map ?? "Unknown",
+      gameStart,
+      playedAt: gameStart * 1000,
+      score,
+      placement: placement > 0 ? placement : undefined,
+      currentRank: player.currenttier_patched || undefined,
+    };
+  }).filter((entry): entry is MatchHistoryEntry => entry !== null);
+
+  // Calculate most played agent from all matches
+  const agentCounts: { [agent: string]: number } = {};
+  matches.forEach((match) => {
+    if (match.agent) {
+      agentCounts[match.agent] = (agentCounts[match.agent] || 0) + 1;
+    }
+  });
+
+  // Find the most played agent
+  let mostPlayedAgent: string | undefined;
+  let maxCount = 0;
+  for (const [agent, count] of Object.entries(agentCounts)) {
+    if (count > maxCount) {
+      maxCount = count;
+      mostPlayedAgent = agent;
+    }
+  }
+
+  return {matches, mostPlayedAgent};
+}
+
 export const getValorantStatsFunction = onCall(
   {
     invoker: "public",
@@ -206,79 +293,9 @@ export const getValorantStatsFunction = onCall(
 
       // Process match history
       logger.info(`Raw matches data length: ${matchesData?.length || 0}`);
-      const allMatches = matchesData.map((match): MatchHistoryEntry | null => {
-        // Validate match has required metadata
-        // Note: API returns 'matchid' (no underscore), not 'match_id'
-        if (!match?.metadata?.matchid || !match?.players?.all_players || !match?.teams) {
-          return null;
-        }
-
-        // Find the player in this match
-        // Convert tags to strings for comparison (API returns string, Firestore might store number)
-        const player = match.players.all_players.find(
-          (p: any) => p.name?.toLowerCase() === gameName.toLowerCase() && String(p.tag).toLowerCase() === tag.toLowerCase()
-        );
-
-        if (!player || !player.stats || !player.team || !player.character) {
-          return null;
-        }
-
-        // Determine if player won
-        const playerTeam = player.team.toLowerCase(); // "red" or "blue"
-        const teamData = playerTeam === "red" ? match.teams.red : match.teams.blue;
-        if (!teamData) {
-          return null;
-        }
-        const won = teamData.has_won ?? false;
-
-        // Build score string
-        const redRounds = match.teams.red?.rounds_won ?? 0;
-        const blueRounds = match.teams.blue?.rounds_won ?? 0;
-        const score = playerTeam === "red"
-          ? `${redRounds}-${blueRounds}`
-          : `${blueRounds}-${redRounds}`;
-
-        // Calculate player's placement (rank out of 10 by combat score)
-        const sortedPlayers = [...match.players.all_players]
-          .sort((a, b) => (b.stats?.score ?? 0) - (a.stats?.score ?? 0));
-        const placement = sortedPlayers.findIndex(
-          (p) => p.name?.toLowerCase() === gameName.toLowerCase() && String(p.tag).toLowerCase() === tag.toLowerCase()
-        ) + 1;
-
-        const gameStart = match.metadata.game_start ?? Math.floor(Date.now() / 1000);
-        return {
-          matchId: match.metadata.matchid,
-          agent: player.character,
-          kills: player.stats.kills ?? 0,
-          deaths: player.stats.deaths ?? 0,
-          assists: player.stats.assists ?? 0,
-          won,
-          map: match.metadata.map ?? "Unknown",
-          gameStart,
-          playedAt: gameStart * 1000,
-          score,
-          placement: placement > 0 ? placement : undefined,
-          currentRank: player.currenttier_patched || undefined,
-        };
-      }).filter((entry): entry is MatchHistoryEntry => entry !== null);
-
-      // Calculate most played agent from all matches
-      const agentCounts: { [agent: string]: number } = {};
-      allMatches.forEach((match) => {
-        if (match.agent) {
-          agentCounts[match.agent] = (agentCounts[match.agent] || 0) + 1;
-        }
-      });
-
-      // Find the most played agent
-      let mostPlayedAgent: string | undefined;
-      let maxCount = 0;
-      for (const [agent, count] of Object.entries(agentCounts)) {
-        if (count > maxCount) {
-          maxCount = count;
-          mostPlayedAgent = agent;
-        }
-      }
+      const {matches: allMatches, mostPlayedAgent} =
+        buildValorantMatchHistory(matchesData, gameName, tag);
+      const maxCount = allMatches.filter((m) => m.agent === mostPlayedAgent).length;
 
       logger.info(`Most played agent: ${mostPlayedAgent} (${maxCount} games)`);
 
