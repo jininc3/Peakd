@@ -4,7 +4,13 @@
  * sends use. Adding an email means adding it here, or it can't be tested.
  */
 
-import {WELCOME_HTML_DARK, WELCOME_HTML_LIGHT, WELCOME_SUBJECT, WELCOME_TEXT} from "./welcome";
+import {
+  WELCOME_HTML_AUTO,
+  WELCOME_HTML_DARK,
+  WELCOME_HTML_LIGHT,
+  WELCOME_SUBJECT,
+  WELCOME_TEXT,
+} from "./welcome";
 import {VERIFICATION_SUBJECT, verificationCodeHtml} from "./verificationCode";
 
 export interface RenderedEmail {
@@ -29,10 +35,12 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     id: "welcome",
     name: "Welcome",
     trigger: "Once, when a new account finishes signup (after the rules step).",
-    variants: ["dark", "light"],
+    // "auto" follows the reader's email app; light and dark force one look,
+    // for checking each in the preview and in a test send.
+    variants: ["auto", "light", "dark"],
     render: (variant) => ({
       subject: WELCOME_SUBJECT,
-      html: variant === "light" ? WELCOME_HTML_LIGHT : WELCOME_HTML_DARK,
+      html: variant === "light" ? WELCOME_HTML_LIGHT : variant === "dark" ? WELCOME_HTML_DARK : WELCOME_HTML_AUTO,
       text: WELCOME_TEXT,
     }),
   },

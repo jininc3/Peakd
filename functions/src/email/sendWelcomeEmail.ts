@@ -51,7 +51,7 @@ export const sendWelcomeEmail = onDocumentWritten(
     }
 
     try {
-      const id = await sendEmail(email, findTemplate("welcome")!.render("dark"));
+      const id = await sendEmail(email, findTemplate("welcome")!.render("auto"));
       await marker.update({sentAt: admin.firestore.FieldValue.serverTimestamp(), resendId: id ?? null});
       logger.info(`Welcome email sent to ${userId}`);
     } catch (err) {
