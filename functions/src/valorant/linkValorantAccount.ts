@@ -6,6 +6,7 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import {clearRankHistory, readArchive, withoutUndefined} from "../users/rankCardArchive";
 import * as logger from "firebase-functions/logger";
 import {getValorantAccountByRiotId, getValorantMMR} from "./valorantApi";
 import {ValorantStats} from "./getValorantStats";
@@ -148,6 +149,30 @@ export const linkValorantAccountFunction = onCall(
         logger.info(`Creating placeholder profile for ${userId} (rank card built pre-signup)`);
       }
 
+      // The account this replaces: the linked one, or — after an unlink — the
+      // archived one. Same Riot ID and region is the same account.
+      const archived = readArchive(existingDoc.data(), "valorant");
+      const previousAccount = (existingDoc.data()?.valorantAccount ?? archived?.account) as
+        | {gameName?: string; tag?: string; region?: string}
+        | undefined;
+      const idOf = (a: {gameName?: string; tag?: string; region?: string}) =>
+        `${a.gameName ?? ""}#${a.tag ?? ""}#${a.region ?? ""}`.toLowerCase();
+      const isSwitchingAccount =
+        !!previousAccount?.gameName &&
+        idOf(previousAccount) !== idOf({gameName: valorantAccount.name, tag: valorantAccount.tag, region});
+      if (isSwitchingAccount) {
+        // A different account: its RR graph starts fresh, as League's does.
+        logger.info(`User ${userId} switching Valorant account; resetting Valorant rank history`);
+        await clearRankHistory(userRef, "valorant");
+      }
+      // The same account coming back after an unlink: its stats (match
+      // history included) are restored, then refreshed below.
+      const restoredStats =
+        !isSwitchingAccount && archived?.stats && !existingDoc.data()?.valorantStats
+          ? archived.stats
+          : null;
+      if (restoredStats) logger.info(`Restoring archived Valorant stats for user ${userId}`);
+
       const accountData = {
         gameName: valorantAccount.name,
         tag: valorantAccount.tag,
@@ -169,6 +194,9 @@ export const linkValorantAccountFunction = onCall(
 
       await userRef.set({
         valorantAccount: accountData,
+        ...(restoredStats ? {valorantStats: restoredStats} : {}),
+        // Linked again, so there is nothing left to restore.
+        ...(archived ? {archivedRankCards: {valorant: admin.firestore.FieldValue.delete()}} : {}),
         // Only stamped when creating: never downgrade a completed account.
         ...(isNewProfile
           ? {
@@ -251,9 +279,13 @@ export const linkValorantAccountFunction = onCall(
           lastUpdated: admin.firestore.FieldValue.serverTimestamp() as any,
         };
 
-        // Save stats to Firestore
+        // Save stats to Firestore. Over the restored copy, so what the
+        // initial fetch doesn't carry (match history, most-played agent)
+        // survives until the next full refresh.
         await userRef.update({
-          valorantStats: stats,
+          valorantStats: restoredStats
+            ? withoutUndefined({...restoredStats, ...withoutUndefined(stats as unknown as Record<string, unknown>)})
+            : stats,
         });
 
         logger.info(`Successfully cached initial Valorant stats for user ${userId}`);

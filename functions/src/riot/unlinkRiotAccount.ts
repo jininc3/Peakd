@@ -6,6 +6,7 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import {archiveFields} from "../users/rankCardArchive";
 import * as logger from "firebase-functions/logger";
 
 export interface UnlinkAccountResponse {
@@ -69,8 +70,11 @@ export const unlinkRiotAccountFunction = onCall(
 
       logger.info(`Released account claim: ${accountId}`);
 
-      // Remove Riot account and stats from user profile
+      // Off the profile, but archived rather than deleted: a relink of the
+      // same account restores the stats — League's peak rank is tracked here,
+      // not by Riot, so deleting it lost it for good.
       await userRef.update({
+        ...archiveFields("league", riotAccount, userData.riotStats),
         riotAccount: admin.firestore.FieldValue.delete(),
         riotStats: admin.firestore.FieldValue.delete(),
       });

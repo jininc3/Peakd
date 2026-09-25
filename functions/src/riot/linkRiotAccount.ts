@@ -6,6 +6,7 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import {readArchive} from "../users/rankCardArchive";
 import * as logger from "firebase-functions/logger";
 import {getAccountByRiotId, getRankedStats,
   getAccountRegion,
@@ -122,7 +123,11 @@ export const linkRiotAccountFunction = onCall(
       if (isNewProfile) {
         logger.info(`Creating placeholder profile for ${userId} (rank card built pre-signup)`);
       }
-      const previousAccount = existingDoc.data()?.riotAccount;
+      // The account this replaces: the linked one, or — after an unlink — the
+      // archived one. Without the archive, a different account linked after
+      // an unlink carried on the old account's LP graph.
+      const archived = readArchive(existingDoc.data(), "league");
+      const previousAccount = existingDoc.data()?.riotAccount ?? archived?.account;
       const isSwitchingAccount =
         !!previousAccount?.puuid && previousAccount.puuid !== riotAccount.puuid;
       if (isSwitchingAccount) {
@@ -180,10 +185,21 @@ export const linkRiotAccountFunction = onCall(
         linkedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      // The same account coming back after an unlink gets its stats back —
+      // peak rank included — and getLeagueStats updates the rest from Riot.
+      const restoredStats =
+        !isSwitchingAccount && archived?.stats && !existingDoc.data()?.riotStats
+          ? archived.stats
+          : null;
+      if (restoredStats) logger.info(`Restoring archived League stats for user ${userId}`);
+
       await userRef.set({
         riotAccount: accountData,
         // Stale stats belong to the previous account; getLeagueStats refills them.
         ...(isSwitchingAccount ? {riotStats: admin.firestore.FieldValue.delete()} : {}),
+        ...(restoredStats ? {riotStats: restoredStats} : {}),
+        // Linked again, so there is nothing left to restore.
+        ...(archived ? {archivedRankCards: {league: admin.firestore.FieldValue.delete()}} : {}),
         // Only stamped when creating: never downgrade a completed account.
         ...(isNewProfile
           ? {

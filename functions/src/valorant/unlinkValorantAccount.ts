@@ -6,6 +6,7 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import {archiveFields} from "../users/rankCardArchive";
 import * as logger from "firebase-functions/logger";
 
 export interface UnlinkValorantAccountResponse {
@@ -69,8 +70,10 @@ export const unlinkValorantAccountFunction = onCall(
 
       logger.info(`Released account claim: ${accountId}`);
 
-      // Remove Valorant account and stats from user profile
+      // Off the profile, but archived rather than deleted: a relink of the
+      // same account restores the stats (see users/rankCardArchive).
       await userRef.update({
+        ...archiveFields("valorant", valorantAccount, userData.valorantStats),
         valorantAccount: admin.firestore.FieldValue.delete(),
         valorantStats: admin.firestore.FieldValue.delete(),
       });
