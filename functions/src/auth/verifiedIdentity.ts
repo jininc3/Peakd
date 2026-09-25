@@ -39,8 +39,15 @@ export async function markVerified(kind: IdentityKind, value: string): Promise<v
 /**
  * True, once, if `value` was verified within the window. Single-use: the
  * record is deleted as it's read, so a verification signs in one session.
+ *
+ * `windowMs` defaults to the sign-in window; email signup passes a longer one,
+ * since its code is checked at the first step and consumed at the last.
  */
-export async function consumeVerified(kind: IdentityKind, value: string): Promise<boolean> {
+export async function consumeVerified(
+  kind: IdentityKind,
+  value: string,
+  windowMs: number = WINDOW_MS
+): Promise<boolean> {
   const db = admin.firestore();
   const ref = db.collection("identityVerifications").doc(identityKey(kind, value));
   return db.runTransaction(async (tx) => {
@@ -48,6 +55,6 @@ export async function consumeVerified(kind: IdentityKind, value: string): Promis
     if (!snap.exists) return false;
     tx.delete(ref);
     const at = (snap.get("verifiedAt") as admin.firestore.Timestamp | undefined)?.toMillis();
-    return !!at && Date.now() - at <= WINDOW_MS;
+    return !!at && Date.now() - at <= windowMs;
   });
 }

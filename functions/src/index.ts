@@ -68,6 +68,7 @@ export {verifyEmailCodeFunction as verifyEmailCode} from "./email/emailVerificat
 export {checkEmailAccountExistsFunction as checkEmailAccountExists} from "./email/emailLoginVerification";
 export {generateEmailLoginTokenFunction as generateEmailLoginToken} from "./email/emailLoginVerification";
 export {sendWelcomeEmail} from "./email/sendWelcomeEmail";
+export {markSignupEmailVerifiedFunction as markSignupEmailVerified} from "./email/markSignupEmailVerified";
 export {adminListEmails, adminSendTestEmail} from "./email/adminEmails";
 
 // Phone verification (Twilio)
