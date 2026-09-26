@@ -13,9 +13,10 @@ import {getRankDistance, getTierRange} from "../utils/rankMatcher";
 const TEAM_SIZE = 5;
 
 /**
- * How many players an entry queues as. Find team lets a searcher bring
- * friends (Peakd-web writes `partySize`); a duo is always one. Entries from
- * before the field, or from clients that don't write it, count as one.
+ * How many players an entry queues as. Find team is for filling the last
+ * spot in a five: a four-stack needing a fifth writes `partySize` 4, a solo
+ * willing to be that fifth writes 1 (Peakd-web). A duo is always one, and
+ * entries without the field count as one.
  */
 function partySizeOf(data: FirebaseFirestore.DocumentData, mode: string): number {
   if (mode !== "lfg") return 1;
@@ -60,10 +61,12 @@ export const onDuoQueueCreated = onDocumentCreated(
       const candidates = candidatesSnapshot.docs
         .filter((doc) => doc.data().userId !== newUserId)
         .filter((doc) => {
-          // LFG mode: no rank restriction, but the two parties have to fit
-          // one team between them — a four-stack has room for one more.
+          // LFG mode: no rank restriction. A four-stack and a solo, and
+          // only that — two solos would be a duo, not a team.
           if (mode === "lfg") {
-            return partySize + partySizeOf(doc.data(), mode) <= TEAM_SIZE;
+            const other = partySizeOf(doc.data(), mode);
+            return Math.max(partySize, other) === TEAM_SIZE - 1 &&
+              partySize + other === TEAM_SIZE;
           }
           // Duo mode: existing rank proximity filter
           const candidateRank = doc.data().currentRank || null;
@@ -71,11 +74,9 @@ export const onDuoQueueCreated = onDocumentCreated(
           return getRankDistance(game, currentRank, candidateRank) <= tierRange;
         })
         .sort((a, b) => {
-          // LFG: the pairing that leaves the fewest empty slots first, so a
-          // four-stack gets the solo rather than two solos pairing off.
-          if (mode === "lfg") {
-            return partySizeOf(b.data(), mode) - partySizeOf(a.data(), mode);
-          }
+          // LFG: every candidate left completes the five equally; keep the
+          // query's order.
+          if (mode === "lfg") return 0;
           const distA = getRankDistance(game, currentRank, a.data().currentRank);
           const distB = getRankDistance(game, currentRank, b.data().currentRank);
           return distA - distB;
