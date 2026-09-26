@@ -9,6 +9,20 @@ import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import {logger} from "firebase-functions/v2";
 import {getRankDistance, getTierRange} from "../utils/rankMatcher";
 
+/** A full team in both games. KEEP IN SYNC with TEAM_SIZE in Peakd-web lib/lfgService.ts. */
+const TEAM_SIZE = 5;
+
+/**
+ * How many players an entry queues as. Find team lets a searcher bring
+ * friends (Peakd-web writes `partySize`); a duo is always one. Entries from
+ * before the field, or from clients that don't write it, count as one.
+ */
+function partySizeOf(data: FirebaseFirestore.DocumentData, mode: string): number {
+  if (mode !== "lfg") return 1;
+  const n = Math.round(Number(data.partySize) || 1);
+  return Math.min(Math.max(n, 1), TEAM_SIZE - 1);
+}
+
 export const onDuoQueueCreated = onDocumentCreated(
   "duoQueue/{docId}",
   async (event) => {
@@ -23,6 +37,7 @@ export const onDuoQueueCreated = onDocumentCreated(
     const newUserId = newEntry.userId;
     const game = newEntry.game;
     const mode = newEntry.mode || "duo";
+    const partySize = partySizeOf(newEntry, mode);
 
     logger.info(`Duo queue entry created: ${newUserId} searching for ${game} (${mode})`);
 
@@ -45,14 +60,22 @@ export const onDuoQueueCreated = onDocumentCreated(
       const candidates = candidatesSnapshot.docs
         .filter((doc) => doc.data().userId !== newUserId)
         .filter((doc) => {
-          // LFG mode: no rank restriction (match anyone)
-          if (mode === "lfg") return true;
+          // LFG mode: no rank restriction, but the two parties have to fit
+          // one team between them — a four-stack has room for one more.
+          if (mode === "lfg") {
+            return partySize + partySizeOf(doc.data(), mode) <= TEAM_SIZE;
+          }
           // Duo mode: existing rank proximity filter
           const candidateRank = doc.data().currentRank || null;
           if (!currentRank || !candidateRank) return true;
           return getRankDistance(game, currentRank, candidateRank) <= tierRange;
         })
         .sort((a, b) => {
+          // LFG: the pairing that leaves the fewest empty slots first, so a
+          // four-stack gets the solo rather than two solos pairing off.
+          if (mode === "lfg") {
+            return partySizeOf(b.data(), mode) - partySizeOf(a.data(), mode);
+          }
           const distA = getRankDistance(game, currentRank, a.data().currentRank);
           const distB = getRankDistance(game, currentRank, b.data().currentRank);
           return distA - distB;
@@ -111,6 +134,7 @@ export const onDuoQueueCreated = onDocumentCreated(
             currentRank: newEntry.currentRank || null,
             mainRole: newEntry.mainRole || null,
             mainAgent: newEntry.mainAgent || null,
+            partySize,
           },
           user2Card: {
             userId: candidateData.userId,
@@ -121,6 +145,7 @@ export const onDuoQueueCreated = onDocumentCreated(
             currentRank: candidateData.currentRank || null,
             mainRole: candidateData.mainRole || null,
             mainAgent: candidateData.mainAgent || null,
+            partySize: partySizeOf(candidateData, mode),
           },
           user1Accepted: false,
           user2Accepted: false,

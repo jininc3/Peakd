@@ -360,6 +360,36 @@ service cloud.firestore {
       // Allow deleting if user is the creator
       allow delete: if request.auth != null &&
                        request.auth.uid == resource.data.createdBy;
+
+      // The lobby's group chat (Peakd-web lib/lobbyChatService.ts — KEEP IN
+      // SYNC with the fields it writes). Members only, both ways: membership
+      // is read off the lobby at request time, so leaving or being kicked cuts
+      // access at once, with no participant list here to keep in step.
+      match /messages/{messageId} {
+        function isLobbyMember() {
+          return request.auth != null &&
+                 request.auth.uid in get(/databases/$(database)/documents/parties/$(partyId)).data.members;
+        }
+
+        allow read: if isLobbyMember();
+
+        // Posted as yourself, stamped by the server, text of 1–500 chars and
+        // nothing else on the doc.
+        allow create: if isLobbyMember() &&
+                         request.resource.data.keys().hasOnly(['senderId', 'username', 'avatar', 'text', 'timestamp']) &&
+                         request.resource.data.senderId == request.auth.uid &&
+                         request.resource.data.username is string &&
+                         request.resource.data.avatar is string &&
+                         request.resource.data.text is string &&
+                         request.resource.data.text.size() > 0 &&
+                         request.resource.data.text.size() <= 500 &&
+                         request.resource.data.timestamp == request.time;
+
+        // Your own messages, or anything as the lobby's creator (moderation).
+        allow delete: if request.auth != null &&
+                         (resource.data.senderId == request.auth.uid ||
+                          request.auth.uid == get(/databases/$(database)/documents/parties/$(partyId)).data.createdBy);
+      }
     }
 
     // Duo Queue collection - for live matchmaking
