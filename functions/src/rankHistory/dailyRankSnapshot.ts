@@ -20,6 +20,7 @@ import {getValorantMMR, getValorantMatches} from "../valorant/valorantApi";
 import {buildValorantMatchHistory} from "../valorant/getValorantStats";
 import {recordRankSnapshotIfChanged} from "./recordRankSnapshot";
 import {updateDailyDelta, dailyDeltaFields, dailyDeltaUserFields} from "./dailyDelta";
+import {trendBaselineUserFields} from "./trendBaseline";
 
 const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 2000;
@@ -174,7 +175,10 @@ export const dailyRankSnapshotScheduled = onSchedule(
                 ...dailyDeltaFields("league", leagueRank, soloQueue.leaguePoints, leagueDelta),
                 lastUpdated: admin.firestore.Timestamp.now(),
               }, {merge: true});
-              await userRef.update(dailyDeltaUserFields("league", leagueDelta));
+              await userRef.update({
+                ...dailyDeltaUserFields("league", leagueDelta),
+                ...(await trendBaselineUserFields(user.id, "league", riotAccount.puuid)),
+              });
               leagueRefreshed++;
             }
           } catch (err) {
@@ -274,7 +278,10 @@ export const dailyRankSnapshotScheduled = onSchedule(
                 ...dailyDeltaFields("valorant", currentRank, valRR, valDelta),
                 lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
               }, {merge: true});
-              await userRef.update(dailyDeltaUserFields("valorant", valDelta));
+              await userRef.update({
+                ...dailyDeltaUserFields("valorant", valDelta),
+                ...(await trendBaselineUserFields(user.id, "valorant")),
+              });
               valorantRefreshed++;
             }
           } catch (err) {

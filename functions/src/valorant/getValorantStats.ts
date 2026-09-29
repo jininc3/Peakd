@@ -9,6 +9,7 @@ import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {recordRankSnapshotIfChanged} from "../rankHistory/recordRankSnapshot";
 import {updateDailyDelta, dailyDeltaFields, dailyDeltaUserFields} from "../rankHistory/dailyDelta";
+import {trendBaselineUserFields} from "../rankHistory/trendBaseline";
 import {
   getValorantMMR,
   getValorantAccountByRiotId,
@@ -361,7 +362,10 @@ export const getValorantStatsFunction = onCall(
         ...dailyDeltaFields("valorant", stats.currentRank, stats.rankRating, valDelta),
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       }, {merge: true});
-      await userRef.update(dailyDeltaUserFields("valorant", valDelta));
+      await userRef.update({
+        ...dailyDeltaUserFields("valorant", valDelta),
+        ...(await trendBaselineUserFields(userId, "valorant")),
+      });
 
       logger.info(`Successfully fetched Valorant stats for user ${userId}`);
 

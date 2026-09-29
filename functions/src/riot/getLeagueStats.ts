@@ -10,6 +10,7 @@ import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {recordRankSnapshotIfChanged} from "../rankHistory/recordRankSnapshot";
 import {updateDailyDelta, dailyDeltaFields, dailyDeltaUserFields} from "../rankHistory/dailyDelta";
+import {trendBaselineUserFields} from "../rankHistory/trendBaseline";
 import {remintRiotAccount} from "./repairAccount";
 import {
   getSummonerByPuuid,
@@ -305,7 +306,10 @@ export const getLeagueStatsFunction = onCall(
         ...dailyDeltaFields("league", currentRank, lp, leagueDelta),
         lastUpdated: admin.firestore.Timestamp.now(),
       }, {merge: true});
-      await userRef.update(dailyDeltaUserFields("league", leagueDelta));
+      await userRef.update({
+        ...dailyDeltaUserFields("league", leagueDelta),
+        ...(await trendBaselineUserFields(userId, "league", puuid)),
+      });
 
       logger.info(`Successfully updated Riot stats for user ${userId}`);
 
