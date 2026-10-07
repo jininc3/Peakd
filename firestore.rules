@@ -389,6 +389,17 @@ service cloud.firestore {
         allow delete: if request.auth != null &&
                          (resource.data.senderId == request.auth.uid ||
                           request.auth.uid == get(/databases/$(database)/documents/parties/$(partyId)).data.createdBy);
+
+        // Deleting from the web marks the message rather than removing it, so
+        // the room sees "A message has been deleted": the same people as
+        // delete, and the only change allowed is that marker — deleted set,
+        // text cleared, nothing else touched.
+        allow update: if request.auth != null &&
+                         (resource.data.senderId == request.auth.uid ||
+                          request.auth.uid == get(/databases/$(database)/documents/parties/$(partyId)).data.createdBy) &&
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text']) &&
+                         request.resource.data.deleted == true &&
+                         request.resource.data.text == '';
       }
     }
 
