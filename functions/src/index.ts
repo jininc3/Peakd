@@ -52,6 +52,8 @@ export {
 // Export Party Management functions
 export {checkCompletedPartiesScheduled} from "./parties/checkCompletedParties";
 export {refreshPartyStatsFunction as refreshPartyStats} from "./parties/refreshPartyStats";
+export {joinLobbyFunction as joinLobby} from "./parties/joinLobby";
+export {claimAnonymousLobbiesFunction as claimAnonymousLobbies} from "./parties/claimAnonymousLobbies";
 
 // Export User Management functions
 export {updateUsernameFunction as updateUsername} from "./users/updateUsername";

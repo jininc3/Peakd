@@ -19,10 +19,101 @@
  * client Firestore rules should not grant access to it.
  */
 import { onCall } from "firebase-functions/v2/https";
+import { randomUUID } from "node:crypto";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import { db } from "../badges/db";
 import { discordClientSecret, fetchDiscordUser } from "./oauth";
+
+const DISCORD_AVATAR_PREFIX = "https://cdn.discordapp.com/avatars/";
+
+/** Where a Discord picture is kept once copied: the player's own picture folder. */
+const discordCopyPath = (uid: string, hash: string) => `profile-pictures/${uid}/discord-${hash}.png`;
+
+/**
+ * Copy a Discord picture into Storage and return the copy's URL.
+ *
+ * A Discord CDN URL carries a hash that changes each time the picture changes
+ * on Discord, and the old URL then 404s — so linking to Discord directly left
+ * profiles with dead pictures. The copy lives as long as the account does
+ * (deleteAccount clears profile-pictures/{uid}). Named by the hash, so a
+ * picture already copied is reused rather than fetched again.
+ */
+async function copyDiscordAvatar(uid: string, discordId: string, hash: string): Promise<string> {
+  const bucket = admin.storage().bucket();
+  const path = discordCopyPath(uid, hash);
+  const file = bucket.file(path);
+
+  let token: string | undefined;
+  const [exists] = await file.exists();
+  if (exists) {
+    const [meta] = await file.getMetadata();
+    token = meta.metadata?.firebaseStorageDownloadTokens as string | undefined;
+  }
+  if (!token) {
+    const res = await fetch(`${DISCORD_AVATAR_PREFIX}${discordId}/${hash}.png?size=256`);
+    if (!res.ok) throw new Error(`Discord avatar fetch failed: ${res.status}`);
+    token = randomUUID();
+    await file.save(Buffer.from(await res.arrayBuffer()), {
+      contentType: "image/png",
+      metadata: {
+        cacheControl: "public, max-age=31536000",
+        metadata: { firebaseStorageDownloadTokens: token },
+      },
+    });
+  }
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+}
+
+/** A picture that came from Discord: a CDN link, or our copy of one. */
+const isFromDiscord = (url: string, uid: string) =>
+  url.startsWith(DISCORD_AVATAR_PREFIX) ||
+  url.includes(encodeURIComponent(`profile-pictures/${uid}/discord-`));
+
+/**
+ * Keep a Discord picture current. On each login, if the profile's picture is
+ * still one that came from Discord — a CDN link (from before pictures were
+ * copied, and possibly dead by now) or a copy of an older one — and Discord
+ * now has a different one (or none), swap in the current copy: on the
+ * profile, and on the duo posts and clip posts that copied it when they were
+ * made.
+ *
+ * A failed copy hands us a CDN link instead. That never replaces a copy we
+ * already hold, which won't go dead; the next login tries again. It does
+ * replace an older CDN link, which may be dead already.
+ *
+ * A picture the player uploaded themselves is never touched. Best-effort: a
+ * failure here must not fail the login, so it is logged and swallowed.
+ */
+async function refreshDiscordAvatar(
+  profile: admin.firestore.DocumentSnapshot,
+  avatarUrl: string,
+): Promise<void> {
+  try {
+    const current = profile.get("avatar");
+    if (
+      !profile.exists ||
+      typeof current !== "string" ||
+      !isFromDiscord(current, profile.id) ||
+      current === avatarUrl ||
+      (avatarUrl.startsWith(DISCORD_AVATAR_PREFIX) && !current.startsWith(DISCORD_AVATAR_PREFIX))
+    ) {
+      return;
+    }
+
+    const batch = db.batch();
+    batch.update(profile.ref, { avatar: avatarUrl });
+    for (const name of ["duoPosts", "posts"]) {
+      const copies = await db.collection(name).where("userId", "==", profile.id).get();
+      for (const d of copies.docs) {
+        if (d.get("avatar") === current) batch.update(d.ref, { avatar: avatarUrl });
+      }
+    }
+    await batch.commit();
+  } catch (err) {
+    logger.error("discordLogin: avatar refresh failed", { uid: profile.id, err });
+  }
+}
 
 export const discordLogin = onCall(
   { secrets: [discordClientSecret], cors: true },
@@ -41,6 +132,17 @@ export const discordLogin = onCall(
     const avatarUrl = discordUser.avatar
       ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=256`
       : "";
+    // The picture to hand out for a given account: our Storage copy of it,
+    // or the Discord link itself if copying fails (better than nothing).
+    const avatarFor = async (uid: string): Promise<string> => {
+      if (!discordUser.avatar) return "";
+      try {
+        return await copyDiscordAvatar(uid, discordUser.id, discordUser.avatar);
+      } catch (err) {
+        logger.error("discordLogin: avatar copy failed", { uid, err });
+        return avatarUrl;
+      }
+    };
     const suggestedUsername = discordUser.global_name || discordUser.username;
     const email =
       discordUser.email && discordUser.verified ? discordUser.email : null;
@@ -79,12 +181,14 @@ export const discordLogin = onCall(
           .update({ discordLink: discordUser.username, discordId: discordUser.id })
           .catch(() => {});
       }
+      const avatar = await avatarFor(uid);
+      if (signupFinished) await refreshDiscordAvatar(profileSnap, avatar);
       return {
         token,
         isNewUser: !signupFinished,
         email: email ?? "",
         suggestedUsername,
-        avatarUrl,
+        avatarUrl: avatar,
       };
     }
 
@@ -105,13 +209,15 @@ export const discordLogin = onCall(
             .update({ discordLink: discordUser.username, discordId: discordUser.id })
             .catch(() => {});
         }
+        const avatar = await avatarFor(existing.uid);
+        await refreshDiscordAvatar(existingProfile, avatar);
         const token = await admin.auth().createCustomToken(existing.uid);
         return {
           token,
           isNewUser: false,
           email,
           suggestedUsername,
-          avatarUrl,
+          avatarUrl: avatar,
         };
       } catch (err) {
         const code = (err as { code?: string }).code;
@@ -121,12 +227,13 @@ export const discordLogin = onCall(
 
     // 3c. Brand-new user.
     const uid = `discord:${discordUser.id}`;
+    const avatar = await avatarFor(uid);
     try {
       await admin.auth().createUser({
         uid,
         ...(email ? { email, emailVerified: true } : {}),
         displayName: suggestedUsername,
-        ...(avatarUrl ? { photoURL: avatarUrl } : {}),
+        ...(avatar ? { photoURL: avatar } : {}),
       });
     } catch (err) {
       // uid already exists → fine (e.g. mapping doc write failed last time).
@@ -147,7 +254,7 @@ export const discordLogin = onCall(
       isNewUser: true,
       email: email ?? "",
       suggestedUsername,
-      avatarUrl,
+      avatarUrl: avatar,
     };
   }
 );

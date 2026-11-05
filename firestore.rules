@@ -142,6 +142,31 @@ service cloud.firestore {
                           || request.resource.data.fromUserId == request.auth.uid);
       }
 
+      // Profile views - one marker per viewer, per profile, per UTC day. The
+      // onProfileView function counts each new marker, so a viewer can only
+      // write their own, for today, on someone else's profile: anything looser
+      // would let them raise a view count at will.
+      match /profileViewers/{markerId} {
+        function isOwnMarkerForToday() {
+          let parts = markerId.split('_');
+          let day = parts[parts.size() - 1].split('-');
+          return markerId == request.auth.uid + '_' + parts[parts.size() - 1]
+                 && day.size() == 3
+                 && int(day[0]) == request.time.year()
+                 && int(day[1]) == request.time.month()
+                 && int(day[2]) == request.time.day();
+        }
+
+        allow read: if request.auth != null
+                    && markerId.matches(request.auth.uid + '_.*');
+        allow create: if request.auth != null
+                      && request.auth.uid != userId
+                      && isOwnMarkerForToday()
+                      && request.resource.data.keys().hasOnly(['viewerId', 'viewedAt'])
+                      && request.resource.data.viewerId == request.auth.uid
+                      && request.resource.data.viewedAt is timestamp;
+      }
+
       // Game stats subcollection - user's game statistics
       match /gameStats/{game} {
         // Allow anyone to read game stats (needed for leaderboards)
@@ -293,21 +318,29 @@ service cloud.firestore {
 
     // Parties collection - leaderboard parties
     match /parties/{partyId} {
-      // Any authenticated user can read parties (invites, leaderboards, join
-      // by code). Open lobbies are also readable signed-out so the home page
-      // can surface them to new visitors; list queries must filter on
-      // visibility == "public" to satisfy this.
-      allow read: if request.auth != null || resource.data.visibility == "public";
+      // Open lobbies are readable by anyone, signed-out included, so the home
+      // page can surface them to new visitors; list queries must filter on
+      // visibility == "public" to satisfy this. Any other lobby holds its invite
+      // code and member list, so only its members, its creator and the people
+      // invited to it can read it. Joining by code or link goes through the
+      // joinLobby function, which reads with admin access.
+      allow read: if resource.data.visibility == "public" ||
+                     (request.auth != null &&
+                      (request.auth.uid in resource.data.members ||
+                       request.auth.uid == resource.data.createdBy ||
+                       request.auth.uid in resource.data.get('pendingInviteIds', [])));
 
       // Allow creating if authenticated and user is the creator
       allow create: if request.auth != null &&
                        request.auth.uid == request.resource.data.createdBy &&
                        request.auth.uid in request.resource.data.members;
 
-      // Allow updating if user is already a member OR joining via invite
-      // (adding self to members).
+      // Only members can update a lobby. Nobody adds themselves: the code, link,
+      // invite, requirement and capacity checks live in the joinLobby function,
+      // and a rule allowing self-add would skip all of them. Handing a signed-out
+      // player's lobbies to their new account goes through claimAnonymousLobbies.
       //
-      // Lobby identity — name, icon, cover, visibility — is owner-only: the
+      // Lobby identity — name, icon, cover, visibility, listing — is owner-only: the
       // settings UI already hides those controls from non-owners, but without
       // this any member could rename a lobby or replace its icon straight
       // through the API. Every other field stays member-writable so joins,
@@ -325,12 +358,11 @@ service cloud.firestore {
       // over its limit must stay writable — otherwise leaving, kicking and
       // renaming would all fail and the lobby would be stuck for good.
       allow update: if request.auth != null &&
-                       (request.auth.uid in resource.data.members ||
-                        request.auth.uid in request.resource.data.members) &&
+                       request.auth.uid in resource.data.members &&
                        (
                          !request.resource.data.diff(resource.data)
                            .affectedKeys()
-                           .hasAny(['partyName', 'partyIcon', 'coverPhoto', 'visibility']) ||
+                           .hasAny(['partyName', 'partyIcon', 'coverPhoto', 'visibility', 'listed']) ||
                          request.auth.uid == resource.data.createdBy
                        ) &&
                        // Member count: capped by the lobby's own maxMembers,
@@ -356,6 +388,20 @@ service cloud.firestore {
                            request.resource.data.teams['2'].size() <= 5
                          )
                        );
+
+      // Someone invited can decline, removing themselves from the invites and
+      // touching nothing else: the ids must be the old ones minus theirs, and
+      // the invites can only lose entries, down to one for each id left.
+      allow update: if request.auth != null &&
+                       request.auth.uid in resource.data.get('pendingInviteIds', []) &&
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['pendingInvites', 'pendingInviteIds']) &&
+                       request.resource.data.pendingInviteIds.toSet() ==
+                         resource.data.pendingInviteIds.toSet().difference([request.auth.uid].toSet()) &&
+                       request.resource.data.pendingInvites.toSet()
+                         .difference(resource.data.pendingInvites.toSet()).size() == 0 &&
+                       request.resource.data.pendingInvites.size() ==
+                         request.resource.data.pendingInviteIds.size();
 
       // Allow deleting if user is the creator
       allow delete: if request.auth != null &&
@@ -596,6 +642,11 @@ service cloud.firestore {
     }
 
     match /matchHistoryAnonRate/{ip} {
+      allow read, write: if false;
+    }
+
+    // Wrong invite codes per user, for joinLobby. Server only.
+    match /lobbyJoinRate/{uid} {
       allow read, write: if false;
     }
 
