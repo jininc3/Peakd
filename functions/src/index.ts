@@ -56,6 +56,7 @@ export {joinLobbyFunction as joinLobby} from "./parties/joinLobby";
 export {claimAnonymousLobbiesFunction as claimAnonymousLobbies} from "./parties/claimAnonymousLobbies";
 export {onLobbyMembershipChange} from "./parties/onLobbyMembershipChange";
 export {onSeriesDecided} from "./parties/onSeriesDecided";
+export {onChallengeEndNow} from "./parties/finishChallenge";
 
 // Export User Management functions
 export {updateUsernameFunction as updateUsername} from "./users/updateUsername";
