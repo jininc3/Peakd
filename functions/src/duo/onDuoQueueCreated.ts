@@ -7,7 +7,7 @@
 import * as admin from "firebase-admin";
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import {logger} from "firebase-functions/v2";
-import {getRankDistance, getTierRange} from "../utils/rankMatcher";
+import {getRankDistance, withinDuoRange} from "../utils/rankMatcher";
 
 /** A full team in both games. KEEP IN SYNC with TEAM_SIZE in Peakd-web lib/lfgService.ts. */
 const TEAM_SIZE = 5;
@@ -56,7 +56,6 @@ export const onDuoQueueCreated = onDocumentCreated(
 
       // Filter out self, filter by rank proximity, sort by closest rank
       const currentRank = newEntry.currentRank || null;
-      const tierRange = getTierRange(game);
 
       const candidates = candidatesSnapshot.docs
         .filter((doc) => doc.data().userId !== newUserId)
@@ -68,10 +67,8 @@ export const onDuoQueueCreated = onDocumentCreated(
             return Math.max(partySize, other) === TEAM_SIZE - 1 &&
               partySize + other === TEAM_SIZE;
           }
-          // Duo mode: existing rank proximity filter
-          const candidateRank = doc.data().currentRank || null;
-          if (!currentRank || !candidateRank) return true;
-          return getRankDistance(game, currentRank, candidateRank) <= tierRange;
+          // Duo mode: within a tier either side (see getTierRange).
+          return withinDuoRange(game, currentRank, doc.data().currentRank || null);
         })
         .sort((a, b) => {
           // LFG: every candidate left completes the five equally; keep the
@@ -135,6 +132,10 @@ export const onDuoQueueCreated = onDocumentCreated(
             currentRank: newEntry.currentRank || null,
             mainRole: newEntry.mainRole || null,
             mainAgent: newEntry.mainAgent || null,
+            // Shown on the live queue's duo banner when the match is found.
+            lookingFor: newEntry.lookingFor || null,
+            peakRank: newEntry.peakRank || null,
+            region: newEntry.region || null,
             partySize,
           },
           user2Card: {
@@ -146,6 +147,10 @@ export const onDuoQueueCreated = onDocumentCreated(
             currentRank: candidateData.currentRank || null,
             mainRole: candidateData.mainRole || null,
             mainAgent: candidateData.mainAgent || null,
+            // Shown on the live queue's duo banner when the match is found.
+            lookingFor: candidateData.lookingFor || null,
+            peakRank: candidateData.peakRank || null,
+            region: candidateData.region || null,
             partySize: partySizeOf(candidateData, mode),
           },
           user1Accepted: false,

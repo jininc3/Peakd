@@ -100,6 +100,18 @@ service firebase.storage {
       allow delete: if request.auth != null;
     }
 
+    // 5v5 series result screenshots (Peakd-web lib/storageService.ts
+    // uploadSeriesScreenshot): written by the lobby's host only, read through
+    // their download URLs on the lobby page.
+    match /party-results/{partyId}/{fileName} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.auth.uid == firestore.get(/databases/(default)/documents/parties/$(partyId)).data.createdBy
+                    && request.resource.size < 10 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+      allow update, delete: if false;
+    }
+
     // Feedback screenshots: a player uploads to their own folder; the admin
     // panel opens them through their download URLs, so no one else needs read.
     match /feedback/{userId}/{fileName} {

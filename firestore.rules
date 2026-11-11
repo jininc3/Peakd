@@ -132,7 +132,7 @@ service cloud.firestore {
         // honour_prompt / honour_received are server-only (Admin SDK), so
         // they are deliberately absent from this list.
         allow create: if request.auth != null
-                      && request.resource.data.type in ['follow', 'like', 'comment', 'tag', 'party_invite', 'challenge_invite', 'party_complete', 'party_ranking_change', 'achievement', 'follow_request', 'duo_accepted']
+                      && request.resource.data.type in ['follow', 'like', 'comment', 'tag', 'party_invite', 'challenge_invite', 'challenge_joined', 'challenge_started', 'party_complete', 'party_ranking_change', 'achievement', 'follow_request', 'duo_accepted']
                       && request.resource.data.read is bool
                       && request.resource.data.createdAt is timestamp
                       // An accepted duo invite lets the pair honour each
@@ -362,7 +362,9 @@ service cloud.firestore {
                        (
                          !request.resource.data.diff(resource.data)
                            .affectedKeys()
-                           .hasAny(['partyName', 'partyIcon', 'coverPhoto', 'visibility', 'listed']) ||
+                           .hasAny(['partyName', 'partyIcon', 'coverPhoto', 'visibility', 'listed',
+                                    'lobbyMode', 'series', 'seriesHistory', 'roleSlots',
+                                    'invitePermission', 'allowedInviters']) ||
                          request.auth.uid == resource.data.createdBy
                        ) &&
                        // Member count: capped by the lobby's own maxMembers,
@@ -386,6 +388,46 @@ service cloud.firestore {
                          (
                            request.resource.data.teams['1'].size() <= 5 &&
                            request.resource.data.teams['2'].size() <= 5
+                         )
+                       ) &&
+                       // Sending invites (the list growing) is the host's, or
+                       // anyone's in the lobby when it's set to "anyone", or a
+                       // named inviter's. Peakd-web canInviteTo, KEEP IN SYNC.
+                       // Shrinking it (revoking, cancelling your own) is left
+                       // to any member, as joins and declines need.
+                       (
+                         request.resource.data.get('pendingInvites', []).size() <=
+                           resource.data.get('pendingInvites', []).size() ||
+                         request.auth.uid == resource.data.createdBy ||
+                         resource.data.get('invitePermission', 'leader_only') == 'anyone' ||
+                         request.auth.uid in resource.data.get('allowedInviters', [])
+                       ) &&
+                       // A 5v5 series (Peakd-web lib/lobbyService.ts, KEEP IN
+                       // SYNC) is accounts only: no guests while in that mode.
+                       (
+                         request.resource.data.get('lobbyMode', 'casual') != 'series' ||
+                         request.resource.data.get('guests', []).size() == 0
+                       ) &&
+                       // Once a series game starts the sides are fixed:
+                       // seats can empty and open seats can fill, but nobody
+                       // moves from one side to the other (which also rules
+                       // out re-balancing). The host may still rearrange, to
+                       // sub a player in. Starting a new series clears the
+                       // games and lifts this.
+                       (
+                         resource.data.get('lobbyMode', 'casual') != 'series' ||
+                         (
+                           resource.data.get('series', {}).get('games', []).size() == 0 &&
+                           resource.data.get('series', {}).get('liveAt', null) == null
+                         ) ||
+                         !('teams' in resource.data) ||
+                         !('teams' in request.resource.data) ||
+                         request.auth.uid == resource.data.createdBy ||
+                         (
+                           request.resource.data.teams['1'].toSet()
+                             .intersection(resource.data.teams['2'].toSet()).size() == 0 &&
+                           request.resource.data.teams['2'].toSet()
+                             .intersection(resource.data.teams['1'].toSet()).size() == 0
                          )
                        );
 

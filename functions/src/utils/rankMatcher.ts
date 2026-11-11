@@ -29,9 +29,34 @@ const LEAGUE_RANKS: string[] = [
   "Challenger",
 ];
 
+/** Tiers with no divisions: Riot writes Master+ as "MASTER I", Valorant's top as "Radiant". */
+const APEX = new Set(["MASTER", "GRANDMASTER", "CHALLENGER", "RADIANT"]);
+
 /**
- * Get the tier range (divisions per tier) for a game.
- * Valorant has 3 divisions per tier, League has 4.
+ * A rank's position in its game's ladder, or null when it can't be placed
+ * (missing, unranked, or unrecognised).
+ *
+ * Ranks reach the queue in whatever case their source writes them: League's
+ * come straight from Riot in capitals ("EMERALD IV"), Valorant's in title case
+ * ("Gold 3"). Compare them case-blind, so neither ever misses the table.
+ */
+export function rankIndex(game: string, rank: string | null | undefined): number | null {
+  if (!rank) return null;
+  const words = rank.trim().toUpperCase().split(/\s+/);
+  let tier = words[0];
+  if (!tier || tier === "UNRANKED" || tier === "UNRATED") return null;
+  if (tier === "PLAT") tier = "PLATINUM";
+  const division = words[1];
+  const key = APEX.has(tier) || !division ? tier : `${tier} ${division}`;
+  const ranks = game === "valorant" ? VALORANT_RANKS : LEAGUE_RANKS;
+  const i = ranks.findIndex((r) => r.toUpperCase() === key);
+  return i === -1 ? null : i;
+}
+
+/**
+ * Get the tier range: one whole tier either side, counted in divisions, so
+ * Emerald IV reaches from Platinum IV to Diamond IV. Valorant has 3
+ * divisions per tier, League has 4.
  */
 export function getTierRange(game: string): number {
   return game === "valorant" ? 3 : 4;
@@ -39,24 +64,29 @@ export function getTierRange(game: string): number {
 
 /**
  * Get the absolute rank distance between two ranks.
- * Returns Infinity if either rank is null, undefined, 'Unranked', or not found.
+ * Returns Infinity if either rank can't be placed.
  */
 export function getRankDistance(
   game: string,
   rankA: string | null | undefined,
   rankB: string | null | undefined
 ): number {
-  if (!rankA || !rankB || rankA === "Unranked" || rankB === "Unranked") {
-    return Infinity;
-  }
+  const a = rankIndex(game, rankA);
+  const b = rankIndex(game, rankB);
+  if (a === null || b === null) return Infinity;
+  return Math.abs(a - b);
+}
 
-  const ranks = game === "valorant" ? VALORANT_RANKS : LEAGUE_RANKS;
-  const indexA = ranks.indexOf(rankA);
-  const indexB = ranks.indexOf(rankB);
-
-  if (indexA === -1 || indexB === -1) {
-    return Infinity;
-  }
-
-  return Math.abs(indexA - indexB);
+/**
+ * Whether two players are close enough in rank to duo. A player with no
+ * rank to place (unranked, or one we can't read) can pair with anyone,
+ * rather than with no one.
+ */
+export function withinDuoRange(
+  game: string,
+  rankA: string | null | undefined,
+  rankB: string | null | undefined
+): boolean {
+  if (rankIndex(game, rankA) === null || rankIndex(game, rankB) === null) return true;
+  return getRankDistance(game, rankA, rankB) <= getTierRange(game);
 }

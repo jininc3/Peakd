@@ -28,11 +28,19 @@ interface JoinRequest {
   token?: string;
   /** The name a signed-out player joins under. */
   guestName?: string;
+  /**
+   * A 5v5 seat they picked: this side, and in a League lobby by role this
+   * lane. Joined and seated in the one write, or refused if it has gone.
+   */
+  side?: 1 | 2;
+  lane?: string;
 }
 
 export interface JoinResult {
   partyId: string;
   status: "joined" | "already";
+  /** Seated where they asked (data.side). Lets the web tell this version apart. */
+  seated?: boolean;
 }
 
 interface Caller {
@@ -59,6 +67,76 @@ const CODE_PATTERN = /^[A-Z0-9]{5}$/;
 function gameOf(party: FirebaseFirestore.DocumentData): Game {
   if (party.gameId === "valorant" || party.gameId === "league") return party.gameId;
   return String(party.game ?? "").toLowerCase().includes("league") ? "league" : "valorant";
+}
+
+const TEAM_SIZE = 5;
+
+/**
+ * Where a newcomer to a 5v5 sits: the side they asked for if it has room;
+ * otherwise, in a lobby without lanes, the first side with an empty seat
+ * (Team 1, then Team 2), so a lobby fills from the top. A League lobby laid
+ * out by lane leaves them spectating until they pick a lane. Null for a
+ * spectator. Matches usesLanes and resolveTeams in Peakd-web lib/lobbyService.ts.
+ */
+/** A side's players who are still in the lobby, members or guests. */
+function liveTeam(party: FirebaseFirestore.DocumentData, members: string[], side: "1" | "2"): string[] {
+  const live = new Set([...members, ...((party.guests ?? []) as {id?: string}[]).map((g) => g.id)]);
+  return ((party.teams?.[side] ?? []) as string[]).filter((id) => live.has(id));
+}
+
+const LANES = ["Top", "Jungle", "Mid", "Bottom", "Support"];
+
+/**
+ * An invite to a particular lane (League, by role): that lane on that side,
+ * if it's still free when they accept; null to spectate if it's been taken
+ * or the side has filled. Undefined when the invite named no lane.
+ */
+function laneSeatFor(
+  party: FirebaseFirestore.DocumentData,
+  members: string[],
+  invite: {side?: unknown; lane?: unknown} | undefined,
+): {side: "1" | "2"; lane: string} | null | undefined {
+  if (!invite || (invite.side !== 1 && invite.side !== 2) || !LANES.includes(String(invite.lane))) return undefined;
+  if (party.lobbyKind !== "fiveVFive" || gameOf(party) !== "league" || party.roleSlots === false) return undefined;
+  const side = String(invite.side) as "1" | "2";
+  const team = liveTeam(party, members, side);
+  const taken = team.length >= TEAM_SIZE || team.some((id) => party.roles?.[id] === invite.lane);
+  return taken ? null : {side, lane: String(invite.lane)};
+}
+
+/**
+ * The seat they chose before joining (Join on a team, or on a lane), checked
+ * against the lobby as it is now. Throws if it has been taken since, so the
+ * join fails cleanly rather than seating them elsewhere. Undefined when they
+ * didn't pick one.
+ */
+function pickedSeat(
+  party: FirebaseFirestore.DocumentData,
+  members: string[],
+  data: JoinRequest,
+): {side: "1" | "2"; lane?: string} | undefined {
+  if (party.lobbyKind !== "fiveVFive" || (data.side !== 1 && data.side !== 2)) return undefined;
+  const side = String(data.side) as "1" | "2";
+  const team = liveTeam(party, members, side);
+  if (team.length >= TEAM_SIZE) throw new HttpsError("failed-precondition", `Team ${side} just filled up.`);
+  const lanes = gameOf(party) === "league" && party.roleSlots !== false;
+  if (!lanes || !LANES.includes(String(data.lane))) return {side};
+  const lane = String(data.lane);
+  if (team.some((id) => party.roles?.[id] === lane)) {
+    throw new HttpsError("failed-precondition", `Someone just took ${lane === "Bottom" ? "bot" : lane.toLowerCase()} on Team ${side}.`);
+  }
+  return {side, lane};
+}
+
+function seatFor(party: FirebaseFirestore.DocumentData, members: string[], asked: unknown): "1" | "2" | null {
+  if (party.lobbyKind !== "fiveVFive") return null;
+  const size = (side: "1" | "2") => liveTeam(party, members, side).length;
+  if ((asked === 1 || asked === 2) && size(String(asked) as "1" | "2") < TEAM_SIZE) return String(asked) as "1" | "2";
+  const lanes = gameOf(party) === "league" && party.roleSlots !== false;
+  if (lanes) return null;
+  if (size("1") < TEAM_SIZE) return "1";
+  if (size("2") < TEAM_SIZE) return "2";
+  return null;
 }
 
 function capacityOf(party: FirebaseFirestore.DocumentData): number {
@@ -211,6 +289,7 @@ export async function joinLobby(
 
   // In a transaction because capacity is a hard cap: two people taking the last
   // place at once must not both succeed.
+  let seated = false;
   const status = await db.runTransaction(async (tx): Promise<JoinResult["status"]> => {
     const snap = await tx.get(ref);
     const party = snap.data();
@@ -222,17 +301,41 @@ export async function joinLobby(
     if (members.length >= capacityOf(party)) throw new HttpsError("failed-precondition", "This lobby is full.");
 
     const memberDetails = (party.memberDetails ?? []).filter((m: {userId?: string}) => m.userId !== caller.uid);
-    memberDetails.push({userId: caller.uid, username, avatar, joinedAt: new Date(now).toISOString()});
+    // Someone who was invited, however they came in (the invite, the code or
+    // the link), is marked so the lobby's Invites tab can show their invite as
+    // accepted rather than have it vanish. Peakd-web PartyMemberDetail.
+    const invite = (party.pendingInvites ?? []).find((p: {userId?: string}) => p.userId === caller.uid) as
+      {invitedAt?: string} | undefined;
+    memberDetails.push({
+      userId: caller.uid,
+      username,
+      avatar,
+      joinedAt: new Date(now).toISOString(),
+      ...(invite ? {invited: true, ...(invite.invitedAt ? {invitedAt: invite.invitedAt} : {})} : {}),
+    });
+    // Invited to a lane: that lane if it's free, else spectate. Otherwise
+    // the side they asked for, or the first empty seat (seatFor).
+    // A seat they picked on the page: that one or nothing, so they never
+    // land somewhere they didn't choose. Then an invite to a lane: that lane
+    // if it's free, else spectate. Otherwise the first empty seat (seatFor).
+    const picked = pickedSeat(party, members, data);
+    const laneSeat = picked ?? laneSeatFor(party, members, invite as {side?: unknown; lane?: unknown} | undefined);
+    const seat = laneSeat === undefined ? seatFor(party, members, undefined) : laneSeat?.side ?? null;
+    seated = !!picked;
     tx.update(ref, {
       members: [...members, caller.uid],
       memberDetails,
+      // The side's live players plus them: rewritten rather than appended, so
+      // ids left behind by deleted accounts can't take it past five.
+      ...(seat ? {[`teams.${seat}`]: [...liveTeam(party, members, seat), caller.uid]} : {}),
+      ...(laneSeat?.lane ? {[`roles.${caller.uid}`]: laneSeat.lane} : {}),
       pendingInvites: (party.pendingInvites ?? []).filter((p: {userId?: string}) => p.userId !== caller.uid),
       pendingInviteIds: (party.pendingInviteIds ?? []).filter((id: string) => id !== caller.uid),
     });
     return "joined";
   });
 
-  return {partyId: ref.id, status};
+  return {partyId: ref.id, status, ...(seated ? {seated} : {})};
 }
 
 export const joinLobbyFunction = onCall(

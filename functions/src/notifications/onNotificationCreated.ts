@@ -68,6 +68,8 @@ export const onNotificationCreated = onDocumentCreated(
         if (
           (notification.type === 'party_invite' ||
             notification.type === 'challenge_invite' ||
+            notification.type === 'challenge_joined' ||
+            notification.type === 'challenge_started' ||
             notification.type === 'party_complete') &&
           preferences.challenges === false
         ) {
@@ -105,6 +107,14 @@ export const onNotificationCreated = onDocumentCreated(
 
         case 'challenge_invite':
           body = `${notification.fromUsername} challenged you in "${notification.partyName}"! Accept to compete.`;
+          break;
+
+        case 'challenge_joined':
+          body = `${notification.fromUsername} joined your challenge in "${notification.partyName}".`;
+          break;
+
+        case 'challenge_started':
+          body = `The challenge in "${notification.partyName}" has started. Good luck!`;
           break;
 
         case 'follow_request':

@@ -85,6 +85,10 @@ async function requeueUser(
     currentRank: cardData.currentRank || null,
     mainRole: cardData.mainRole || null,
     mainAgent: cardData.mainAgent || null,
+    lookingFor: cardData.lookingFor || null,
+    peakRank: cardData.peakRank || null,
+    region: cardData.region || null,
+    partySize: cardData.partySize || 1,
   });
   console.log(`Re-queued user ${userId} for ${game}`);
 }
