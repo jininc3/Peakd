@@ -357,14 +357,19 @@ service cloud.firestore {
       // `maxMembers` have no cap recorded, and any lobby that is already at or
       // over its limit must stay writable — otherwise leaving, kicking and
       // renaming would all fail and the lobby would be stuck for good.
+      //
+      // Closing (closedAt, closedBy) is the leader's too, and a closed lobby
+      // is out of this rule altogether: see the closed-lobby rule below.
       allow update: if request.auth != null &&
                        request.auth.uid in resource.data.members &&
+                       !('closedAt' in resource.data) &&
                        (
                          !request.resource.data.diff(resource.data)
                            .affectedKeys()
                            .hasAny(['partyName', 'partyIcon', 'coverPhoto', 'visibility', 'listed',
                                     'lobbyMode', 'series', 'seriesHistory', 'roleSlots',
-                                    'invitePermission', 'allowedInviters']) ||
+                                    'invitePermission', 'allowedInviters',
+                                    'closedAt', 'closedBy']) ||
                          request.auth.uid == resource.data.createdBy
                        ) &&
                        // Member count: capped by the lobby's own maxMembers,
@@ -431,6 +436,32 @@ service cloud.firestore {
                          )
                        );
 
+      // A closed lobby (Peakd-web closeParty, KEEP IN SYNC) is read-only. Two
+      // writes are left: its leader reopening it, which only removes the
+      // close, and a member taking it off (or back onto) their own lists,
+      // which only adds or removes their own id in hiddenBy.
+      allow update: if request.auth != null &&
+                       'closedAt' in resource.data &&
+                       request.auth.uid in resource.data.members &&
+                       (
+                         (
+                           request.auth.uid == resource.data.createdBy &&
+                           request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['closedAt', 'closedBy']) &&
+                           !('closedAt' in request.resource.data)
+                         ) ||
+                         (
+                           request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['hiddenBy']) &&
+                           request.resource.data.hiddenBy is list &&
+                           request.resource.data.hiddenBy.toSet()
+                             .difference(resource.data.get('hiddenBy', []).toSet())
+                             .union(resource.data.get('hiddenBy', []).toSet()
+                               .difference(request.resource.data.hiddenBy.toSet()))
+                             .hasOnly([request.auth.uid])
+                         )
+                       );
+
       // Someone invited can decline, removing themselves from the invites and
       // touching nothing else: the ids must be the old ones minus theirs, and
       // the invites can only lose entries, down to one for each id left.
@@ -462,8 +493,10 @@ service cloud.firestore {
         allow read: if isLobbyMember();
 
         // Posted as yourself, stamped by the server, text of 1–500 chars and
-        // nothing else on the doc.
+        // nothing else on the doc. Not in a closed lobby: its chat is
+        // read-only.
         allow create: if isLobbyMember() &&
+                         !('closedAt' in get(/databases/$(database)/documents/parties/$(partyId)).data) &&
                          request.resource.data.keys().hasOnly(['senderId', 'username', 'avatar', 'text', 'timestamp']) &&
                          request.resource.data.senderId == request.auth.uid &&
                          request.resource.data.username is string &&
@@ -474,7 +507,11 @@ service cloud.firestore {
                          request.resource.data.timestamp == request.time;
 
         // Your own messages, or anything as the lobby's creator (moderation).
+        // Never the join/leave lines (senderId "system", written by the
+        // onLobbyMembershipChange function): the record of who came and went
+        // stays.
         allow delete: if request.auth != null &&
+                         resource.data.senderId != 'system' &&
                          (resource.data.senderId == request.auth.uid ||
                           request.auth.uid == get(/databases/$(database)/documents/parties/$(partyId)).data.createdBy);
 
@@ -483,6 +520,7 @@ service cloud.firestore {
         // delete, and the only change allowed is that marker — deleted set,
         // text cleared, nothing else touched.
         allow update: if request.auth != null &&
+                         resource.data.senderId != 'system' &&
                          (resource.data.senderId == request.auth.uid ||
                           request.auth.uid == get(/databases/$(database)/documents/parties/$(partyId)).data.createdBy) &&
                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text']) &&

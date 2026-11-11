@@ -134,9 +134,10 @@ function seatFor(party: FirebaseFirestore.DocumentData, members: string[], asked
   if ((asked === 1 || asked === 2) && size(String(asked) as "1" | "2") < TEAM_SIZE) return String(asked) as "1" | "2";
   const lanes = gameOf(party) === "league" && party.roleSlots !== false;
   if (lanes) return null;
-  if (size("1") < TEAM_SIZE) return "1";
-  if (size("2") < TEAM_SIZE) return "2";
-  return null;
+  // The emptier team first, so a new player evens the sides rather than
+  // stacking the host's; Team 1 when they're level.
+  const order: ("1" | "2")[] = size("2") < size("1") ? ["2", "1"] : ["1", "2"];
+  return order.find((side) => size(side) < TEAM_SIZE) ?? null;
 }
 
 function capacityOf(party: FirebaseFirestore.DocumentData): number {
@@ -297,6 +298,8 @@ export async function joinLobby(
 
     const members: string[] = party.members ?? [];
     if (members.includes(caller.uid)) return "already";
+    // Closed by its leader (Peakd-web closeParty): read-only, nobody new.
+    if (party.closedAt) throw new HttpsError("failed-precondition", "This lobby has been closed.");
     assertMeetsRequirement(party, user);
     if (members.length >= capacityOf(party)) throw new HttpsError("failed-precondition", "This lobby is full.");
 
@@ -313,11 +316,9 @@ export async function joinLobby(
       joinedAt: new Date(now).toISOString(),
       ...(invite ? {invited: true, ...(invite.invitedAt ? {invitedAt: invite.invitedAt} : {})} : {}),
     });
-    // Invited to a lane: that lane if it's free, else spectate. Otherwise
-    // the side they asked for, or the first empty seat (seatFor).
     // A seat they picked on the page: that one or nothing, so they never
     // land somewhere they didn't choose. Then an invite to a lane: that lane
-    // if it's free, else spectate. Otherwise the first empty seat (seatFor).
+    // if it's free, else spectate. Otherwise a seat on the emptier team (seatFor).
     const picked = pickedSeat(party, members, data);
     const laneSeat = picked ?? laneSeatFor(party, members, invite as {side?: unknown; lane?: unknown} | undefined);
     const seat = laneSeat === undefined ? seatFor(party, members, undefined) : laneSeat?.side ?? null;

@@ -70,7 +70,9 @@ export const onNotificationCreated = onDocumentCreated(
             notification.type === 'challenge_invite' ||
             notification.type === 'challenge_joined' ||
             notification.type === 'challenge_started' ||
-            notification.type === 'party_complete') &&
+            notification.type === 'party_complete' ||
+            notification.type === 'lobby_closed' ||
+            notification.type === 'series_won') &&
           preferences.challenges === false
         ) {
           console.log('User disabled party invite notifications');
@@ -127,6 +129,16 @@ export const onNotificationCreated = onDocumentCreated(
           } else {
             body = `"${notification.partyName}" has ended. You ranked #${notification.finalRank}. Winner: ${notification.winnerUsername}`;
           }
+          break;
+
+        case 'series_won': {
+          const [won, lost] = Array.isArray(notification.score) ? notification.score : [0, 0];
+          body = `🏆 Your team won the Bo${notification.format ?? 3} in "${notification.partyName}", ${won}-${lost}. Added to Trophies on your profile.`;
+          break;
+        }
+
+        case 'lobby_closed':
+          body = `${notification.fromUsername} closed "${notification.partyName}". It's kept in your past lobbies.`;
           break;
 
         case 'honour_prompt':
