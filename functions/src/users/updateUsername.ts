@@ -12,14 +12,15 @@
  * - chats (participantDetails)
  * - users/{anyUser}/notifications (fromUserId matches)
  * - duoPosts (where userId matches)
- * - parties (memberDetails where userId matches)
+ * - parties (memberDetails and challengeInvites where userId matches)
  */
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {logger} from "firebase-functions/v2";
 
-const COOLDOWN_DAYS = 30;
+/** Matches the website's (Peakd-web settings/account/username), KEEP IN SYNC. */
+const COOLDOWN_DAYS = 15;
 
 export const updateUsernameFunction = onCall(
   {invoker: "public"},
@@ -38,12 +39,13 @@ export const updateUsernameFunction = onCall(
       throw new HttpsError("invalid-argument", "New username is required.");
     }
 
-    // Validate username format
-    const usernameRegex = /^[a-zA-Z0-9_]{6,20}$/;
+    // Validate username format: the website's sign-up and rename rule
+    // (Peakd-web USERNAME_RE), KEEP IN SYNC.
+    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
     if (!usernameRegex.test(newUsername)) {
       throw new HttpsError(
         "invalid-argument",
-        "Username must be 6-20 characters, alphanumeric and underscores only."
+        "Username must be 3-20 characters: letters, numbers and underscores."
       );
     }
 
@@ -58,9 +60,15 @@ export const updateUsernameFunction = onCall(
     const userData = userDoc.data()!;
     const oldUsername = userData.username;
 
-    // Check 30-day cooldown
-    if (userData.lastUsernameChange) {
-      const lastChange = userData.lastUsernameChange.toDate();
+    // Cooldown since the last change. The website records it as
+    // usernameChangedAt and this function as lastUsernameChange; whichever
+    // is later counts, and both are written below.
+    const changedAt = [userData.lastUsernameChange, userData.usernameChangedAt]
+      .map((t) => (t && typeof t.toDate === "function" ? t.toDate() as Date : null))
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+    if (changedAt) {
+      const lastChange = changedAt;
       const now = new Date();
       const daysSince = Math.floor(
         (now.getTime() - lastChange.getTime()) / (1000 * 60 * 60 * 24)
@@ -70,8 +78,8 @@ export const updateUsernameFunction = onCall(
         const daysRemaining = COOLDOWN_DAYS - daysSince;
         throw new HttpsError(
           "failed-precondition",
-          `You can only change your username once every 30 days. ` +
-          `Please wait ${daysRemaining} more day${daysRemaining === 1 ? "" : "s"}.`
+          `You can change your username again in ${daysRemaining} ` +
+          `day${daysRemaining === 1 ? "" : "s"}.`
         );
       }
     }
@@ -106,6 +114,7 @@ export const updateUsernameFunction = onCall(
       username: newUsername,
       usernameLower: newUsername.toLowerCase(),
       lastUsernameChange: admin.firestore.FieldValue.serverTimestamp(),
+      usernameChangedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     // 2. Update posts where userId matches
@@ -239,19 +248,20 @@ export const updateUsernameFunction = onCall(
       let hasUpdates = false;
       for (const partyDoc of chunk) {
         const partyData = partyDoc.data();
-        if (partyData.memberDetails && Array.isArray(partyData.memberDetails)) {
-          const memberIndex = partyData.memberDetails.findIndex(
-            (m: {userId: string}) => m.userId === uid
+        // The name is copied into memberDetails and into any challenge's
+        // invites; both are rewritten in the one update.
+        const update: Record<string, unknown> = {};
+        for (const field of ["memberDetails", "challengeInvites"]) {
+          const list = partyData[field];
+          if (!Array.isArray(list)) continue;
+          if (!list.some((m: {userId?: string}) => m?.userId === uid)) continue;
+          update[field] = list.map((m: {userId?: string}) =>
+            m?.userId === uid ? {...m, username: newUsername} : m
           );
-          if (memberIndex !== -1) {
-            const updatedMembers = [...partyData.memberDetails];
-            updatedMembers[memberIndex] = {
-              ...updatedMembers[memberIndex],
-              username: newUsername,
-            };
-            batch.update(partyDoc.ref, {memberDetails: updatedMembers});
-            hasUpdates = true;
-          }
+        }
+        if (Object.keys(update).length > 0) {
+          batch.update(partyDoc.ref, update);
+          hasUpdates = true;
         }
       }
       if (hasUpdates) {

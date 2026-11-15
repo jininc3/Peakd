@@ -112,3 +112,6 @@ export {onProfileView} from "./badges/onProfileView";
 export {discordLogin} from "./discord/discordLogin";
 // Connect Discord to an existing account (web profile's Connected section).
 export {linkDiscord} from "./discord/linkDiscord";
+
+// Leaderboard snapshot (website boards read one document instead of every user)
+export {buildLeaderboardSnapshot} from "./users/leaderboardSnapshot";

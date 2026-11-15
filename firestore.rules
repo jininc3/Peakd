@@ -373,14 +373,19 @@ service cloud.firestore {
                          request.auth.uid == resource.data.createdBy
                        ) &&
                        // Member count: capped by the lobby's own maxMembers,
-                       // which the client writes at creation (10 for 5v5, 20
-                       // otherwise). Absent on lobbies made before it was
-                       // written, so those fall back to 20 as the code does.
+                       // which the client writes at creation. Absent on lobbies
+                       // made before it was written, so those fall back to 20
+                       // as the code does. A 5v5 lobby never passes 15, even
+                       // one created when the cap was 30 and still recording it.
                        (
                          request.resource.data.members.size() <=
                            resource.data.members.size() ||
-                         request.resource.data.members.size() <=
-                           ('maxMembers' in resource.data ? resource.data.maxMembers : 20)
+                         (
+                           request.resource.data.members.size() <=
+                             ('maxMembers' in resource.data ? resource.data.maxMembers : 20) &&
+                           (resource.data.get('lobbyKind', '') != 'fiveVFive' ||
+                            request.resource.data.members.size() <= 15)
+                         )
                        ) &&
                        // Team sizes: five a side. Only 5v5 lobbies carry a
                        // `teams` map, so a write without one is unaffected —
@@ -728,6 +733,13 @@ service cloud.firestore {
     // Wrong invite codes per user, for joinLobby. Server only.
     match /lobbyJoinRate/{uid} {
       allow read, write: if false;
+    }
+
+    // The boards' copy of public users' rank fields, written every 10 minutes
+    // by buildLeaderboardSnapshot. Readable by anyone, as users docs are.
+    match /leaderboardSnapshots/{id} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // Default: deny all other access

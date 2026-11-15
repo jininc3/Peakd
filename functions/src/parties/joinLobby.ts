@@ -53,7 +53,7 @@ const LEAGUE_TIERS = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD",
 const VALORANT_TIERS = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND", "ASCENDANT", "IMMORTAL", "RADIANT"];
 
 /** A lobby without a recorded cap: 10 + spectators for a 5v5, else 20. Matches capacityOf. */
-const FIVE_V_FIVE_MAX_MEMBERS = 30;
+const FIVE_V_FIVE_MAX_MEMBERS = 15;
 const DEFAULT_MAX_MEMBERS = 20;
 
 /** Wrong codes or tokens allowed per user in a window, before they're told to wait. */
@@ -141,8 +141,13 @@ function seatFor(party: FirebaseFirestore.DocumentData, members: string[], asked
 }
 
 function capacityOf(party: FirebaseFirestore.DocumentData): number {
+  // A 5v5 lobby never holds more than FIVE_V_FIVE_MAX_MEMBERS, even one
+  // created when the cap was higher and still recording it.
+  if (party.lobbyKind === "fiveVFive") {
+    return Math.min(typeof party.maxMembers === "number" ? party.maxMembers : FIVE_V_FIVE_MAX_MEMBERS, FIVE_V_FIVE_MAX_MEMBERS);
+  }
   if (typeof party.maxMembers === "number") return party.maxMembers;
-  return party.lobbyKind === "fiveVFive" ? FIVE_V_FIVE_MAX_MEMBERS : DEFAULT_MAX_MEMBERS;
+  return DEFAULT_MAX_MEMBERS;
 }
 
 function tierIndex(game: Game, rank: string | undefined): number {
